@@ -3,7 +3,7 @@ function [d1km d2km]=lldistkm(latlon1,latlon2)
 % Distance:
 % d1km: distance in km based on Haversine formula
 % (Haversine: http://en.wikipedia.org/wiki/Haversine_formula)
-% d2km: distance in km based on Pythagoras’ theorem
+% d2km: distance in km based on Pythagorasâ€™ theorem
 % (see: http://en.wikipedia.org/wiki/Pythagorean_theorem)
 % After:
 % http://www.movable-type.co.uk/scripts/latlong.html
