@@ -14,6 +14,10 @@ load('StudyAreaVariables.mat');
 load('UserC_Answers.mat');
 cd(fold_raw_lit);
 
+Fig = uifigure; % Remember to comment this line if is app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing');
+drawnow
+
 ShapeInfo_Lithology = shapeinfo(FileName_Lithology);
 [BoundingBoxX,BoundingBoxY] = projfwd(ShapeInfo_Lithology.CoordinateReferenceSystem,...
                     [MinExtremes(2) MaxExtremes(2)],[MinExtremes(1) MaxExtremes(1)]);
@@ -36,6 +40,10 @@ for i2 = 1:length(IndexLitho)
                                             [ReadShape_Lithology(IndexLitho{i2}).X],...
                                             [ReadShape_Lithology(IndexLitho{i2}).Y]);
     LithoPolygon(i2) = polyshape([LithoVertexLon',LithoVertexLat'],'Simplify',false);
+
+    ProgressBar.Value = i1/length(IndexLitho);
+    ProgressBar.Message = strcat("Polygon n. ", string(i1)," of ", string(Steps));
+    drawnow
 end
 
 % Find intersection among Litho polygon and the study area
@@ -48,6 +56,10 @@ LithoPolygonsStudyArea(EmptyLithoInStudyArea) = [];
 LithoAllUnique(EmptyLithoInStudyArea) = [];
 
 %% Plot to check the Litho in the Study Area
+ProgressBar.Indeterminate = true;
+ProgressBar.Message = strcat("Plotting for check");
+drawnow
+
 plot(LithoPolygonsStudyArea')
 title('Litho Polygon Check')
 xlim([MinExtremes(1), MaxExtremes(1)])
@@ -58,6 +70,9 @@ hold on
 plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1)
 
 %% Writing of an excel that User has to compile before Step2
+ProgressBar.Message = strcat("Excel Creation (User Control folder)");
+drawnow
+
 cd(fold_user)
 FileName_LithoAssociation = 'LuDSCAssociation.xlsx';
 if isfile(FileName_LithoAssociation)
@@ -75,6 +90,8 @@ writecell(col_header2,FileName_LithoAssociation,'Sheet','DSCParameters','Range',
 % Creatings string names of variables in a cell array to save at the end
 Variables = {'LithoPolygonsStudyArea','LithoAllUnique','FileName_LithoAssociation'};
 toc
+
+close(Fig) % ProgressBar instead of Fig if on the app version
 
 %% Saving of polygons included in the study area
 cd(fold_var)
