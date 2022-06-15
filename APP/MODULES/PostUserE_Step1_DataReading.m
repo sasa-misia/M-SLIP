@@ -15,6 +15,16 @@ AnswerRainfall={'AnswerRainfallRec','AnswerRainfallFor'};
 
 if AnswerRainfallRec==1
     cd(fold_raw_rain)
+
+    if isempty({dir('*.xlsx').name})
+        % Fig = uifigure; % Remember to comment this line if is app version
+        Answer = uiconfirm(Fig, strcat("No excel in ",fold_raw_rain), ...
+                           'No file in directory', 'Options','Search file');
+        % close(Fig) % Remember to comment this line if is app version
+        
+        copyindirectory('xlsx', fold_raw_rain, 'mode','multiple')
+    end
+
     Files={dir('*.xlsx').name};
     choice1=listdlg('PromptString',{'Choose a file:',''},'ListString',Files);
     FileName_Rainfall=string(Files(choice1)); 
