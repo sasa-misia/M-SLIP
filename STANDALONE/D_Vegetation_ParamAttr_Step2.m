@@ -66,7 +66,7 @@ SelectedVUByUserPolygons = VegPolygonsStudyArea(SelectedVeg);
 tic
 for i1 = 1:size(SelectedVUByUserPolygons,2)   
     VUPolygon = SelectedVUByUserPolygons(i1);
-    [pp, ee] = getnan2(VUPolygon.Vertices); % Conversion NaN-delimited polygon format to node-edge topological layout required by inpoly2
+    [pp, ee] = getnan2([VUPolygon.Vertices; nan, nan]); % Conversion NaN-delimited polygon format to node-edge topological layout required by inpoly2
     for i2 = 1:size(xLongAll, 2)        
         IndexGridPointInsideVegPolygon = find(inpoly([xLongAll{i2}(IndexDTMPointsInsideStudyArea{i2}), ...
                     yLatAll{i2}(IndexDTMPointsInsideStudyArea{i2})], pp, ee) == 1);
