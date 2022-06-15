@@ -65,7 +65,7 @@ SelectedLUByUserPolygons = LithoPolygonsStudyArea(SelectedSoil);
 tic
 for i1 = 1:size(SelectedLUByUserPolygons,2)   
     LUPolygon = SelectedLUByUserPolygons(i1);
-    [pp,ee] = getnan2(LUPolygon.Vertices); 
+    [pp,ee] = getnan2([LUPolygon.Vertices; nan, nan]);
     for i2 = 1:size(xLongAll,2)  
         IndexInsideLithoPolygon = find(inpoly([xLongAll{i2}(IndexDTMPointsInsideStudyArea{i2}),...
                     yLatAll{i2}(IndexDTMPointsInsideStudyArea{i2})],pp,ee)==1);
