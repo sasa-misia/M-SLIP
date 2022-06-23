@@ -14,6 +14,10 @@ load('StudyAreaVariables.mat');
 load('UserD_Answers.mat');
 cd(fold_raw_veg);
 
+Fig = uifigure; % Remember to comment this line if is app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing');
+drawnow
+
 ShapeInfo_Vegetation = shapeinfo(FileName_Vegetation);
 [BoundingBoxX, BoundingBoxY] = projfwd(ShapeInfo_Vegetation.CoordinateReferenceSystem, ...
                 [MinExtremes(2), MaxExtremes(2)], [MinExtremes(1), MaxExtremes(1)]);
@@ -36,7 +40,16 @@ for i2 = 1:length(IndexVeg)
                                           [ReadShape_Vegetation(IndexVeg{i2}).X], ...
                                           [ReadShape_Vegetation(IndexVeg{i2}).Y]);
     VegPolygon(i2) = polyshape([VegVertexLon', VegVertexLat'], 'Simplify',false);
+
+    Steps = length(IndexVeg);
+    ProgressBar.Value = i1/Steps;
+    ProgressBar.Message = strcat("Polygon n. ", string(i1)," of ", string(Steps));
+    drawnow
 end
+
+ProgressBar.Indeterminate = true;
+ProgressBar.Message = strcat("Intersection with Study Area");
+drawnow
 
 % Find intersection among Veg polygons and the study area
 VegPolygonsStudyArea = intersect(VegPolygon, StudyAreaPolygonClean); 
@@ -48,16 +61,22 @@ VegPolygonsStudyArea(EmptyVegInStudyArea) = [];
 VegetationAllUnique(EmptyVegInStudyArea) = [];
 
 %% Plot to check the Litho in the Study Area
+ProgressBar.Message = strcat("Plotting for check");
+drawnow
+
+f1 = figure(1);
 plot(VegPolygonsStudyArea)
 title('Vegetation Polygon Check')
-xlim([MinExtremes(1), MaxExtremes(1)])
-ylim([MinExtremes(2), MaxExtremes(2)])
-daspect([1 1 1])
 legend(VegetationAllUnique, 'Location','SouthEast', 'AutoUpdate','off')
 hold on
 plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1)
 
+fig_settings(fold0, 'AxisTick');
+
 %% Writing of an excel that User has to compile before Step2
+ProgressBar.Message = strcat("Excel Creation (User Control folder)");
+drawnow
+
 cd(fold_user)
 FileName_VegAssociation = 'VuDVCAssociation.xlsx';
 if isfile(FileName_VegAssociation)
@@ -75,6 +94,8 @@ writecell(ColHeader2, FileName_VegAssociation, 'Sheet','DVCParameters', 'Range',
 % Creatings string names of variables in a cell array to save at the end
 VariablesVeg = {'VegPolygonsStudyArea', 'VegetationAllUnique', 'FileName_VegAssociation'};
 toc
+
+close(Fig) % ProgressBar instead of Fig if on the app version
 
 %% Saving of polygons included in the study area
 cd(fold_var)
