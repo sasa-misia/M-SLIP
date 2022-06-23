@@ -76,6 +76,7 @@ for i1 = 1:ROCToPlot
                                              FactorSafety, ...
                                              'UniformOutput',false);
             ThresholdFS = [MinFS-0.1, MinFS, 0:0.1:2, 2.5:0.5:30, 35:5:70, MaxFS, MaxFS+0.1];
+            IndSignificantPoints = find(ismember(ThresholdFS, [1, 1.5, 2]));
             InstabilityThresholds = arrayfun(@(x) 1-(x-MinFS)/(MaxFS-MinFS), ThresholdFS);
 
         case "Machine Learning"
@@ -284,7 +285,7 @@ hleg1.ItemTokenSize = [10, 5];
 
 for i1 = 1:ROCToPlot
     if AnalysisType{i1} == "Slip"
-        for i2 = [13, 18, 23] % Remember to automize this process because if you change threshold you have to change it
+        for i2 = IndSignificantPoints
             if PlotChoice == 2
                 plot(TNR{i1}(i2), TPR{i1}(i2), 'Marker',MarkTypes(i1), ...
                      'MarkerEdgeColor', Colors(i1,:), 'MarkerFaceColor',Colors(i1,:))
