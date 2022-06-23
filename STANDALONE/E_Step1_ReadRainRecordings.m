@@ -29,9 +29,19 @@ AnswerRainfall = {'AnswerRainfallRec', 'AnswerRainfallFor'};
 if AnswerRainfallRec == 1
     %% Import rainfall data record and station
     cd(fold_raw_rain)
+
+    if isempty({dir('*.xlsx').name})
+        Fig = uifigure; % Remember to comment this line if is app version
+        Answer = uiconfirm(Fig, strcat("No excel in ",fold_raw_rain), ...
+                           'No file in directory', 'Options','Search file');
+        close(Fig) % Remember to comment this line if is app version
+        
+        copyindirectory('xlsx', fold_raw_rain, 'mode','multiple')
+    end
+
     Files = {dir('*.xlsx').name};
-    Choice = listdlg('PromptString',{'Choose a file:',''}, 'ListString',Files);
-    FileName_Rainfall = string(Files(Choice)); 
+    ChoiceRec = listdlg('PromptString',{'Choose a file:',''}, 'ListString',Files);
+    FileName_Rainfall = string(Files(ChoiceRec)); 
     NameFile = {'FileName_Rainfall'};
 
     Sheet_Sta = readcell(FileName_Rainfall, 'Sheet','Stations table');
@@ -45,23 +55,23 @@ if AnswerRainfallRec == 1
     CoordinatesRainGauges = [xLongSta, yLatSta];
     RainGauges = {Stations, CoordinatesRainGauges};
     
-    RainfallDates = unique([Sheet_Rain{cellfun(@isdatetime,Sheet_Rain)}]);
-    RainfallDates(1) = [];
+    RainfallDates = [Sheet_Rain{cellfun(@isdatetime,Sheet_Rain)}];
+    RainfallDates = unique(dateshift(RainfallDates,'start','hours','nearest')); % Minutes if analysis time range < 1 hour
+    RainfallDates(1) = []; % You only want end dates
     RainfallDates.Format = 'dd/MM/yyyy HH:mm'; % HH:mm:ss if analysis time range < 1 hour
-    RainfallDates = dateshift(RainfallDates,'start','hours','nearest'); % Minutes if analysis time range < 1 hour
     
     HeaderLine = find(cellfun(@isdatetime, Sheet_Rain), 1); % Automatically recognize excel file header line
     
     HoursNum = 0; 
-    for i = HeaderLine:length(Sheet_Rain)
-        if ~ismissing(Sheet_Rain{i,3}); HoursNum = HoursNum+1; else; break; end
+    for i1 = HeaderLine:length(Sheet_Rain)
+        if ~ismissing(Sheet_Rain{i1,3}); HoursNum = HoursNum+1; else; break; end
     end
     
     RainNumeric = [Sheet_Rain{cellfun(@isnumeric, Sheet_Rain)}]';
 
     GeneralRainData = zeros(HoursNum, StationsNumber);
-    for i = 1:StationsNumber
-        GeneralRainData(:,i) = RainNumeric((i-1)*(HoursNum)+1:(i-1)*(HoursNum)+(HoursNum));
+    for i1 = 1:StationsNumber
+        GeneralRainData(:,i1) = RainNumeric((i1-1)*(HoursNum)+1:(i1-1)*(HoursNum)+(HoursNum));
     end
     GeneralRainData(isnan(GeneralRainData)) = 0;
     GeneralRainData(GeneralRainData == -999) = 0;
@@ -107,7 +117,7 @@ if AnswerRainfallFor == 1
         GridForecastModel = {MeshLong, MeshLat};
     end
     VariablesRainfall = [VariablesRainfall, {'ForecastData', 'GridForecastModel'}];
-    NameFile = [NameFile, {'FileName_Forecast'}];
+    NameFile = [NameFile, {'FileNameForecast'}];
 end
 
 %% Analysis type
@@ -116,7 +126,7 @@ switch AnalysisCase
     case 'SLIP'
         %% SLIP process
         dTRecordings = RainfallDates(2)-RainfallDates(1);
-        AnalysisDateMaxRange = [min(RainfallDates)+days(30)+dTRecordings, max(RainfallDates)];
+        AnalysisDateMaxRange = [min(RainfallDates)+days(30), max(RainfallDates)];
         AnalysisDates = AnalysisDateMaxRange(1):dTRecordings:AnalysisDateMaxRange(2);
 
         if AnswerRainfallFor == 1
@@ -132,15 +142,15 @@ switch AnalysisCase
             if isempty(AnalysisDates); error('DT 1'); end
         end   
 
-        EventChoice = listdlg('PromptString',{'Select event(s) to analyse through SLIP:',''}, ...
+        ChoiceEvent = listdlg('PromptString',{'Select event(s) to analyse through SLIP:',''}, ...
                               'ListString',AnalysisDates);
-        AnalysisEvents = AnalysisDates(EventChoice);
+        AnalysisEvents = AnalysisDates(ChoiceEvent);
 
-        RainfallSetInterval = {AnalysisEvents(1)-days(30)-dTRecordings, AnalysisEvents(end)-dTRecordings}; % From 30 days before the first event to the hour before the last event
-        RainfallSetIndex = [find(abs(minutes(GeneralDatesStart-RainfallSetInterval{1})) <= 1), ...
-                            find(abs(minutes(GeneralDatesStart-RainfallSetInterval{2})) <= 1)];
+        RainfallSetInterval = {AnalysisEvents(1)-days(30)+dTRecordings, AnalysisEvents(end)}; % From 30 days before the first event to the hour before the last event
+        RainfallSetIndex = [find(abs(minutes(GeneralDatesEnd-RainfallSetInterval{1})) <= 1), ...
+                            find(abs(minutes(GeneralDatesEnd-RainfallSetInterval{2})) <= 1)];
 
-        StabilityEventsAnalysed = hours(AnalysisEvents(end)-AnalysisEvents(1))+1; % Number of stability analysis
+        StabilityEventsAnalysed = length(AnalysisEvents); % Number of stability analysis
         StabilityAnalysis = {StabilityEventsAnalysed, AnalysisEvents, RainfallSetIndex};
 
         if StatusPrevAnalysis == 1
@@ -152,7 +162,7 @@ switch AnalysisCase
         VariablesInterpolation = {'IndexInterpolation'};
         RainfallEvents = AnalysisEvents;
 
-        if AnswerRainfallFor == 1; ForecastChoice = AnalysisDates(EventChoice); end
+        if AnswerRainfallFor == 1; ForecastChoice = AnalysisDates(ChoiceEvent); end
         
         VariablesAnalysisSLIP = {'StabilityAnalysis', 'AnalysisDateMaxRange', 'StatusPrevAnalysis'};
         save('AnalysisInformation.mat', VariablesAnalysisSLIP{:});
@@ -163,15 +173,16 @@ switch AnalysisCase
             RainfallDates = unique(cat(1,ForecastData{:,2}));
         end
         
-        EventChoice = listdlg('PromptString',{'Select event(s):',''}, 'ListString',RainfallDates);
-        RainfallEvents = string(RainfallDates(EventChoice));
+        ChoiceEvent = listdlg('PromptString',{'Select event(s):',''}, 'ListString',RainfallDates);
+        RainfallEvents = string(RainfallDates(ChoiceEvent));
         RainfallEvents = datetime(RainfallEvents, 'Format','dd/MM/yyyy HH:mm');
-        drawnow;
+        drawnow
 
         if AnswerRainfallFor == 1
-            ForecastChoice = RainfallDates(EventChoice);
+            ForecastChoice = RainfallDates(ChoiceEvent);
         else
             GeneralDatesStart = datetime(GeneralDatesStart, 'Format','dd/MM/yyyy HH:mm:ss');
+            RainfallSetIndex = zeros(1, size(RainfallEvents,2));
             for i3 = 1:size(RainfallEvents,2)
                 RainfallSetIndex(i3) = find(abs(minutes(GeneralDatesStart-RainfallEvents(i3))) <= 1);
             end
@@ -197,13 +208,13 @@ if AnswerRainfallFor == 1
         end
         
         if size(ForecastChoice,1) == 1
-            choice3=listdlg('PromptString',{'Select forcasted hours:',''}, ...
-                            'ListString',string(PossibleHours));
-            SelectedHoursRun{1,1} = PossibleHours(choice3);
-            SelectedHoursRun{1,2} = RunNumber(choice3);
+            ChoiceForcst = listdlg('PromptString',{'Select forcasted hours:',''}, ...
+                                   'ListString',string(PossibleHours));
+            SelectedHoursRun{1,1} = PossibleHours(ChoiceForcst);
+            SelectedHoursRun{1,2} = RunNumber(ChoiceForcst);
         else
-            [SelectedHoursRun{i1,1}, posmin] = min(PossibleHours);
-            SelectedHoursRun{i1,2} = RunNumber(posmin);
+            [SelectedHoursRun{i1,1}, PosMin] = min(PossibleHours);
+            SelectedHoursRun{i1,2} = RunNumber(PosMin);
         end
 
     end    
