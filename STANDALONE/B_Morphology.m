@@ -41,8 +41,10 @@ for i1 = 1:length(NameFile1)
     end
 
     if isempty(R.ProjectedCRS) && i1 == 1
-        EPSG = str2double(inputdlg({'Set DTM EPSG (default value is for Sicily):'}, ...
-                                  '', 1, {'32633'}));
+        EPSG = str2double(inputdlg({["Set DTM EPSG"
+                                     "For Example:"
+                                     "Sicily -> 32633"
+                                     "Emilia Romagna -> 25832"]}, '', 1, {'32633'}));
         R.ProjectedCRS = projcrs(EPSG);
     elseif isempty(R.ProjectedCRS) && i1 > 1
         R.ProjectedCRS = projcrs(EPSG);
@@ -93,7 +95,7 @@ end
 
 IndexDTMPointsInsideStudyArea = cell(1, length(xLongAll));
 for i2 = 1:length(xLongAll)
-    [pp,ee] = getnan2(StudyAreaPolygonClean.Vertices);
+    [pp,ee] = getnan2([StudyAreaPolygonClean.Vertices; nan, nan]);
     IndexDTMPointsInsideStudyArea{i2} = find(inpoly([xLongAll{i2}(:), yLatAll{i2}(:)], pp, ee)==1);
 end
 
@@ -134,7 +136,7 @@ if OrthophotoAnswer
                                LimLatMap, LimLonMap, 'UniformOutput',false);
 
     Filename1 = 'fig1';
-    f1 = figure(1);
+    fig_ortho = figure(1);
     set(f1, ...
         'Color',[1 1 1], ...
         'PaperType','a4', ...
@@ -145,7 +147,7 @@ if OrthophotoAnswer
         'InvertHardcopy','off');
     set(gcf, 'Name',Filename1);
 
-    Axes1 = axes('Parent',f1); 
+    Axes1 = axes('Parent',fig_ortho); 
     hold(Axes1,'on');
 
     % cellfun(@(x,y) geoshow(x,y), ZOrtho, ROrtho);
@@ -182,30 +184,31 @@ if OrthophotoAnswer
 end
 
 %% Plot to check the Study Area
+fig_check = figure(2);
 for i3 = 1:length(xLongAll)
     fastscatter(xLongAll{i3}(IndexDTMPointsInsideStudyArea{i3}), ...
                 yLatAll{i3}(IndexDTMPointsInsideStudyArea{i3}), ...
                 ElevationAll{i3}(IndexDTMPointsInsideStudyArea{i3}))
     hold on
 end
+
 hold on
 plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1);
 hold on
 plot(StudyAreaPolygonClean, 'FaceColor','none', 'LineWidth',0.5);
 title('Study Area Polygon Check')
-xlim([MinExtremes(1), MaxExtremes(1)])
-ylim([MinExtremes(2), MaxExtremes(2)])
-daspect([1 1 1])
+
+fig_settings(fold0, 'AxisTick');
 
 %% Creation of empty parameter matrices
-SizeGridInCell = cellfun(@size, xLongAll, 'UniformOutput',false);
-CohesionAll = cellfun(@(x) ones(x).*999, SizeGridInCell, 'UniformOutput',false);
-PhiAll = cellfun(@(x) ones(x).*999, SizeGridInCell, 'UniformOutput',false);
-KtAll = cellfun(@(x) ones(x).*999, SizeGridInCell, 'UniformOutput',false);
-AAll = cellfun(@(x) ones(x).*999, SizeGridInCell, 'UniformOutput',false);
-nAll = cellfun(@(x) ones(x).*999, SizeGridInCell, 'UniformOutput',false);
-BetaStarAll = cellfun(@cosd, SlopeAll, 'UniformOutput',false); % If Vegetation is not associated, betastar will depends on slope
-RootCohesionAll = cellfun(@zeros, SizeGridInCell, 'UniformOutput',false); % If Vegetation is not associated, root cohesion will be zero
+SizeGridInCell =        cellfun(@size, xLongAll, 'UniformOutput',false);
+CohesionAll =           cellfun(@(x) ones(x).*999, SizeGridInCell, 'UniformOutput',false);
+PhiAll =                cellfun(@(x) ones(x).*999, SizeGridInCell, 'UniformOutput',false);
+KtAll =                 cellfun(@(x) ones(x).*999, SizeGridInCell, 'UniformOutput',false);
+AAll =                  cellfun(@(x) ones(x).*999, SizeGridInCell, 'UniformOutput',false);
+nAll =                  cellfun(@(x) ones(x).*999, SizeGridInCell, 'UniformOutput',false);
+BetaStarAll =           cellfun(@cosd, SlopeAll, 'UniformOutput',false); % If Vegetation is not associated, betastar will depends on slope
+RootCohesionAll =       cellfun(@zeros, SizeGridInCell, 'UniformOutput',false); % If Vegetation is not associated, root cohesion will be zero
 toc
 
 % Creatings string names of variables in cell arrays to save at the end
