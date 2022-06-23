@@ -15,8 +15,8 @@ load('LithoPolygonsStudyArea.mat');
 
 %% Excel reading and coefficient matrix writing
 cd(fold_user)
-Sheet_DSCPar = readcell(FileName_LithoAssociation,'Sheet','DSCParameters');
-Sheet_Ass = readcell(FileName_LithoAssociation,'Sheet','Association');
+Sheet_DSCPar = readcell(FileName_LithoAssociation, 'Sheet','DSCParameters');
+Sheet_Ass = readcell(FileName_LithoAssociation, 'Sheet','Association');
 
 LU2DSC = Sheet_Ass(2:size(Sheet_Ass,1),2);
 SelectedSoil = find(cellfun(@ismissing,LU2DSC)==0);
@@ -69,14 +69,19 @@ for i1 = 1:size(SelectedLUByUserPolygons,2)
     for i2 = 1:size(xLongAll,2)  
         IndexInsideLithoPolygon = find(inpoly([xLongAll{i2}(IndexDTMPointsInsideStudyArea{i2}),...
                     yLatAll{i2}(IndexDTMPointsInsideStudyArea{i2})],pp,ee)==1);
+
         CohesionAll{i2}(IndexDTMPointsInsideStudyArea{i2}(IndexInsideLithoPolygon)) = ...
                                             DSC_c(LU2DSC{SelectedSoil(i1),1});
+
         PhiAll{i2}(IndexDTMPointsInsideStudyArea{i2}(IndexInsideLithoPolygon)) = ...
                                             DSC_phi(LU2DSC{SelectedSoil(i1),1});
+
         KtAll{i2}(IndexDTMPointsInsideStudyArea{i2}(IndexInsideLithoPolygon)) = ...
                                             DSC_kt(LU2DSC{SelectedSoil(i1),1});
+
         AAll{i2}(IndexDTMPointsInsideStudyArea{i2}(IndexInsideLithoPolygon)) = ...
                                             DSC_A(LU2DSC{SelectedSoil(i1),1});
+
         nAll{i2}(IndexDTMPointsInsideStudyArea{i2}(IndexInsideLithoPolygon)) = ...
                                             DSC_n(LU2DSC{SelectedSoil(i1),1});
     end
@@ -92,8 +97,8 @@ DSCParameters = {DSC_n DSC_phi DSC_c DSC_A DSC_kt};
 VariablesLUPar = {'LU_DSCPlotColor','LUAbbr','DSCParameters','SelectedSoil','LU2DSC'};
 VariablesSoilPar = {'CohesionAll','PhiAll','KtAll','AAll','nAll'};
 
-%% Saving..
+%% Saving...
 cd(fold_var)
-save('LUDSCMapParameters.mat',VariablesLUPar{:})
-save('SoilParameters.mat',VariablesSoilPar{:})
+save('LUDSCMapParameters.mat', VariablesLUPar{:})
+save('SoilParameters.mat', VariablesSoilPar{:})
 cd(fold0)
