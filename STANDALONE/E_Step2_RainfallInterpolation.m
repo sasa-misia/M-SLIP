@@ -10,8 +10,15 @@ end
 %% Data import and extraction
 tic
 cd(fold_var)
+
+Fig = uifigure; % Remember to comment this line if is app version
+ProgressBar = uiprogressdlg(Fig,'Title','Please wait..', ...
+                                'Message','Loading files', 'Cancelable','on', ...
+                                'Indeterminate','on');
+drawnow
+
 load('GridCoordinates.mat')
-load('RainInterpolated.mat','IndexInterpolation','SelectedHoursRun')
+load('RainInterpolated.mat', '-regexp','^(?!RainInterpolated)...')
 load('UserE_Answers.mat')
 
 StatusPrevAnalysis = 0;
@@ -22,10 +29,24 @@ if AnswerRainfallRec == 1; load('GeneralRainfall.mat'); end
 [xLongSta, yLatSta] = deal(RainGauges{2}(:,1), RainGauges{2}(:,2));
 
 %% Interpolation for recording
-if AnswerRainfallRec == 1 && StatusPrevAnalysis == 0
-    RainInterpolated = cell(size(GeneralRainData,2), size(xLongAll,2));
-    Fig = uifigure; % Remember to comment this line if is app version
-    ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing', 'Cancelable','on');
+if AnswerRainfallRec == 1
+
+    if StatusPrevAnalysis == 1
+        Answer = uiconfirm(Fig, ['Interpolated rain data already exist. ' ...
+                                 'Do you want to overwrite them?'], ...
+                                'Existing Interpolated Data', ...
+                                'Options',{'Yes, thanks','No, for God!'}, ...
+                                'DefaultOption', 2);
+        switch Answer
+            case 'No, for God!'
+                return % Maybe it will not work
+        end
+    end
+
+    RainInterpolated = cell(size(IndexInterpolation,2), size(xLongAll,2));
+
+    ProgressBar.Message = 'Initializing';
+    ProgressBar.Indeterminate = 'off';
     Steps = size(IndexInterpolation,2);
 
     for i1 = 1:size(IndexInterpolation,2)
