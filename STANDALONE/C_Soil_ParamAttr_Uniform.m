@@ -19,7 +19,7 @@ nUnique = unique(nAll{1});
 
 CheckLength = length(KtUnique)==1;
 
-if CheckLength && KtUnique(1) ~= 999
+if CheckLength && ~isnan(KtUnique(1))
     SuggestedValues = {num2str(CohesionUnique{1}),num2str(PhiUnique{1}), ...
                        num2str(KtUnique{1}),num2str(AUnique{1}), ...
                        num2str(nUnique{1})};
@@ -55,5 +55,5 @@ Variables = {'CohesionAll','PhiAll','KtAll','AAll','nAll'};
 toc
 
 %% Saving...
-save('SoilParameters.mat',Variables{:});
+save('SoilParameters.mat', Variables{:});
 cd(fold0)
