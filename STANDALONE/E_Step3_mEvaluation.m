@@ -10,10 +10,12 @@ end
 %% Data import
 tic
 cd(fold_var)
+
 Fig = uifigure; % Remember to comment this line if in app version
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait..', 'Message','Loading files', ...
-                            'Cancelable','on', 'Indeterminate','on');
+                                 'Cancelable','on', 'Indeterminate','on');
 drawnow
+
 load('GridCoordinates.mat')
 load('SoilParameters.mat');
 load('VegetationParameters.mat');
@@ -53,7 +55,7 @@ for i1 = 1:AnalysisNumber
         for i3 = 1:RW
             ProgressBar.Value = (length(xLongAll)*RW*(i1-1)+RW*(i2-1)+i3)/Steps;
             if ProgressBar.CancelRequested; break; end
-            Hw = Rain{i3}./1000; % It is important to have Rain in mm
+            Hw = Rain{i3}./1000; % It is important to have Rain in m
             if any(Hw)
                 DmCumPar(IndexDTMPointsInsideStudyArea{i2}) = DmCumPar(IndexDTMPointsInsideStudyArea{i2})+ ...
                                               Hw.*exp(-KtAll{i2}(IndexDTMPointsInsideStudyArea{i2}).*dt(i3));
@@ -71,5 +73,5 @@ toc
 
 %% Saving..
 cd(fold_var)
-if ~ProgressBar.CancelRequested; save('DmCumAll.mat', 'DmCum', '-v7.3'); end
+save('DmCum.mat', 'DmCum', '-v7.3')
 cd(fold0)
