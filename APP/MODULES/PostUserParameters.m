@@ -5,14 +5,12 @@ load('VegetationParameters.mat');
 load('GridCoordinates.mat');
 load('InfoDetectedSoilSlips.mat');
 load('UserC_Answers.mat');
+load('UserD_Answers.mat')
 
-if exist('UserD_Answers.mat')
-    load('UserD_Answers.mat')
-    if AnswerAttributionVegetationParameter~=0
-        load('VegPolygonsStudyArea.mat')
-    end
+if (VegAttribution ~= 0) && (AnswerAttributionVegetationParameter ~= 0)
+    load('VegPolygonsStudyArea.mat')
 else
-    AnswerAttributionVegetationParameter=0;
+    AnswerAttributionVegetationParameter = 0;
 end
 
 DTMIncludingPoint=[InfoDetectedSoilSlips{:,3}]';
@@ -46,9 +44,6 @@ kStudy=cellfun(@(x,y) x(y),KtAll,IndexDTMPointsInsideStudyArea,...
         'UniformOutput',false);
 
 AStudy=cellfun(@(x,y) x(y),AAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
-
-nStudy=cellfun(@(x,y) x(y),nAll,IndexDTMPointsInsideStudyArea,...
         'UniformOutput',false);
 
 betastarStudy=cellfun(@(x,y) x(y),BetaStarAll,IndexDTMPointsInsideStudyArea,...
