@@ -7,6 +7,7 @@ load('MorphologyParameters.mat')
 load('SoilParameters.mat')
 load('VegetationParameters.mat')
 load('DmCum.mat')
+load('UserE_Answers.mat')
 
 cd(fold_res_fs)
 fold_res_fs_an = uigetdir('open');
@@ -15,12 +16,26 @@ cd(fold_res_fs_an)
 load('AnalysisInformation.mat');
 EventsAnalysed = string(StabilityAnalysis{:,2});
 Choice = listdlg('PromptString',{'Select event analysed to plot:',''}, 'ListString',EventsAnalysed);
-EventFS = datetime(EventsAnalysed(Choice),'InputFormat','dd/MM/yyyy HH:mm:ss');
+EventFS = datetime(EventsAnalysed(Choice), 'InputFormat','dd/MM/yyyy HH:mm:ss');
 FSLoadIndex = hours(EventFS-StabilityAnalysis{2}(1))+1;
 RowFromLast = hours(StabilityAnalysis{2}(end)-EventFS);
 EndEvent = size(RainInterpolated,1)-RowFromLast;
 load(strcat('Fs',num2str(FSLoadIndex),'.mat'));
 cd(fold0)
+
+%% Calculating DmCum
+BetaStarStudyArea = cellfun(@(x,y) x(y), BetaStarAll, ...
+                                         IndexDTMPointsInsideStudyArea, ...
+                                         'UniformOutput',false);
+
+nStudyArea = cellfun(@(x,y) x(y), nAll, ...
+                                  IndexDTMPointsInsideStudyArea, ...
+                                  'UniformOutput',false);
+
+DmCum = cellfun(@(x,y,z) min(x.*y./(z.*H.*(1-Sr0)), 1), DmCumPar, ...
+                                                        repmat(BetaStarStudyArea, 24, 1), ...
+                                                        repmat(nStudyArea, 24, 1), ...
+                                                        'UniformOutput',false);
 
 %% Calculate cumulate rainfall
 rng(1) % For reproducibility
@@ -44,7 +59,7 @@ if ~ResamplePositive
         Indexi = InfoDetectedSoilSlips{i1,4};
         IndexAlli = IndexDTMPointsInsideStudyArea{DTMi}(Indexi);
         TrainingCell(i1,:) = [InfoDetectedSoilSlips(i1,[8, 9, 11:15, 17, 18]), {sum(cellfun(@(x) full(x(Indexi)), ...
-                              RainInterpolated(EndEvent-23:EndEvent,DTMi)))}, {DmCum{DTMi}(Indexi)}];
+                              RainInterpolated(EndEvent-23:EndEvent,DTMi)))}, {DmCum{end-RowFromLast, DTMi}(Indexi)}];
         TrainingDTMPoints(i1,:) = [DTMi, Indexi, IndexAlli];
         RealFS(i1) = FactorSafety{DTMi}(Indexi);
     end
@@ -60,7 +75,7 @@ else
                                   KtAll{DTMi}(IndexAlli), AAll{DTMi}(IndexAlli), nAll{DTMi}(IndexAlli), ...
                                   BetaStarAll{DTMi}(IndexAlli), RootCohesionAll{DTMi}(IndexAlli), ...
                                   sum(cellfun(@(x) full(x(Indexi)), RainInterpolated(EndEvent-23:EndEvent,DTMi))), ...
-                                  DmCum{DTMi}(Indexi)};
+                                  DmCum{end-RowFromLast, DTMi}(Indexi)};
             TrainingDTMPoints(i1,:) = [DTMi, Indexi, IndexAlli];
             RealFS(i1) = FactorSafety{DTMi}(Indexi);
             i1 = i1+1;
@@ -79,7 +94,7 @@ while i2 <= TrainingSamples
                               KtAll{DTMi}(IndexAlli), AAll{DTMi}(IndexAlli), nAll{DTMi}(IndexAlli), ...
                               BetaStarAll{DTMi}(IndexAlli), RootCohesionAll{DTMi}(IndexAlli), ...
                               sum(cellfun(@(x) full(x(Indexi)), RainInterpolated(EndEvent-23:EndEvent,DTMi))), ...
-                              DmCum{DTMi}(Indexi)};
+                              DmCum{end-RowFromLast, DTMi}(Indexi)};
         TrainingDTMPoints(i2,:) = [DTMi, Indexi, IndexAlli];
         RealFS(i2) = FactorSafety{DTMi}(Indexi);
         i2 = i2+1;
