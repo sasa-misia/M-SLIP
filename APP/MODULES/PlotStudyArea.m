@@ -49,8 +49,7 @@ end
 
 plot(StudyAreaPolygon,'FaceColor','none')
 hold on
-fig_extra()
-daspect([1 1 1])
+fig_settings(fold0)
 
 hleg1=legend(MunSel,...
              'FontName',SelectedFont,...
