@@ -1,5 +1,3 @@
-close all
-
 %%
 cd(fold_var)
 load('GridCoordinates.mat')
@@ -128,7 +126,7 @@ switch NumFigPlot
 
         plot(MunPolygon,'FaceColor','none','LineWidth',1.5)
         hold on
-        PlotScaleBar
+        %PlotScaleBar
         
         xlim([MinExtremes(1) MaxExtremes(1)])
         ylim([MinExtremes(2) MaxExtremes(2)])
@@ -136,7 +134,8 @@ switch NumFigPlot
                
         comprose(14.1068,37.65,8,0.015,0)
         text(14.103,37.67,'N','FontName',SelectedFont,'FontSize',SelectedFontSize)
-        
+        daspect([1 1 1])
+
         set(gca,'visible','off')
         cd(fold_fig)
         exportgraphics(f1,strcat(filename1,'.png'),'Resolution',600);
@@ -273,7 +272,7 @@ switch NumFigPlot
             'FontName',SelectedFont,...
             'Location',SelectedLocation,...
             'FontSize',SelectedFontSize);
-        title(leg1,'US')
+        title(leg1,'SC')
         legend boxoff
 
         leg1.ItemTokenSize(1)=10;
@@ -281,13 +280,13 @@ switch NumFigPlot
         
         plot(MunPolygon,'FaceColor','none','LineWidth',1);
         hold on
-        PlotScaleBar
+        %PlotScaleBar
         
         xlim([MinExtremes(1) MaxExtremes(1)])
         ylim([MinExtremes(2) MaxExtremes(2)])
         
         set(gca,'visible','off')
-        
+        daspect([1 1 1])
         cd(fold_fig)
         exportgraphics(f4,strcat(filename4,'.png'),'Resolution',600);
 end
