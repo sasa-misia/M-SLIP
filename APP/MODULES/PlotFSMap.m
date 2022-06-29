@@ -39,6 +39,15 @@ Event_FS1=datetime(EventFS,'Format','dd-MM-yyyy HH-mm');
 switch StabilityAnalysis{4}(1)
     case "Slip"
         load(strcat('Fs',num2str(IndexFS),'.mat'));
+
+        %% Give a value to NaN and plot them
+        MaxFS = cellfun(@max, FactorSafety, 'UniformOutput',false);
+        MaxFS = max([MaxFS{:}]);
+        NaNFactorSafetyROC = cellfun(@(x) isnan(x), FactorSafety, 'UniformOutput',false);
+        for i2 = 1:length(FactorSafety)
+            FactorSafety{i2}(NaNFactorSafetyROC{i2}) = MaxFS; % NaN Points are excluded and considered as unconditionally stable
+        end
+
         Fs = FactorSafety;
 
         InputValues = inputdlg({'Indicate the value above which the point is stable:'
