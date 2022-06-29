@@ -23,8 +23,11 @@ if AnswerAttributionVegetationParameter==0
 
     cr_uv=unique(RootCohesionAll{1});
     betastar_uv=unique(BetaStarAll{1});
+
+    uniqueBeta=betastar_uv;
     
-    color_parameters=[0 0 255]./255;
+    color_parametersBetaUnique=[0 0 255]./255;
+    color_parametersCr=color_parametersBetaUnique;
 
 else
     load('VegPolygonsStudyArea.mat');
