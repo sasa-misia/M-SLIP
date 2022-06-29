@@ -71,15 +71,19 @@ for i1 = 1:size(SelectedVUByUserPolygons,2)
 end
 toc
 
-VU_DVC = {VegAcronyms DVC};
-VU_DVCPlotColors = {VUColors DVCColors};
-DVCParameters = {DVC_cr DVC_betastar};
+VegAttribution = true;
 
-VariablesVUPar = {'VU_DVCPlotColors','VU_DVC','VUAbbr','DVCParameters','SelectedVeg'};
-VariablesVegPar = {'RootCohesionAll','BetaStarAll'};
+VU_DVC = {VegAcronyms, DVC};
+VU_DVCPlotColors = {VUColors, DVCColors};
+DVCParameters = {DVC_cr, DVC_betastar};
+
+VariablesAnswerD = {'VegAttribution'};
+VariablesVUPar = {'VU_DVCPlotColors', 'VU_DVC', 'VUAbbr', 'DVCParameters', 'SelectedVeg'};
+VariablesVegPar = {'RootCohesionAll', 'BetaStarAll'};
 
 %% Saving..
 cd(fold_var)
-save('VUDVCMapParameters.mat',VariablesVUPar{:})
-save('VegetationParameters.mat',VariablesVegPar{:});
+save('UserD_Answers.mat', VariablesAnswerD{:}, '-append');
+save('VUDVCMapParameters.mat', VariablesVUPar{:})
+save('VegetationParameters.mat', VariablesVegPar{:});
 cd(fold0)
