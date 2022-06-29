@@ -2,130 +2,139 @@
 tic
 cd(fold_var)
 load('StudyAreaVariables.mat');
-load('UserA_Answers.mat','SpecificWindow');
-cd(fold_raw_dtm)
+load('UserA_Answers.mat', 'SpecificWindow');
 
+cd(fold_raw_dtm)
 % Import tif and tfw file names
 switch DTMType
     case 0
-    NameFile1=FileName_DTM(contains(FileName_DTM,'tif'));
-    NameFile2=FileName_DTM(contains(FileName_DTM,'tfw'));
+        NameFile1 = FileName_DTM(contains(FileName_DTM,'tif'));
+        NameFile2 = FileName_DTM(contains(FileName_DTM,'tfw'));
     case 1
-    NameFile1=FileName_DTM;
+        NameFile1 = FileName_DTM;
     case 2
-    NameFile1=FileName_DTM;
+        NameFile1 = FileName_DTM;
 end
 
 % Initializing of cells in for loop to increase speed
 [xLongAll, yLatAll, ElevationAll, RAll, AspectAngleAll, SlopeAll,...
-            GradNAll,GradEAll]=deal(cell(1,length(NameFile1)));
+            GradNAll,GradEAll] = deal(cell(1,length(NameFile1)));
 
-for i1=1:length(NameFile1)
+for i1 = 1:length(NameFile1)
     switch DTMType
         case 0
-            A=imread(NameFile1(i1));
-            R=worldfileread(NameFile2(i1),'planar',size(A));  
+            A = imread(NameFile1(i1));
+            R = worldfileread(NameFile2(i1), 'planar', size(A));  
         case 1
-            [A,R]=readgeoraster(NameFile1(i1),'OutputType','double');
+            [A,R] = readgeoraster(NameFile1(i1), 'OutputType','double');
         case 2
-            [A,R]=readgeoraster(NameFile1(i1),'OutputType','double');
+            [A,R] = readgeoraster(NameFile1(i1), 'OutputType','double');
     end
 
     if isempty(R.ProjectedCRS) && i1==1
-        choice2=inputdlg({'Set DTM EPSG (default value is for Sicily):'},'',1,{'32633'});
-        R.ProjectedCRS=projcrs(str2double(choice2));
+        EPSG = str2double(inputdlg({["Set DTM EPSG"
+                                     "For Example:"
+                                     "Sicily -> 32633"
+                                     "Emilia Romagna -> 25832"]}, '', 1, {'32633'}));
+        R.ProjectedCRS = projcrs(EPSG);
     elseif isempty(R.ProjectedCRS) && i1>1
-        R.ProjectedCRS=projcrs(str2double(choice2));
+        R.ProjectedCRS = projcrs(EPSG);
     end
         
     [x_lim,y_lim] = mapoutline(R, size(A));
-    RasterExtentInWorldX=max(x_lim)-min(x_lim);
-    RasterExtentInWorldY=max(y_lim)-min(y_lim);
-    dX=RasterExtentInWorldX/(size(A,2)-1);
-    dY=RasterExtentInWorldY/(size(A,1)-1);
-    [XTBS,YTBS]=worldGrid(R);
+    RasterExtentInWorldX = max(x_lim)-min(x_lim);
+    RasterExtentInWorldY = max(y_lim)-min(y_lim);
+    dX = RasterExtentInWorldX/(size(A,2)-1);
+    dY = RasterExtentInWorldY/(size(A,1)-1);
+    [XTBS,YTBS] = worldGrid(R);
 
-    if AnswerChangeDTMResolution==1
-        ScaleFactorX=int64(NewDx/dX);
-        ScaleFactorY=int64(NewDy/dY);
+    if AnswerChangeDTMResolution == 1
+        ScaleFactorX = int64(NewDx/dX);
+        ScaleFactorY = int64(NewDy/dY);
     else
-        ScaleFactorX=1;
-        ScaleFactorY=1;
+        ScaleFactorX = 1;
+        ScaleFactorY = 1;
     end
 
-    X=XTBS(1:ScaleFactorX:end,1:ScaleFactorY:end);
-    Y=YTBS(1:ScaleFactorX:end,1:ScaleFactorY:end);
+    X = XTBS(1:ScaleFactorX:end, 1:ScaleFactorY:end);
+    Y = YTBS(1:ScaleFactorX:end, 1:ScaleFactorY:end);
 
-    Elevation=A(1:ScaleFactorX:end,1:ScaleFactorY:end);
+    Elevation = A(1:ScaleFactorX:end, 1:ScaleFactorY:end);
     
     if string(R.CoordinateSystemType)=="planar"
-        [yLat,xLong]=projinv(R.ProjectedCRS,X,Y);
-        LatMin=min(yLat,[],"all");
-        LatMax=max(yLat,[],"all");
-        LongMin=min(xLong,[],"all");
-        LongMax=max(xLong,[],"all");
-        RGeo=georefcells([LatMin,LatMax],[LongMin,LongMax],size(Elevation));
-        RGeo.GeographicCRS=R.ProjectedCRS.GeographicCRS;
+        [yLat,xLong] = projinv(R.ProjectedCRS, X, Y);
+        LatMin = min(yLat, [], "all");
+        LatMax = max(yLat, [], "all");
+        LongMin = min(xLong, [], "all");
+        LongMax = max(xLong, [], "all");
+        RGeo = georefcells([LatMin,LatMax], [LongMin,LongMax], size(Elevation));
+        RGeo.GeographicCRS = R.ProjectedCRS.GeographicCRS;
     else
-        RGeo=R;
+        RGeo = R;
     end
 
-    xLongAll{i1}=xLong;
-    yLatAll{i1}=yLat;
-    [AspectDTM,SlopeDTM,GradNDTM,GradEDTM]=gradientm(Elevation,RGeo);
-    ElevationAll{i1}=Elevation;
-    RAll{i1}=RGeo;
-    AspectAngleAll{i1}=AspectDTM;
-    SlopeAll{i1}=SlopeDTM;
-    GradNAll{i1}=GradNDTM;
-    GradEAll{i1}=GradEDTM;
+    xLongAll{i1} = xLong;
+    yLatAll{i1} = yLat;
+    [AspectDTM, SlopeDTM, GradNDTM, GradEDTM] = gradientm(Elevation, RGeo);
+    ElevationAll{i1} = Elevation;
+    RAll{i1} = RGeo;
+    AspectAngleAll{i1} = AspectDTM;
+    SlopeAll{i1} = SlopeDTM;
+    GradNAll{i1} = GradNDTM;
+    GradEAll{i1} = GradEDTM;
 end
 
-IndexDTMPointsInsideStudyArea=cell(1,length(xLongAll));
+[IndexDTMPointsInsideStudyArea, IndexDTMPointsExcludedInStudyArea] = deal(cell(1,length(xLongAll)));
+for i2 = 1:length(xLongAll)
+    [pp1, ee1] = getnan2([StudyAreaPolygon.Vertices; nan, nan]);
+    IndexDTMPointsInsideStudyArea{i2} = find(inpoly([xLongAll{i2}(:), yLatAll{i2}(:)], pp1, ee1)==1);
 
-for i2=1:length(xLongAll)
-    [pp,ee]=getnan2([StudyAreaPolygonClean.Vertices; nan nan]);
-    IndexDTMPointsInsideStudyArea{i2}=find(inpoly([xLongAll{i2}(:),yLatAll{i2}(:)],pp,ee)==1);
+    if ~isempty(StudyAreaPolygonExcluded.Vertices)
+        [pp2, ee2] = getnan2([StudyAreaPolygonExcluded.Vertices; nan, nan]);
+        IndexDTMPointsExcludedInStudyArea{i2} = find(inpoly([xLongAll{i2}(:), yLatAll{i2}(:)], pp2, ee2)==1);
+    end
 end
 
-EmptyIndexDTMPointsInsideStudyArea=cellfun(@isempty,IndexDTMPointsInsideStudyArea);
-IndexDTMPointsInsideStudyArea(EmptyIndexDTMPointsInsideStudyArea)=[];
-xLongAll(EmptyIndexDTMPointsInsideStudyArea)=[];
-yLatAll(EmptyIndexDTMPointsInsideStudyArea)=[];
-ElevationAll(EmptyIndexDTMPointsInsideStudyArea)=[];
-RAll(EmptyIndexDTMPointsInsideStudyArea)=[];
-AspectAngleAll(EmptyIndexDTMPointsInsideStudyArea)=[];
-SlopeAll(EmptyIndexDTMPointsInsideStudyArea)=[];
-GradNAll(EmptyIndexDTMPointsInsideStudyArea)=[];
-GradEAll(EmptyIndexDTMPointsInsideStudyArea)=[];
+EmptyIndexDTMPointsInsideStudyArea = cellfun(@isempty,IndexDTMPointsInsideStudyArea);
+IndexDTMPointsInsideStudyArea(EmptyIndexDTMPointsInsideStudyArea) = [];
+IndexDTMPointsExcludedInStudyArea(EmptyIndexDTMPointsInsideStudyArea) = [];
+xLongAll(EmptyIndexDTMPointsInsideStudyArea) = [];
+yLatAll(EmptyIndexDTMPointsInsideStudyArea) = [];
+ElevationAll(EmptyIndexDTMPointsInsideStudyArea) = [];
+RAll(EmptyIndexDTMPointsInsideStudyArea) = [];
+AspectAngleAll(EmptyIndexDTMPointsInsideStudyArea) = [];
+SlopeAll(EmptyIndexDTMPointsInsideStudyArea) = [];
+GradNAll(EmptyIndexDTMPointsInsideStudyArea) = [];
+GradEAll(EmptyIndexDTMPointsInsideStudyArea) = [];
 
 %% Orthophoto
 if OrthophotoAnswer
     cd(fold_raw_sat)
-    FileID=fopen('UrlMap.txt','r');
-    UrlMap=fscanf(FileID,'%s');
+    FileID = fopen('UrlMap.txt','r');
+    UrlMap = fscanf(FileID,'%s');
     fclose(FileID);
 
     if isempty(UrlMap)
-        choice1=inputdlg({'Enter WMS Url:'},'',1,{''});
-        UrlMap=string(choice1{1});
+        Choice = inputdlg({'Enter WMS Url:'},'',1,{''});
+        UrlMap = string(Choice{1});
     end
 
-    ServerMap=WebMapServer(UrlMap);
-    info = wmsinfo(UrlMap);
-    orthoLayer = info.Layer(1);
+    ServerMap = WebMapServer(UrlMap);
+    Info = wmsinfo(UrlMap);
+    OrthoLayer = Info.Layer(1);
     
-    LimMap=cellfun(@(x) [x.LongitudeLimits; x.LatitudeLimits] ,RAll,'UniformOutput',false);
-    LimLatMap=cellfun(@(x) x(2,:),LimMap,'UniformOutput',false);
-    LimLonMap=cellfun(@(x) x(1,:),LimMap,'UniformOutput',false);
+    LimMap =    cellfun(@(x) [x.LongitudeLimits; x.LatitudeLimits], RAll, 'UniformOutput',false);
+    LimLatMap = cellfun(@(x) x(2,:), LimMap, 'UniformOutput',false);
+    LimLonMap = cellfun(@(x) x(1,:), LimMap, 'UniformOutput',false);
     
-    samplesPerInterval=[km2deg(0.005) km2deg(0.005)] ;
+    SamplesPerInterval = [km2deg(0.005), km2deg(0.005)] ;
 
-    [ZOrtho,ROrtho]=cellfun(@(x,y) wmsread(orthoLayer,'LatLim',x,'LonLim',y,'CellSize',samplesPerInterval),...
-                            LimLatMap,LimLonMap,'UniformOutput',false);
+    [ZOrtho, ROrtho] = cellfun(@(x,y) wmsread(OrthoLayer, 'LatLim',x, 'LonLim',y, ...
+                                      'CellSize',SamplesPerInterval),...
+                                      LimLatMap, LimLonMap, 'UniformOutput',false);
 
-    filename1='fig1';
-    f1=figure(1);
+    Filename1 = 'fig1';
+    fig_ortho = figure(1);
     set(f1 , ...
         'Color',[1 1 1],...
         'PaperType','a4',...
@@ -134,10 +143,10 @@ if OrthophotoAnswer
         'PaperPositionMode','manual',...
         'PaperPosition', [0 1 12 6],...
         'InvertHardcopy','off');
-    set( gcf ,'Name' , filename1);
+    set(gcf, 'Name',Filename1);
 
-    axes1 = axes('Parent',f1); 
-    hold(axes1,'on');
+    Axes1 = axes('Parent',fig_ortho); 
+    hold(Axes1,'on');
 
     % cellfun(@(x,y) geoshow(x,y),ZOrtho,ROrtho);
 
@@ -145,10 +154,12 @@ if OrthophotoAnswer
                            -x.CellExtentInLatitude : ...
                            x.LatitudeLimits(1)+x.CellExtentInLatitude/2, ...
                            ROrtho, 'UniformOutput',false);
+
     LongGridOrtho = cellfun(@(x) x.LongitudeLimits(1)+x.CellExtentInLongitude/2 : ...
                             x.CellExtentInLongitude : ...
                             x.LongitudeLimits(2)-x.CellExtentInLongitude/2, ...
                             ROrtho, 'UniformOutput',false);
+
     [xLongOrtho, yLatOrtho] = cellfun(@(x,y) meshgrid(x,y), ...
                                       LongGridOrtho, LatGridOrtho, ...
                                       'UniformOutput',false);
@@ -173,22 +184,21 @@ if OrthophotoAnswer
 end
 
 %% Plot to check the Study Area
-f1 = figure(1);
-for i3=1:length(xLongAll)
+fig_check = figure(2);
+for i3 = 1:length(xLongAll)
     fastscatter(xLongAll{i3}(IndexDTMPointsInsideStudyArea{i3}), ...
                 yLatAll{i3}(IndexDTMPointsInsideStudyArea{i3}), ...
                 ElevationAll{i3}(IndexDTMPointsInsideStudyArea{i3}))
     hold on
-    title('Study Area Polygon Check')
-    xlim([MinExtremes(1) MaxExtremes(1)])
-    ylim([MinExtremes(2) MaxExtremes(2)])
-    daspect([1 1 1])
 end
 
-    hold on
-    plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1);
-    hold on
-    plot(StudyAreaPolygonClean,'FaceColor','none','LineWidth',0.5);
+hold on
+plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1);
+hold on
+plot(StudyAreaPolygonClean,'FaceColor','none','LineWidth',0.5);
+title('Study Area Polygon Check')
+
+fig_settings(fold0, 'AxisTick');
 
 %% Creation of empty parameter matrices
 SizeGridInCell =    cellfun(@size, xLongAll, 'UniformOutput',false);
@@ -202,19 +212,23 @@ RootCohesionAll =   cellfun(@zeros, SizeGridInCell, 'UniformOutput',false); % If
 toc
 
 % Creatings string names of variables in cell arrays to save at the end
-VariablesMorph={'ElevationAll','RAll','AspectAngleAll','SlopeAll','GradNAll','GradEAll'};
-VariablesGridCoord={'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea'};
-VariablesSoilPar={'CohesionAll','PhiAll','KtAll','AAll','nAll'};
-VariablesVegPar={'RootCohesionAll','BetaStarAll'};
-VariablesAnswer={'AnswerChangeDTMResolution','DTMType','FileName_DTM','AnswerChangeDTMResolution','OrthophotoAnswer'};
-if AnswerChangeDTMResolution==1; VariablesAnswer=[VariablesAnswer,{'NewDx','NewDy'}]; end
+VariablesMorph = {'ElevationAll', 'RAll', 'AspectAngleAll', 'SlopeAll', 'GradNAll', 'GradEAll'};
+VariablesGridCoord = {'xLongAll', 'yLatAll', 'IndexDTMPointsInsideStudyArea', 'IndexDTMPointsExcludedInStudyArea'};
+VariablesSoilPar = {'CohesionAll', 'PhiAll', 'KtAll', 'AAll', 'nAll'};
+VariablesVegPar = {'RootCohesionAll', 'BetaStarAll'};
+VariablesAnswerB = {'AnswerChangeDTMResolution', 'DTMType', 'FileName_DTM', 'AnswerChangeDTMResolution', ...
+                   'OrthophotoAnswer', 'ScaleFactorX', 'ScaleFactorY'};
+if AnswerChangeDTMResolution == 1; VariablesAnswerB = [VariablesAnswerB, {'NewDx', 'NewDy'}]; end
+VegAttribution = false;
+VariablesAnswerD = {'VegAttribution'};
 
 %% Saving...
 cd(fold_var)
-if OrthophotoAnswer; save('Orthophoto.mat','ZOrtho','ROrtho'); end
-save('UserB_Answers.mat',VariablesAnswer{:});
-save('MorphologyParameters.mat',VariablesMorph{:});
-save('GridCoordinates',VariablesGridCoord{:});
-save('SoilParameters.mat',VariablesSoilPar{:});
-save('VegetationParameters.mat',VariablesVegPar{:});
+if OrthophotoAnswer; save('Orthophoto.mat', 'ZOrtho','ROrtho'); end
+save('UserB_Answers.mat', VariablesAnswerB{:});
+save('UserD_Answers.mat', VariablesAnswerD{:});
+save('MorphologyParameters.mat', VariablesMorph{:});
+save('GridCoordinates', VariablesGridCoord{:});
+save('SoilParameters.mat', VariablesSoilPar{:});
+save('VegetationParameters.mat', VariablesVegPar{:});
 cd(fold0)
