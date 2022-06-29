@@ -23,7 +23,7 @@ if RainFallType==2
     PosSelRecStation=find(arrayfun(@(x) strcmp(x,SelectedRecordingStation),RainGauges{1}));
 
 
-    filename1=strcat('RecordedRainfall',SelectedRecordingStation)
+    filename1=strcat('RecordedRainfall',SelectedRecordingStation);
     f1=figure(1);
     set(f1 , ...
         'Color',[1 1 1],...
@@ -87,7 +87,7 @@ else
         IndPlot=listdlg('PromptString',...
         {'Select event analysed to plot:',''},'ListString',EventsInterpolated);
         RainSelected=RainInterpolated(IndPlot,:);
-        dataInstationSelected=GeneralRainData(:,IndPlot);
+        dataInstationSelected=GeneralRainData(:,(IndPlot+IndexInterpolation(1)-1));
         RainfallEvent=datetime(EventsInterpolated(IndPlot),'Format','ddMMyyyy HH');
         RainfallEvent=strcat(string(RainfallEvent),'Rec');
     
@@ -179,7 +179,7 @@ else
     
     for i2=1:size(xLongAll,2)
     %for i2=1:1
-    hrain1=scatter(xLongStudyArea{i2}(Rain_range1{i2}),yLatStudyArea{i2}(Rain_range1{i2})./255,.1,'o','MarkerFaceColor',ColorRain(1,:)./255,'MarkerEdgeColor','none');
+    hrain1=scatter(xLongStudyArea{i2}(Rain_range1{i2}),yLatStudyArea{i2}(Rain_range1{i2}),.1,'o','MarkerFaceColor',ColorRain(1,:)./255,'MarkerEdgeColor','none');
     hold on
     hrain2=scatter(xLongStudyArea{i2}(Rain_range2{i2}),yLatStudyArea{i2}(Rain_range2{i2}),.1,'o','MarkerFaceColor',ColorRain(2,:)./255,'MarkerEdgeColor','none');
     hold on
