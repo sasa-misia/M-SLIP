@@ -1,3 +1,4 @@
+
 cd(fold_var)
 load('StudyAreaVariables.mat');
 load('GridCoordinates.mat')
@@ -142,7 +143,7 @@ switch NumFigPlot
         
         plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1.5)
         hold on
-        PlotScaleBar;
+        %PlotScaleBar;
 
         hleg3=legend([helevation{1:end,1}],...
             '< 200',...
@@ -176,6 +177,7 @@ switch NumFigPlot
         xlim([MinExtremes(1),MaxExtremes(1)])
         ylim([MinExtremes(2)-0.0005,MaxExtremes(2)+0.0005])
         
+        daspect([1 1 1]);
         
         set(gca,'visible','off')
         cd(fold_fig)
@@ -206,7 +208,7 @@ switch NumFigPlot
 
         plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1.5)
         hold on
-        PlotScaleBar;
+        %PlotScaleBar;
         
         hleg=legend([hslope{1:end,1}],...
             '0 - 10',...
@@ -233,6 +235,9 @@ switch NumFigPlot
         xlim([MinExtremes(1),MaxExtremes(1)])
         ylim([MinExtremes(2)-0.0005,MaxExtremes(2)+0.0005])
         
+        daspect([1 1 1]);
+
+
         set(gca,'visible','off')
         cd(fold_fig)
 
