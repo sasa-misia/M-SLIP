@@ -2,6 +2,7 @@
 cd(fold_var)
 load('GridCoordinates.mat')
 load('VegetationParameters.mat')
+load('MorphologyParameters.mat','SlopeAll');
 
 InputValues = inputdlg({'Root cohesion value {\it c_r} (kPa):'
                         'Assign uniform {\beta^*} (already calculate through slope) (Yes/No)'
@@ -12,19 +13,23 @@ cRUniform = eval(InputValues{1});
 UniformBeta = string(lower(InputValues{2}));
 BetaStarUniform = eval(InputValues{3});
 
-for i1 = 1:length(RootCohesionAll)
-    RowNumber = size(RootCohesionAll{i1},1);
-    ColumnNumber = size(RootCohesionAll{i1},2);
-    if UniformBeta == "yes"
-        BetaStarAll{i1} = ones(RowNumber,ColumnNumber).*BetaStarUniform;
-    end
-    RootCohesionAll{i1} = ones(RowNumber,ColumnNumber).*cRUniform;
+RowNumber=cellfun(@(x) size(x,1),RootCohesionAll,'UniformOutput',false);
+ColumnNumber=cellfun(@(x) size(x,2),RootCohesionAll,'UniformOutput',false);
+
+if UniformBeta == "yes"
+    BetaStarAll=cellfun(@(x,y) ones(x,y).*BetaStarUniform,RowNumber,ColumnNumber,'UniformOutput',false);
+elseif  UniformBeta == "no"
+    BetaStarAll=cellfun(@cosd,SlopeAll,'UniformOutput',false);
 end
+
+RootCohesionAll= cellfun(@(x,y) ones(x,y).*cRUniform,RowNumber,ColumnNumber,'UniformOutput',false);
+
 
 VegAttribution = true;
 
-VariablesVeg = {'RootCohesionAll'};
-if UniformBeta == "yes"; VariablesVeg = [VariablesVeg, {'BetaStarAll'}]; end
+%VariablesVeg = {'RootCohesionAll'};
+VariablesVeg = {'RootCohesionAll';'BetaStarAll'};
+%if UniformBeta == "yes"; VariablesVeg = [VariablesVeg, {'BetaStarAll'}]; end
 VariablesAnswerD = {'AnswerAttributionVegetationParameter', 'VegAttribution'};
 
 %% Saving...
