@@ -14,7 +14,9 @@ function [] = copyindirectory(FileType, DestinationPath, varargin)
 %       copy only selected file, in the second one you will copy all files
 %       that contain that name, no matter the extension of the file.
 
-if not(((isstring(FileType) || ischar(FileType)) && isscalar(FileType)) || iscell(FileType))
+if not(( (isstring(FileType) && isscalar(FileType))    || ...
+         (ischar(FileType)   && size(FileType,1)==1) ) || ...
+          iscell(FileType))
     error("First argument must be a scalar string, a 1 row char or a cell vector of strings/char")
 end
 
@@ -42,7 +44,7 @@ Extension = char(FileType);
 if ~strcmp(Extension(1:2), '*.'); Extension = strcat('*.',Extension); end
 if size(Extension,1)>1; Extension = join(cellstr(Extension),"; "); end
 
-[FileName, FilePath] = uigetfile(Extension, Title);
+[FileName, FilePath] = uigetfile(Extension, Title, 'MultiSelect','on');
 
 switch Mode
     case "single"
