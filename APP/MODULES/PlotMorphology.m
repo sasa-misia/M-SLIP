@@ -4,12 +4,15 @@ load('StudyAreaVariables.mat');
 load('GridCoordinates.mat')
 load('MorphologyParameters.mat');
 
-if exist('LegendSettings.mat')
-    load('LegendSettings.mat')
+if exist('PlotSettings.mat', 'file')
+    load('PlotSettings.mat')
+    SelectedFont = Font;
+    SelectedFontSize = FontSize;
+    SelectedLocation = LegendPosition;
 else
-    SelectedFont='Times New Roman';
-    SelectedFontSize=8;
-    SelectedLocation='Best';
+    SelectedFont = 'Times New Roman';
+    SelectedFontSize = 8;
+    SelectedLocation = 'Best';
 end
 
 %For scatter dimension
@@ -143,7 +146,6 @@ switch NumFigPlot
         
         plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1.5)
         hold on
-        %PlotScaleBar;
 
         hleg3=legend([helevation{1:end,1}],...
             '< 200',...
@@ -167,17 +169,9 @@ switch NumFigPlot
         legend boxoff
         hleg3.ItemTokenSize(1)=10;
         
-        title(hleg3,'Elevation [m]','FontName',SelectedFont,'FontSize',SelectedFontSize*1.2,'FontWeight','bold')
+        title(hleg3, 'Elevation [m]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
 
-       
-        comprose(14.1068,37.65,8,0.015,0)
-        text(14.103,37.67,'N','FontName',SelectedFont,'FontSize',SelectedFontSize)
-        
-        
-        xlim([MinExtremes(1),MaxExtremes(1)])
-        ylim([MinExtremes(2)-0.0005,MaxExtremes(2)+0.0005])
-        
-        daspect([1 1 1]);
+        fig_settings(fold0)
         
         set(gca,'visible','off')
         cd(fold_fig)
@@ -208,7 +202,6 @@ switch NumFigPlot
 
         plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1.5)
         hold on
-        %PlotScaleBar;
         
         hleg=legend([hslope{1:end,1}],...
             '0 - 10',...
@@ -226,22 +219,13 @@ switch NumFigPlot
         legend('AutoUpdate','off');
         legend boxoff
 
-        title(hleg,'Slope angle [°]','FontName',SelectedFont,'FontSize',SelectedFontSize*1.2,'FontWeight','bold')
+        title(hleg, 'Slope angle [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
         
-        
-        comprose(14.1068,37.65,8,0.015,0)
-        text(14.103,37.67,'N','FontName',SelectedFont,'FontSize',SelectedFontSize)
-
-        xlim([MinExtremes(1),MaxExtremes(1)])
-        ylim([MinExtremes(2)-0.0005,MaxExtremes(2)+0.0005])
-        
-        daspect([1 1 1]);
-
+        fig_settings(fold0)
 
         set(gca,'visible','off')
         cd(fold_fig)
-
-        exportgraphics(f2,strcat(filename2,'.png'),'Resolution',600);
+        exportgraphics(f2, strcat(filename2,'.png'), 'Resolution',600);
 
 %%
     case 3
@@ -270,7 +254,6 @@ switch NumFigPlot
         
         plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1.5)
         hold on
-        PlotScaleBar;
         
         hleg2=legend([haspect{1:end,1}],...
             '0 - 90',...
@@ -285,85 +268,15 @@ switch NumFigPlot
         legend('AutoUpdate','off');
         
         hleg2.ItemTokenSize(1)=10;
+
+        fig_settings(fold0)
         
-        comprose(14.1068,37.65,8,0.015,0)
-        text(14.103,37.67,'N','FontName',SelectedFont,'FontSize',SelectedFontSize)
-        
-               
-        xlim([MinExtremes(1),MaxExtremes(1)])
-        ylim([MinExtremes(2)-0.0005,MaxExtremes(2)+0.0005])
-        
-        
-        title(hleg2,'Aspect angle [°]','FontName',SelectedFont,'FontSize',SelectedFontSize*1.2,'FontWeight','bold')
+        title(hleg2, 'Aspect angle [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
         
         legend('AutoUpdate','off');
         legend boxoff
         
-        set(gca,'visible','off')
+        set(gca, 'visible','off')
         cd(fold_fig)
-        exportgraphics(f3,strcat(filename3,'.png'),'Resolution',600);
+        exportgraphics(f3, strcat(filename3,'.png'), 'Resolution',600);
 end
-
-%%
-%
-% cd(fold0)
-% filename3='Elevation';
-% f3=figure(3);
-% set(f3 , ...
-%     'Color',[1 1 1],...
-%     'PaperType','a4',...
-%     'PaperSize',[29.68 20.98 ],...    
-%     'PaperUnits', 'centimeters',...
-%     'PaperPositionMode','manual',...
-%     'PaperPosition', [0 1 16 12],...
-%     'InvertHardcopy','off');
-% set( gcf ,'Name' , filename3);
-% % image(flipud(d), 'XData', [14.9089+0.0004 14.9272], 'YData', [38.1867 38.1925],'AlphaData',.8);
-% % axis xy
-% % hold on
-% 
-% for i3=1:size(xLongAll,2)
-% xLongAll1=xLongAll{i3};
-% yLatAll1=yLatAll{i3};
-% ElevationAll1=ElevationAll{i3};
-% 
-% fastscatter(xLongAll1(IndexDTMPointsInsideStudyArea{i3}),yLatAll1(IndexDTMPointsInsideStudyArea{i3}),ElevationAll1(IndexDTMPointsInsideStudyArea{i3}))
-% hold on
-% end
-% 
-% hcb2=colorbar;
-%  
-% hcb2.Title
-% hcb2.Title.String='Elevation [m]';
-% hcb2.Title.FontName=SelectedFont;
-% hcb2.Title.FontWeight='Bold';
-% 
-% plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1.5)
-% hold on
-% plot(pol_scalebar1,'FaceColor',[0 0 0],'EdgeColor','k','FaceAlpha',1,'LineWidth',0.5)
-% hold on
-% plot(pol_scalebar2,'FaceColor','none','EdgeColor','k','FaceAlpha',1,'LineWidth',0.5)
-% 
-% 
-% text(MaxExtremes(1)-11*dScaleBar,MinExtremes(2)+0.005,'0','FontName',SelectedFont,'FontSize',8)
-% text(MaxExtremes(1)-6*dScaleBar,MinExtremes(2)+0.005,'5','FontName',SelectedFont,'FontSize',8)
-% text(MaxExtremes(1)-dScaleBar,MinExtremes(2)+0.005,'10','FontName',SelectedFont,'FontSize',8)
-% 
-% text(MaxExtremes(1)-2*dScaleBar,MinExtremes(2)+2*0.009,'km','FontName',SelectedFont,'FontSize',8)
-% 
-% comprose(14.1068,37.65,8,0.015,0)
-% text(14.103,37.67,'N','FontName',SelectedFont,'FontSize',8)
-% 
-% 
-% xlim([MinExtremes(1),MaxExtremes(1)])
-% ylim([MinExtremes(2)-0.0005,MaxExtremes(2)+0.0005])
-% 
-% 
-% set(gca,'visible','off')
-% 
-% cd(fold_fig)
-% print( '-dpng'  , '-r600' , get(gcf,'Name'))
-% cd(fold0)
-
-
-%%
