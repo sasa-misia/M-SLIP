@@ -7,20 +7,23 @@ load('MorphologyParameters.mat')
 load('SoilParameters.mat')
 load('VegetationParameters.mat')
 load('DmCum.mat')
+load('AnalysisInformation.mat')
+load('UserA_Answers.mat', 'MunSel')
+load('UserB_Answers.mat', 'ScaleFactorX','ScaleFactorY')
+load('UserD_Answers.mat', 'VegAttribution')
 load('UserE_Answers.mat')
+if exist('LandUsesVariables.mat', 'file')
+    load('LandUsesVariables.mat', 'AllLandUnique','IndexLandUsesToRemove')
+    LandUsesRemoved = string(AllLandUnique(IndexLandUsesToRemove));
+end
 
-cd(fold_res_fs)
-fold_res_fs_an = uigetdir('open');
-
-cd(fold_res_fs_an)
-load('AnalysisInformation.mat');
+%% Selection of time in which to calibrate
 EventsAnalysed = string(StabilityAnalysis{:,2});
-Choice = listdlg('PromptString',{'Select event analysed to plot:',''}, 'ListString',EventsAnalysed);
-EventFS = datetime(EventsAnalysed(Choice), 'InputFormat','dd/MM/yyyy HH:mm:ss');
-FSLoadIndex = hours(EventFS-StabilityAnalysis{2}(1))+1;
-RowFromLast = hours(StabilityAnalysis{2}(end)-EventFS);
-EndEvent = size(RainInterpolated,1)-RowFromLast;
-load(strcat('Fs',num2str(FSLoadIndex),'.mat'));
+Choice = listdlg('PromptString',{'Select time when you want to calibrate the model:',''}, ...
+                 'ListString',EventsAnalysed);
+EventSelForTrain = datetime(EventsAnalysed(Choice), 'InputFormat','dd/MM/yyyy HH:mm:ss');
+RowFromLast = hours(StabilityAnalysis{2}(end)-EventSelForTrain);
+RainEndEvent = size(RainInterpolated,1)-RowFromLast;
 cd(fold0)
 
 %% Calculating DmCum
@@ -33,16 +36,50 @@ nStudyArea = cellfun(@(x,y) x(y), nAll, ...
                                   'UniformOutput',false);
 
 DmCum = cellfun(@(x,y,z) min(x.*y./(z.*H.*(1-Sr0)), 1), DmCumPar, ...
-                                                        repmat(BetaStarStudyArea, 24, 1), ...
-                                                        repmat(nStudyArea, 24, 1), ...
+                                                        repmat(BetaStarStudyArea, StabilityAnalysis{1}, 1), ...
+                                                        repmat(nStudyArea, StabilityAnalysis{1}, 1), ...
                                                         'UniformOutput',false);
+
+%% Extract Slope of Study Area
+SlopeStudy = cellfun(@(x,y) x(y), SlopeAll, ...
+                                  IndexDTMPointsInsideStudyArea, ...
+                                  'UniformOutput',false);
+
+%% Calculating unconditionally stable points
+if ~all(cellfun(@isempty, IndexDTMPointsExcludedInStudyArea))
+    StablePointsOptions = {'With slope angle'
+                           'With a previous SLIP analysis'};
+else
+    StablePointsOptions = {'With slope angle'};
+end
+
+StableOption = listdlg('PromptString',{'How do you want to define unconditionally stable area?',''}, ...
+                       'ListString',StablePointsOptions, 'SelectionMode','single');
+
+switch StableOption
+    case 1
+        SlopeUncStab = str2double(inputdlg("Set Critical Slope Angle", '', 1, {'10'}));
+        SlopeUnstab = 70;
+    case 2
+        cd(fold_res_fs)
+        fold_res_fs_an = uigetdir('open');
+
+        cd(fold_res_fs_an)
+        FSLoadIndex = hours(EventSelForTrain-StabilityAnalysis{2}(1))+1;
+        load(strcat('Fs',num2str(FSLoadIndex),'.mat'));
+end
 
 %% Calculate cumulate rainfall
 rng(1) % For reproducibility
-FSForInstability = 1.2;
-FSForStability = 6;
+
+if StableOption == 2
+    FSForInstability = 1.2;
+    FSForStability = 6;
+    RealFS = zeros(TrainingSamples,1);
+end
+
 RatioNegToPos = 2;
-ConditioningFactors = 11;
+ConditioningFactors = 10;
 PositiveSamples = size(InfoDetectedSoilSlips,1);
 ResamplePositive = false;
 TrainingSamples = uint64((1+RatioNegToPos)*PositiveSamples);
@@ -50,7 +87,6 @@ NegativeSamples = TrainingSamples-PositiveSamples;
 ResampleNegative = true;
 
 TrainingCell = cell(TrainingSamples,ConditioningFactors); % Initializing cells and arrays
-RealFS = zeros(TrainingSamples,1);
 TrainingDTMPoints = zeros(TrainingSamples,3);
 
 if ~ResamplePositive
@@ -58,10 +94,10 @@ if ~ResamplePositive
         DTMi = InfoDetectedSoilSlips{i1,3};
         Indexi = InfoDetectedSoilSlips{i1,4};
         IndexAlli = IndexDTMPointsInsideStudyArea{DTMi}(Indexi);
-        TrainingCell(i1,:) = [InfoDetectedSoilSlips(i1,[8, 9, 11:15, 17, 18]), {sum(cellfun(@(x) full(x(Indexi)), ...
-                              RainInterpolated(EndEvent-23:EndEvent,DTMi)))}, {DmCum{end-RowFromLast, DTMi}(Indexi)}];
+        TrainingCell(i1,:) = [InfoDetectedSoilSlips(i1,[8, 9, 11:15, 17, 18]), ...
+                              {DmCumPar{end-RowFromLast, DTMi}(Indexi)}];
         TrainingDTMPoints(i1,:) = [DTMi, Indexi, IndexAlli];
-        RealFS(i1) = FactorSafety{DTMi}(Indexi);
+        if StableOption == 2; RealFS(i1) = FactorSafety{DTMi}(Indexi); end
     end
 else
     i1 = 1;
@@ -69,15 +105,27 @@ else
         DTMi = max(uint64(rand*length(IndexDTMPointsInsideStudyArea)),1);
         Indexi = max(uint64(rand*length(IndexDTMPointsInsideStudyArea{DTMi})),1);
         IndexAlli = IndexDTMPointsInsideStudyArea{DTMi}(Indexi);
-        if FactorSafety{DTMi}(Indexi) < FSForInstability && CohesionAll{DTMi}(IndexAlli) ~= 999
+        GoodPoint = false;
+
+        switch StableOption
+            case 1
+                if SlopeStudy{DTMi}(Indexi) > SlopeUnstab && ~isnan(CohesionAll{DTMi}(IndexAlli))
+                    GoodPoint = true;
+                end
+            case 2
+                if FactorSafety{DTMi}(Indexi) < FSForInstability && CohesionAll{DTMi}(IndexAlli) ~= 999 && ~isnan(CohesionAll{DTMi}(IndexAlli))
+                    GoodPoint = true;
+                end
+        end
+
+        if GoodPoint
             TrainingCell(i1,:) = {SlopeAll{DTMi}(IndexAlli), AspectAngleAll{DTMi}(IndexAlli), ...
                                   CohesionAll{DTMi}(IndexAlli), PhiAll{DTMi}(IndexAlli), ...
                                   KtAll{DTMi}(IndexAlli), AAll{DTMi}(IndexAlli), nAll{DTMi}(IndexAlli), ...
                                   BetaStarAll{DTMi}(IndexAlli), RootCohesionAll{DTMi}(IndexAlli), ...
-                                  sum(cellfun(@(x) full(x(Indexi)), RainInterpolated(EndEvent-23:EndEvent,DTMi))), ...
-                                  DmCum{end-RowFromLast, DTMi}(Indexi)};
+                                  DmCumPar{end-RowFromLast, DTMi}(Indexi)};
             TrainingDTMPoints(i1,:) = [DTMi, Indexi, IndexAlli];
-            RealFS(i1) = FactorSafety{DTMi}(Indexi);
+            if StableOption == 2; RealFS(i1) = FactorSafety{DTMi}(Indexi); end
             i1 = i1+1;
         end
     end
@@ -88,17 +136,30 @@ while i2 <= TrainingSamples
     DTMi = max(uint64(rand*length(IndexDTMPointsInsideStudyArea)),1);
     Indexi = max(uint64(rand*length(IndexDTMPointsInsideStudyArea{DTMi})),1);
     IndexAlli = IndexDTMPointsInsideStudyArea{DTMi}(Indexi);
-    if FactorSafety{DTMi}(Indexi) > FSForStability && CohesionAll{DTMi}(Indexi) ~= 999
+    GoodPoint = false;
+
+    switch StableOption
+            case 1
+                if SlopeStudy{DTMi}(Indexi) < SlopeUncStab && ~isnan(CohesionAll{DTMi}(IndexAlli))
+                    GoodPoint = true;
+                end
+            case 2
+                if FactorSafety{DTMi}(Indexi) > FSForStability && CohesionAll{DTMi}(IndexAlli) ~= 999 && ~isnan(CohesionAll{DTMi}(IndexAlli))
+                    GoodPoint = true;
+                end
+    end
+
+    if GoodPoint
         TrainingCell(i2,:) = {SlopeAll{DTMi}(IndexAlli), AspectAngleAll{DTMi}(IndexAlli), ...
                               CohesionAll{DTMi}(IndexAlli), PhiAll{DTMi}(IndexAlli), ...
                               KtAll{DTMi}(IndexAlli), AAll{DTMi}(IndexAlli), nAll{DTMi}(IndexAlli), ...
                               BetaStarAll{DTMi}(IndexAlli), RootCohesionAll{DTMi}(IndexAlli), ...
-                              sum(cellfun(@(x) full(x(Indexi)), RainInterpolated(EndEvent-23:EndEvent,DTMi))), ...
-                              DmCum{end-RowFromLast, DTMi}(Indexi)};
+                              DmCumPar{end-RowFromLast, DTMi}(Indexi)};
         TrainingDTMPoints(i2,:) = [DTMi, Indexi, IndexAlli];
-        RealFS(i2) = FactorSafety{DTMi}(Indexi);
+        if StableOption == 2; RealFS(i2) = FactorSafety{DTMi}(Indexi); end
         i2 = i2+1;
     end
+
 end
 
 TrainingFs = [true(PositiveSamples,1); false(NegativeSamples,1)];
@@ -106,7 +167,7 @@ TrainingFs = [true(PositiveSamples,1); false(NegativeSamples,1)];
 TrainingTable = cell2table(TrainingCell); % Not array2table because in that way they remain cells
 
 ConditioningFactorsNames = {'Slope (°)', 'Aspect (°)', 'c''(kPa)', 'phi (°)', 'kt(1/h)', ...
-                            'A (kPa)', 'n (-)', 'beta* (-)', 'cr (kPa)', 'cum rain (mm)', 'cum m (-)'};
+                            'A (kPa)', 'n (-)', 'beta* (-)', 'cr (kPa)', 'cum par m (-)'};
 
 TrainingTable.Properties.VariableNames = ConditioningFactorsNames;
 
@@ -116,7 +177,7 @@ TrainingTable.Properties.VariableNames = ConditioningFactorsNames;
 %% Creation of table with all point to pass through model
 CumRainStudyArea = cell(1,size(RainInterpolated,2));
 for i1 = 1:size(RainInterpolated,2)
-    CumRainStudyArea{i1} = full(sum([RainInterpolated{EndEvent-23:EndEvent,i1}],2));
+    CumRainStudyArea{i1} = full(sum([RainInterpolated{RainEndEvent-23:RainEndEvent,i1}],2));
 end
 
 AnalysisTable = [cellfun(@(x,y) x(y), SlopeAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false)
@@ -128,9 +189,9 @@ AnalysisTable = [cellfun(@(x,y) x(y), SlopeAll, IndexDTMPointsInsideStudyArea, '
                  cellfun(@(x,y) x(y), nAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false)
                  cellfun(@(x,y) x(y), BetaStarAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false)
                  cellfun(@(x,y) x(y), RootCohesionAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false)
-                 CumRainStudyArea
-                 DmCum]';
+                 DmCumPar(end-RowFromLast,:)]';
 
+%% Cleaning procedure NOT NECESSARY IN NEW ANALYSIS, BECAUSE THEY ALREADY HAD NaN
 AnalysisTableIndex999 = cellfun(@(x) x==999, AnalysisTable, 'UniformOutput',false);
 
 if any(cellfun(@any, AnalysisTableIndex999), 'all')
@@ -138,19 +199,37 @@ if any(cellfun(@any, AnalysisTableIndex999), 'all')
         AnalysisTable{i1}(AnalysisTableIndex999{i1}) = NaN;
     end
 
-    FactorSafetyIndex999 = AnalysisTableIndex999(:,3)';
-    FactorSafetyIndexTooBig = cellfun(@(x) x>80, FactorSafety, 'UniformOutput',false);
-    FactorSafetyIndexNotGood = cellfun(@(x,y) x|y, FactorSafetyIndex999, FactorSafetyIndexTooBig, 'UniformOutput',false);
-    for i1 = 1:length(FactorSafety)
-        FactorSafety{i1}(FactorSafetyIndexNotGood{i1}) = NaN;
+    for i1 = 1:size(AnalysisTable,1)
+        AnalysisTable{i1,end}(AnalysisTableIndex999{i1,3}) = NaN; % Third column because in the thirs there is Choesion and could have 999
+        for i2 = 1:size(DmCumPar,1)
+            DmCumPar{i2, i1}(AnalysisTableIndex999{i1,3}) = NaN;
+        end
+    end
+
+    if StableOption == 2
+        FactorSafetyIndex999 = AnalysisTableIndex999(:,3)'; % Third column because in the thirs there is Choesion and could have 999
+        FactorSafetyIndexTooBig = cellfun(@(x) x>80, FactorSafety, 'UniformOutput',false);
+        FactorSafetyIndexNotGood = cellfun(@(x,y) x|y, FactorSafetyIndex999, FactorSafetyIndexTooBig, 'UniformOutput',false);
+        for i1 = 1:length(FactorSafety)
+            FactorSafety{i1}(FactorSafetyIndexNotGood{i1}) = NaN;
+        end
     end
 end
 
 %% Normalizaion of table for training
-Minimum = min(cellfun(@min, AnalysisTable), [], 1);
-Maximum = max(cellfun(@max, AnalysisTable), [], 1);
-MinFS = min(cellfun(@min, FactorSafety));
-MaxFS = max(cellfun(@max, FactorSafety));
+Minimum = [min(cellfun(@min, AnalysisTable(:,1:end-1)), [], 1), min(min(cellfun(@min, DmCumPar)))];
+Maximum = [max(cellfun(@max, AnalysisTable(:,1:end-1)), [], 1), max(max(cellfun(@max, DmCumPar)))];
+
+AnalysisTableIndexNan = cellfun(@isnan, AnalysisTable, 'UniformOutput',false);
+ExcludedValues = [Minimum(1:2), Maximum(3:9), Minimum(10)];
+
+if any(cellfun(@any, AnalysisTableIndexNan), 'all')
+    for i2 = 1:size(AnalysisTable,1)
+        for i3 = 1:size(AnalysisTable,2)
+            AnalysisTable{i2,i3}(AnalysisTableIndexNan{i2,3}) = ExcludedValues(i3);
+        end
+    end
+end
 
 AnalysisTableNorm = [cellfun(@(x) (x-Minimum(1))./(Maximum(1)-Minimum(1)), AnalysisTable(:,1), 'UniformOutput',false), ...
                      cellfun(@(x) (x-Minimum(2))./(Maximum(2)-Minimum(2)), AnalysisTable(:,2), 'UniformOutput',false), ...
@@ -161,22 +240,29 @@ AnalysisTableNorm = [cellfun(@(x) (x-Minimum(1))./(Maximum(1)-Minimum(1)), Analy
                      cellfun(@(x) (x-Minimum(7))./(Maximum(7)-Minimum(7)), AnalysisTable(:,7), 'UniformOutput',false), ...
                      cellfun(@(x) (x-Minimum(8))./(Maximum(8)-Minimum(8)), AnalysisTable(:,8), 'UniformOutput',false), ...
                      cellfun(@(x) (x-Minimum(9))./(Maximum(9)-Minimum(9)), AnalysisTable(:,9), 'UniformOutput',false), ...
-                     cellfun(@(x) (x-Minimum(10))./(Maximum(10)-Minimum(10)), AnalysisTable(:,10), 'UniformOutput',false), ...
-                     cellfun(@(x) (x-Minimum(11))./(Maximum(11)-Minimum(11)), AnalysisTable(:,11), 'UniformOutput',false)];
+                     cellfun(@(x) (x-Minimum(10))./(Maximum(10)-Minimum(10)), AnalysisTable(:,10), 'UniformOutput',false)];
 
 TrainingCellNorm = num2cell((cell2mat(TrainingCell)-Minimum)./(Maximum-Minimum));
+NanIntoTrCellNorm = cellfun(@isnan, TrainingCellNorm);
+TrainingCellNorm(NanIntoTrCellNorm) = {0}; % To remove value consistant that normalized give NaNs
 
 TrainingTableNorm = cell2table(TrainingCellNorm);
 TrainingTableNorm.Properties.VariableNames = ConditioningFactorsNames;
 
-FactorSafetyNorm = cellfun(@(x) (x-MinFS)./(MaxFS-MinFS), FactorSafety, 'UniformOutput',false);
+if StableOption == 2
+    MinFS = min(cellfun(@min, FactorSafety));
+    MaxFS = max(cellfun(@max, FactorSafety));
 
-RealFSNorm = (RealFS-MinFS)./(MaxFS-MinFS);
+    FactorSafetyNorm = cellfun(@(x) (x-MinFS)./(MaxFS-MinFS), ...
+                                    FactorSafety, 'UniformOutput',false);
 
-%% Machine \ Deep Learning
+    RealFSNorm = (RealFS-MinFS)./(MaxFS-MinFS);
+end
+
+%% Machine / Deep Learning
 LearningOptions = {'Artificial Neural Network', 'Random Forest', 'Bag', ...
-                   'Adaptive Boosting', 'Adaptive logistic regression', ...
-                   'Totally corrective boosting', 'Auto Machine Learning', 'Auto ANN'};
+                   'Adaptive Boosting', 'Logit Boost', 'Gentle Boost', ...
+                   'Total Boost', 'Auto Machine Learning', 'Auto ANN'};
 Choice = listdlg('PromptString', {'Choose the algoritm:', ''}, 'ListString', ...
                  LearningOptions, 'SelectionMode', 'single');
 LearnChoice = string(LearningOptions{Choice});
@@ -184,83 +270,80 @@ LearnChoice = string(LearningOptions{Choice});
 switch LearnChoice
     case "Artificial Neural Network"
         Model = fitcnet(TrainingTableNorm, TrainingFs);
+        LearnMethod = LearnChoice;
 
     case "Random Forest"
         Model = TreeBagger(50, TrainingTableNorm, TrainingFs);
+        LearnMethod = LearnChoice;
 
     case "Bag"
         Model = fitcensemble(TrainingTableNorm, TrainingFs, 'Method','Bag', ...
                              'Learners',templateTree('Reproducible', true), ...
                              'Resample','on', 'NumLearningCycles',50);
+        LearnMethod = LearnChoice;
 
     case "Adaptive Boosting"
         Model = fitcensemble(TrainingTableNorm, TrainingFs, 'Method','AdaBoostM1', ...
                              'Learners',templateTree('Reproducible', true), ...
                              'LearnRate',0.1, 'NumLearningCycles',50);
+        LearnMethod = LearnChoice;
 
-    case "Adaptive logistic regression"
+    case "Logit Boost"
         Model = fitcensemble(TrainingTableNorm, TrainingFs, 'Method','LogitBoost', ...
                              'Learners',templateTree('Reproducible', true), ...
                              'LearnRate',0.1, 'NumLearningCycles',50);
+        LearnMethod = LearnChoice;
 
-    case "Totally corrective boosting"
-        Model = fitcensemble(TrainingTableNorm, TrainingFs, 'Method','LogitBoost', ...
+    case "Gentle Boost"
+        Model = fitcensemble(TrainingTableNorm, TrainingFs, 'Method','GentleBoost', ...
+                             'Learners',templateTree('Reproducible', true), ...
+                             'LearnRate',0.1, 'NumLearningCycles',50);
+        LearnMethod = LearnChoice;
+
+    case "Total Boost"
+        Model = fitcensemble(TrainingTableNorm, TrainingFs, 'Method','TotalBoost', ...
                              'Learners',templateTree('Reproducible', true), ...
                              'MarginPrecision',0.4, 'NumLearningCycles',50);
+        LearnMethod = LearnChoice;
 
     case "Auto Machine Learning"
         Model = fitcensemble(TrainingTableNorm, TrainingFs, 'OptimizeHyperparameters','auto');
+        switch Model.Method
+            case 'Bag'
+                LearnMethod = "Bag";
+
+            case 'AdaBoostM1'
+                LearnMethod = "Adaptive Boosting";
+
+            case 'GentleBoost'
+                LearnMethod = "Gentle Boost";
+
+            case 'LogitBoost'
+                LearnMethod = "Logit Boost";
+
+            case 'TotalBoost'
+                LearnMethod = "Total Boost";
+        end
 
     case "Auto ANN"
         Model = fitcnet(TrainingTableNorm,TrainingFs,'OptimizeHyperparameters','auto');
 end
 
 [FsTrainingPrediction, FsTrainingScores] = predict(Model,TrainingTableNorm);
-if LearnChoice == "Random Forest"; [~, ~, FsTrainingCost] = predict(Model,TrainingTableNorm); end
-
-%% Prediction of all points in study area
-AnalysisTableStudyArea = cell(1,size(AnalysisTableNorm,1));
-for i1 = 1:size(AnalysisTableNorm,1)
-    AnalysisTableStudyArea{i1} = array2table([AnalysisTableNorm{i1,:}]);
-    AnalysisTableStudyArea{i1}.Properties.VariableNames = ConditioningFactorsNames;
-end
-
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing');
-drawnow
-Steps = size(AnalysisTableStudyArea,2);
-[FsAnalysisPrediction, FsAnalysisScores, FsAnalysisCost] = deal(cell(1,size(AnalysisTableStudyArea,2)));
-for i1 = 1:size(AnalysisTableStudyArea,2)
-    [FsAnalysisPrediction{i1}, FsAnalysisScores{i1}] = predict(Model,AnalysisTableStudyArea{i1});
-    if LearnChoice == "Random Forest"; [~, ~, FsAnalysisCost{i1}] = predict(Model,AnalysisTableStudyArea{i1}); end
-
-    ProgressBar.Value = i1/Steps;
-    ProgressBar.Message = strcat("Prediction n. ", string(i1)," of ", string(Steps));
-    drawnow
-end
-close(ProgressBar) % ProgressBar instead of Fig if on the app version
-
-if LearnChoice == "Random Forest"
-    FsAnalysisPrediction = cellfun(@(x) str2num(cell2mat(x)), FsAnalysisPrediction, 'UniformOutput',false); % Remember to modify if you don't classify
-end
-
-if any(cellfun(@any, AnalysisTableIndex999), 'all')
-    for i1 = 1:length(FsAnalysisPrediction)
-        FsAnalysisPrediction{i1}(FactorSafetyIndexNotGood{i1}) = 0;
-        FsAnalysisScores{i1}(FactorSafetyIndexNotGood{i1},1) = 1;
-        FsAnalysisScores{i1}(FactorSafetyIndexNotGood{i1},2) = 0;
+if LearnMethod == "Random Forest"; [~, ~, FsTrainingCost] = predict(Model,TrainingTableNorm); end
+if any(strcmp(LearnMethod, ["Adaptive Boosting", "Logit Boost", "Total Boost", "Gentle Boost"]))
+    FsTrainingScores = exp(FsTrainingScores)./(exp(FsTrainingScores)+1); % from log(odds) to probability
+    if LearnMethod == "Total Boost"
+        FsTrainingScores = rescale(FsTrainingScores);
     end
 end
 
-FactorSafetyMachineLearning = [FsAnalysisPrediction; FsAnalysisScores];
-
-StabilityAnalysis{4} = ["Machine Learning", LearnChoice];
-
-%% Saving
+%% Prediction of all events in AnalysisInformation
+% Cretion of folder
 cd(fold_res_fs)
-EventFS.Format = 'dd-MM-yyyy-HH-mm';
+EventSelForTrain.Format = 'dd-MM-yyyy-HH-mm';
 FsFolderName = string(inputdlg({'Choose analysis folder name (inside Results->Factors of Safety):'}, ...
-                                '',1,strcat('MachineLearning','-Event-',string(EventFS))));
+                                '',1, strcat('MachineLearning','-Event-',string(EventSelForTrain))));
 
 if exist(FsFolderName,'dir')
     Answer = questdlg(strcat(FsFolderName," is an existing folder. " + ...
@@ -277,7 +360,99 @@ else
     mkdir(FsFolderName)
 end
 
+% Saving of AnalysisInformation
 cd(strcat(fold_res_fs,sl,FsFolderName))
-save(strcat('FsML',num2str(FSLoadIndex),'.mat'),'FactorSafetyMachineLearning')
+StabilityAnalysis{4} = ["Machine Learning", LearnChoice];
+AnalysisParameters = table(EventSelForTrain, ScaleFactorX, ScaleFactorY, VegAttribution);
+AnalysisParameters.MunSelected = {string(MunSel)};
+AnalysisParameters.TrainingCellUsed = {TrainingCell};
+if exist('LandUsesRemoved', 'var'); AnalysisParameters.LandUsesRemoved = {LandUsesRemoved}; end
+StabilityAnalysis{5} = AnalysisParameters;
+
 save('AnalysisInformation.mat','StabilityAnalysis');
+
+% Fig = uifigure; % Remember to comment this line if is app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing');
+drawnow
+Steps = size(DmCumPar,1)*size(AnalysisTable,1);
+
+% Main loop for all events
+for i1 = 1:size(DmCumPar,1)
+
+    %% Creation of table with all point to pass through model
+    RowFromLast = StabilityAnalysis{1}-i1;
+    RainEndEvent = size(RainInterpolated,1)-RowFromLast;
+
+    CumRainStudyArea = cell(1,size(RainInterpolated,2));
+    for i2 = 1:size(RainInterpolated,2)
+        CumRainStudyArea{i2} = full(sum([RainInterpolated{RainEndEvent-23:RainEndEvent,i2}],2));
+    end
+    
+    AnalysisTable(:,end) = DmCumPar(end-RowFromLast,:)';
+    
+    %% Cleaning procedure
+    if any(cellfun(@any, AnalysisTableIndex999), 'all')
+        for i2 = 1:size(AnalysisTable,1)
+            AnalysisTable{i2,end}(AnalysisTableIndex999{i2,3}) = NaN;
+        end
+    end
+
+    if any(cellfun(@any, AnalysisTableIndexNan), 'all')
+        for i2 = 1:size(AnalysisTable,1)
+            for i3 = 1:size(AnalysisTable,2)
+                AnalysisTable{i2,i3}(AnalysisTableIndexNan{i2,3}) = Maximum(i3);
+            end
+        end
+    end
+    
+    %% Prediction of all points in study area
+    AnalysisTableNorm(:,end) = cellfun(@(x) (x-Minimum(10))./(Maximum(10)-Minimum(10)), ...
+                                                        AnalysisTable(:,10), ...
+                                                        'UniformOutput',false); % Remember to modify if you add some parameters
+    NanIntoAnTblNorm = cellfun(@isnan, AnalysisTableNorm, 'UniformOutput', false);
+    for i2 = 1:size(AnalysisTableNorm,1)*size(AnalysisTableNorm,2)
+        AnalysisTableNorm{i2}(NanIntoAnTblNorm{i2}) = 0; % To remove value consistant that normalized give NaNs
+    end
+
+    AnalysisTableStudyArea = cell(1,size(AnalysisTableNorm,1));
+    for i2 = 1:size(AnalysisTableNorm,1)
+        AnalysisTableStudyArea{i2} = array2table([AnalysisTableNorm{i2,:}]);
+        AnalysisTableStudyArea{i2}.Properties.VariableNames = ConditioningFactorsNames;
+    end
+    
+    [FsAnalysisPrediction, FsAnalysisScores, FsAnalysisCost] = deal(cell(1,size(AnalysisTableStudyArea,2)));
+    for i2 = 1:size(AnalysisTableStudyArea,2)
+        [FsAnalysisPrediction{i2}, FsAnalysisScores{i2}] = predict(Model,AnalysisTableStudyArea{i2});
+        if LearnMethod == "Random Forest"; [~, ~, FsAnalysisCost{i2}] = predict(Model,AnalysisTableStudyArea{i2}); end
+        if any(strcmp(LearnMethod, ["Adaptive Boosting", "Logit Boost", "Total Boost", "Gentle Boost"]))
+            FsAnalysisScores{i2} = exp(FsAnalysisScores{i2})./(exp(FsAnalysisScores{i2})+1); % from log(odds) to probability
+            if LearnMethod == "Total Boost"
+                FsAnalysisScores{i2} = rescale(FsAnalysisScores{i2});
+            end
+        end
+    
+        ProgressBar.Value = ((i1-1)*size(AnalysisTable,1)+i2)/Steps;
+        ProgressBar.Message = strcat("Prediction n. ", string(i1)," of ", string(size(DmCumPar,1)));
+        drawnow
+    end
+    
+    if LearnMethod == "Random Forest"
+        FsAnalysisPrediction = cellfun(@(x) str2num(cell2mat(x)), FsAnalysisPrediction, 'UniformOutput',false); % Remember to modify if you don't classify
+    end
+    
+    if any(cellfun(@any, AnalysisTableIndex999), 'all')
+        for i2 = 1:length(FsAnalysisPrediction)
+            FsAnalysisPrediction{i2}(FactorSafetyIndexNotGood{i2}) = 0;
+            FsAnalysisScores{i2}(FactorSafetyIndexNotGood{i2},1) = 1;
+            FsAnalysisScores{i2}(FactorSafetyIndexNotGood{i2},2) = 0;
+        end
+    end
+    
+    FactorSafetyMachineLearning = [FsAnalysisPrediction; FsAnalysisScores];
+    
+    %% Saving
+    save(strcat('FsML',num2str(i1),'.mat'),'FactorSafetyMachineLearning')
+
+end
+close(ProgressBar) % ProgressBar instead of Fig if on the app version
 cd(fold0)
