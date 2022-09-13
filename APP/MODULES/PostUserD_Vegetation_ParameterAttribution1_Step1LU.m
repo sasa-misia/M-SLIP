@@ -1,7 +1,7 @@
 %% File loading
 cd(fold_var)
 load('LandUsesVariables');
-load('UserA_Answers_LU','LandUsesFieldName');
+load('UserA_Answers','LandUsesFieldName');
 
 if exist('IndexLandUsesToRemove')
     AllIndex=1:length(AllLandUnique);
