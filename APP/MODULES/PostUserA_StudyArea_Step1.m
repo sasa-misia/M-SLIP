@@ -52,7 +52,7 @@ MinExtremes = min(StudyAreaPolygon.Vertices);
 % Creatings string names of variables in a cell array to save at the end
 VariablesStudyArea = {'MunPolygon', 'StudyAreaPolygon', 'StudyAreaPolygonClean', ...
                       'StudyAreaPolygonExcluded', 'MaxExtremes', 'MinExtremes'};
-if SpecificWindow; Variables = [Variables, {'CoordinatesWindow'}]; end
+if SpecificWindow; VariablesStudyArea = [VariablesStudyArea, {'CoordinatesWindow'}]; end
 VariablesUserA = {'FileName_StudyArea', 'MunFieldName', 'MunSel', 'SpecificWindow'};
 
 %% Saving..
