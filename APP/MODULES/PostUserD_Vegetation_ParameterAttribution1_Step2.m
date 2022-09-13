@@ -22,21 +22,45 @@ ChoiceVU = questdlg('Would you like to choose VU color?','Color of VU', ...
 ChoiceDVC = questdlg('Would you like to choose DVC color?','Color of DVC', ...
                                         Options{1},Options{2},Options{2});
 if string(ChoiceVU) == string(Options{2})
-    VUColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
-                            Sheet_Ass(SelectedVeg+1,4), 'UniformOutput',false));
+
+    try
+        VUColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
+                                Sheet_Ass(SelectedVeg+1,4), 'UniformOutput',false));
+    catch me
+        getReport(me)
+        uialert(app.SLIP,['An error occurred reading colors (see MATLAB command), ' ...
+                          'VU Colors will be randomly generated...'], ...
+                          'VU Color Error')
+        VUColors = uint8(rand(size(SelectedVeg,1),3).*255);
+    end
+
 elseif string(ChoiceVU) == string(Options{1})
-    for i1 = 1:size(SelectedSoil,1)
+
+    for i1 = 1:size(SelectedVeg,1)
         VUColors(i1,:) = uisetcolor(strcat("Chose a color for ",VUAbbr(i1))).*255;
     end
+
 end
 
 if string(ChoiceDVC) == string(Options{2})
-    DVCColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
+
+    try
+        DVCColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
                  Sheet_DVCPar(2:size(Sheet_DVCPar,1),4), 'UniformOutput',false));
+    catch me
+        getReport(me)
+        uialert(app.SLIP,['An error occurred reading colors (see MATLAB command), ' ...
+                          'DVC Colors will be randomly generated...'], ...
+                          'DVC Color Error')
+        DVCColors = uint8(rand(size(Sheet_DVCPar,1),3).*255);
+    end
+
 elseif string(ChoiceDVC) == string(Options{1})
+
     for i1 = 1:size(Sheet_DVCPar,1)
         DVCColors(i1,:) = uisetcolor(strcat("Chose a color for UV ",num2str(i1))).*255;
     end
+
 end
 
 % Correspondence VU->DVC
