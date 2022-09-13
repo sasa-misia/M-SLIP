@@ -5,13 +5,15 @@ load('GridCoordinates.mat');
 load('AnalysisInformation.mat');
 load('GeneralRainfall.mat');
 
-
-if exist('LegendSettings.mat')
-    load('LegendSettings.mat')
+if exist('PlotSettings.mat', 'file')
+    load('PlotSettings.mat')
+    SelectedFont = Font;
+    SelectedFontSize = FontSize;
+    SelectedLocation = LegendPosition;
 else
-    SelectedFont='Times New Roman';
-    SelectedFontSize=8;
-    SelectedLocation='Best';
+    SelectedFont = 'Times New Roman';
+    SelectedFontSize = 8;
+    SelectedLocation = 'Best';
 end
 
 if RainFallType==2
@@ -50,14 +52,18 @@ if RainFallType==2
         'YGrid'       , 'off'     , ...
         'XColor'      , [0 0 0]   , ...
         'YColor'      , [0 127 255]./255   , ...
-        'XTick', RainfallDates(1):days(5):RainfallDates(end),'FontSize',10, 'FontName',SelectedFont,...
+        'XTick'       ,RainfallDates(1):days(5):RainfallDates(end), ...
+        'FontSize'    ,10, ...
+        'FontName'    ,SelectedFont, ...
         'YTick'       , 0:1:9, ...
-        'LineWidth'   , .5         )
+        'LineWidth'   , .5)
 
     yyaxis right
     plot(RainfallDates,cumsum(GeneralRainData(PosSelRecStation,:)),'k')
     %xlabel('Dates','FontName',SelectedFont)
     ylabel('Cumulative [mm]','FontName',SelectedFont)
+
+    daspect auto
     
     set(gca,...
         'XLim'        , [min(RainfallDates) max(RainfallDates)]    , ...
@@ -71,14 +77,14 @@ if RainFallType==2
         'YGrid'       , 'off'     , ...
         'XColor'      , [0 0 0]   , ...
         'YColor'      , [0 0 0]./255   , ...
-        'XTick',RainfallDates(1):days(5):RainfallDates(end),'FontSize',10, 'FontName',SelectedFont,...
+        'XTick'       ,RainfallDates(1):days(5):RainfallDates(end), ...
+        'FontSize'    ,10, ...
+        'FontName'    ,SelectedFont, ...
         'YTick'       , 0:20:200, ...
-        'LineWidth'   , .5         )
-
+        'LineWidth'   , .5)
 
     cd(fold_fig)
     exportgraphics(f1,strcat(filename1,'.png'),'Resolution',600);
-
 
 else
     if RainFallType==1
@@ -107,13 +113,10 @@ else
         RunSel=cellfun(@(x) x==RunSel,ForecastData(:,1));
         RunSel1=find(RunSel);
 
-    
-    
         EventsInterpolated=string([ForecastData{RunSel,2}(IndexForecastInterpolated{(ForecastRunUnique==RunSel1)})]);
     
         IndPlot=listdlg('PromptString',...
         {'Select interpolated rainfall:',''},'ListString',EventsInterpolated);
-    
     
         cd(fold_var_rain_for)
         load(strcat('RainForecastInterpolated',num2str(RunSel1)));
@@ -152,16 +155,7 @@ else
     Rain_range7{i1}=find(RainSelected{i1}>=rain_range(6));
     
     end
-    
-    dScaleBar=km2deg(1);
-    
-    
-    pol_scalebar1=polyshape([MaxExtremes(1)-6*dScaleBar MaxExtremes(1)-11*dScaleBar MaxExtremes(1)-11*dScaleBar MaxExtremes(1)-6*dScaleBar],[MinExtremes(2)+0.014 MinExtremes(2)+0.014 MinExtremes(2)+0.01 MinExtremes(2)+0.01]);
-    pol_scalebar2=polyshape([MaxExtremes(1)-6*dScaleBar MaxExtremes(1)-dScaleBar MaxExtremes(1)-dScaleBar MaxExtremes(1)-6*dScaleBar],[MinExtremes(2)+0.014 MinExtremes(2)+0.014 MinExtremes(2)+0.01 MinExtremes(2)+0.01]);
-    
-    
-    
-    
+     
     
     %%
     cd(fold0)
@@ -198,9 +192,6 @@ else
     hold on
     plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1.5)
     hold on
-    plot(pol_scalebar1,'FaceColor',[0 0 0],'EdgeColor','k','FaceAlpha',1,'LineWidth',0.5)
-    hold on
-    plot(pol_scalebar2,'FaceColor','none','EdgeColor','k','FaceAlpha',1,'LineWidth',0.5)
     
     hleg=legend([hrain1,hrain2,hrain3,hrain4,hrain5,hrain6,hrain7],...
         '< 1',...
@@ -214,66 +205,47 @@ else
         'NumColumns',2,...
         'FontName',SelectedFont,...
         'Location',SelectedLocation,...
-        'FontSize',SelectedFontSize)
+        'FontSize',SelectedFontSize);
     hleg.ItemTokenSize(1)=10;
     
     legend('AutoUpdate','off');
     legend boxoff
     
     title(hleg,'Rain [mm]','FontName',SelectedFont,'FontSize',SelectedFontSize*1.2,'FontWeight','bold')
-    
-    
-    text(MaxExtremes(1)-11*dScaleBar,MinExtremes(2)+0.005,'0','FontName',SelectedFont,'FontSize',SelectedFontSize)
-    text(MaxExtremes(1)-6*dScaleBar,MinExtremes(2)+0.005,'5','FontName',SelectedFont,'FontSize',SelectedFontSize)
-    text(MaxExtremes(1)-dScaleBar,MinExtremes(2)+0.005,'10','FontName',SelectedFont,'FontSize',SelectedFontSize)
-    
-    text(MaxExtremes(1)-2*dScaleBar,MinExtremes(2)+2*0.009,'km','FontName',SelectedFont,'FontSize',SelectedFontSize)
-    
-    comprose(14.1068,37.65,8,0.015,0)
-    text(14.103,37.67,'N','FontName',SelectedFont,'FontSize',SelectedFontSize)
-    
-    
-    xlim([MinExtremes(1),MaxExtremes(1)])
-    ylim([MinExtremes(2)-0.0005,MaxExtremes(2)+0.0005])
-    
-    
+
+    fig_settings(fold0)
     
     set(gca,'visible','off')
     cd(fold_fig)
     exportgraphics(f1,strcat(filename1,'.png'),'Resolution',600);
 
-
-
 end
 
 %%
-
-
-
-%%
-
 if RainFallType==1
-    filename2='LocationRainGauges'
+    filename2='LocationRainGauges';
     f2=figure(2);
     set(f2 , ...
         'Color',[1 1 1],...
         'PaperType','a4',...
-        'PaperSize',[29.68 20.98 ],...    
-        'PaperUnits', 'centimeters',...
+        'PaperSize',[29.68, 20.98 ],...    
+        'PaperUnits','centimeters',...
         'PaperPositionMode','manual',...
-        'PaperPosition', [0 1 14 12],...
+        'PaperPosition',[0 1 14 12],...
         'InvertHardcopy','off');
-    set( gcf ,'Name' , filename2);
+    set(gcf, 'Name',filename2);
     
     scatter(RainGauges{2}(:,1),RainGauges{2}(:,2),'*k')
     hold on
     plot(StudyAreaPolygon,'LineWidth',1,'FaceColor',[255 64 64]./255,'EdgeColor',[179 40 33]./255,'FaceAlpha',0.3);
     
     for i3=1:size(dataInstationSelected,1)
-    text(RainGauges{2}(i3,1)+.01,RainGauges{2}(i3,2),strcat(RainGauges{1}(i3),'(',num2str(dataInstationSelected(i3)),')'),'FontName',SelectedFont)
+        text(RainGauges{2}(i3,1)+.01,RainGauges{2}(i3,2),strcat(RainGauges{1}(i3),'(',num2str(dataInstationSelected(i3)),')'),'FontName',SelectedFont)
     end
     
-    
+    fig_settings(fold0)
+
     set(gca,'visible','off')
-    exportgraphics(f2,strcat(filename2,'.png'),'Resolution',600);
+    cd(fold_fig)
+    exportgraphics(f2, strcat(filename2,'.png'), 'Resolution',600);
 end
