@@ -1,5 +1,5 @@
 %% Data import
-tic
+
 cd(fold_var)
 
 % Fig = uifigure;
@@ -14,6 +14,7 @@ load('RainInterpolated.mat')
 load('AnalysisInformation.mat')
 load('UserE_Answers.mat')
 
+tic
 %% Preliminary operations and data extraction
 AnalysisNumber = StabilityAnalysis{1};
 RainStart = StabilityAnalysis{3}(1);
