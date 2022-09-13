@@ -3,6 +3,7 @@ cd(fold_var)
 load('InfoDetectedSoilSlips.mat')
 load('GridCoordinates.mat')
 load('MorphologyParameters.mat', 'SlopeAll')
+load("StudyAreaVariables.mat");
 
 if exist('PlotSettings.mat', 'file')
     load('PlotSettings.mat')
@@ -28,7 +29,7 @@ SlopeStudy = cellfun(@(x,y) x(y), SlopeAll, ...
 
 %% Definition of area where calculate ROC Curve
 % Points of max area where search for TP and FN
-SizeForDetROC = 200; % This is the size in m around the detected soil slip
+SizeForDetROC = 100; % This is the size in meters around the detected soil slip
 dXROC = km2deg(SizeForDetROC/2/1000);
 BoundSoilSlipROC = [cellfun(@(x) x-dXROC, InfoDetectedSoilSlips(:,5:6)), ...
                     cellfun(@(x) x+dXROC, InfoDetectedSoilSlips(:,5:6))];
@@ -46,24 +47,34 @@ IndFrstPartPointROC = cellfun(@(x,y) find(inpoly([x,y],pp,ee)), ...
 
 % Point where search for FP and TN
 if ~all(cellfun(@isempty, IndexDTMPointsExcludedInStudyArea))
-    ModeForROC = listdlg('PromptString',{'How do you want to define unconditionally stable area?',''}, ...
-                         'ListString',{'With slope angle', 'With land use excluded'}, 'SelectionMode','single');
+    StablePointsOptions = {'With slope angle'
+                           'All points outside detected polygons'
+                           'With land use excluded'};
 else
-    ModeForROC = 1;
+    StablePointsOptions = {'With slope angle'
+                           'All points outside detected polygons'};
 end
+
+ModeForROC = listdlg('PromptString',{'How do you want to define unconditionally stable area?',''}, ...
+                     'ListString',StablePointsOptions, ...
+                     'SelectionMode','single');
 
 switch ModeForROC
     case 1
-        SlopeUncStab = 15;
+        SlopeUncStab = str2double(inputdlg("Set Critical Slope Angle", '', 1, {'10'}));
         IndScndPartPointROC = cellfun(@(x) find(x<SlopeUncStab), SlopeStudy, 'UniformOutput',false);
     case 2
+        IndScndPartPointROC = cellfun(@(x) (1:length(x))', ...
+                                           IndexDTMPointsInsideStudyArea, ...
+                                           'UniformOutput',false);
+    case 3
         [~, IndScndPartPointROC, ~] = cellfun(@(x,y) intersect(x,y), ...
                                                      IndexDTMPointsInsideStudyArea, ...
                                                      IndexDTMPointsExcludedInStudyArea, ...
                                                      'UniformOutput',false);
 end
 
-% Union of first and second part
+% Union of first and second part 
 IndexDTMPointsForROC = cellfun(@(x,y) unique([x; y]), ...
                                       IndFrstPartPointROC, IndScndPartPointROC, ...
                                       'UniformOutput',false);
@@ -75,7 +86,7 @@ yLatROC = cellfun(@(x,y) x(y), yLatStudy, IndexDTMPointsForROC, 'UniformOutput',
 
 %% Main loop
 ROCToPlot = listdlg('PromptString',{'How many ROC do you want to plot?',''}, ...
-                    'ListString',{'1', '2', '3', '4'}, 'SelectionMode','single');
+                    'ListString',{'1', '2', '3', '4', '5', '6', '7', '8'}, 'SelectionMode','single');
 
 % Fig = uifigure; % Remember to comment this line if is app version
 figure(Fig)
@@ -124,9 +135,10 @@ for i1 = 1:ROCToPlot
 
             MaxFS = cellfun(@max, FactorSafetyROC, 'UniformOutput',false);
             MaxFS = max([MaxFS{:}]);
+%             MaxFS=70;
 
             MinFS = cellfun(@min, FactorSafetyROC, 'UniformOutput',false);
-            MinFS = min([MinFS{:}]); 
+            MinFS = min([MinFS{:}]);
 
             NaNFactorSafetyROC = cellfun(@(x) isnan(x), FactorSafetyROC, 'UniformOutput',false);
             for i2 = 1:length(FactorSafetyROC)
@@ -137,6 +149,7 @@ for i1 = 1:ROCToPlot
                                                     FactorSafetyROC, ...
                                                     'UniformOutput',false);
             ThresholdFS = [MinFS-1, MinFS, 0:0.1:2, 2.5:0.5:30, 35:5:70, MaxFS, MaxFS+1];
+            % ThresholdFS = [MinFS:0.1:2, 2.5:0.5:30, 35:5:70, MaxFS];
             IndSignificantPoints = find(ismember(ThresholdFS, [1, 1.5, 2]));
             InstabilityThresholds = arrayfun(@(x) 1-(x-MinFS)/(MaxFS-MinFS), ThresholdFS);
 
@@ -170,7 +183,7 @@ for i1 = 1:ROCToPlot
     %% Bounding for TP
     drawnow
     figure(Fig)
-    
+
     dX = km2deg(eval(Side{1})/2/1000);
 
     BoundSoilSlip = [cellfun(@(x) x-dX, InfoDetectedSoilSlips(:,5:6)), ...
@@ -365,10 +378,14 @@ hold(axes1,'on');
 Colors = [128   128     128
           0     127.5   127.5
           122   100     70
-          66    230     170  ]./255;
+          66    230     170  
+          150   22      230
+          55    55      55 
+          75    122     111  
+          88    88      122  ]./255;
 
-LineTypes = ["-", "-.", "-.", "-."];
-MarkTypes = ["d", "o", "-s", "^"];
+LineTypes = ["-", "-.", "--", ":", "-.", "--", ":", "-."];
+MarkTypes = ["d", "o", "-s", "^", "+", "x", "p", ">"];
 
 for i1 = 1:ROCToPlot
     if PlotChoice == 2
@@ -394,7 +411,7 @@ if exist('LegendPosition', 'var')
                    'FontName',SelectedFont,...
                    'FontSize',SelectedFontSize,...
                    'Box','on');
-    % hleg1.Title.String = 'AUC';
+%     hleg1.Title.String = 'AUC';
     hleg1.ItemTokenSize = [10, 5];
 end
 
