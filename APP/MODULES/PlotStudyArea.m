@@ -9,12 +9,13 @@ if exist("Orthophoto.mat")
     OrthophotoAnswer = 1;
 end
 
-if exist('LegendSettings.mat')
-    load('LegendSettings.mat')
+if exist('PlotSettings.mat', 'file')
+    load('PlotSettings.mat')
+    SelectedFont = Font;
+    SelectedFontSize = FontSize;
 else
     SelectedFont = 'Times New Roman';
     SelectedFontSize = 8;
-    SelectedLocation = 'Best';
 end
 
 MunColors = zeros(length(MunPolygon),3);
@@ -51,16 +52,20 @@ plot(StudyAreaPolygon,'FaceColor','none')
 hold on
 fig_settings(fold0)
 
-hleg1=legend(MunSel,...
-             'FontName',SelectedFont,...
-             'FontSize',SelectedFontSize,...
-             'Location',SelectedLocation,...
-             'NumColumns',2);
-
-hleg1.ItemTokenSize(1)=4;
-
-legend boxoff
-legend('AutoUpdate','off')
+cd(fold_var)
+load('PlotSettings.mat', 'LegendPosition')
+if exist('LegendPosition', 'var')
+    hleg1 = legend(MunSel,...
+                   'FontName',SelectedFont,...
+                   'FontSize',SelectedFontSize,...
+                   'Location',LegendPosition,...
+                   'NumColumns',2);
+    
+    hleg1.ItemTokenSize(1) = 4;
+    
+    legend boxoff
+    legend('AutoUpdate','off')
+end
 
 % [xMunTxt yMunTxt] = centroid(MunPolygon);
 % for i1 = 1:length(xMunTxt)
