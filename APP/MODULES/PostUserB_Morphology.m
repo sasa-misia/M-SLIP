@@ -96,16 +96,18 @@ for i2 = 1:length(xLongAll)
 end
 
 EmptyIndexDTMPointsInsideStudyArea = cellfun(@isempty,IndexDTMPointsInsideStudyArea);
-IndexDTMPointsInsideStudyArea(EmptyIndexDTMPointsInsideStudyArea) = [];
-IndexDTMPointsExcludedInStudyArea(EmptyIndexDTMPointsInsideStudyArea) = [];
-xLongAll(EmptyIndexDTMPointsInsideStudyArea) = [];
-yLatAll(EmptyIndexDTMPointsInsideStudyArea) = [];
-ElevationAll(EmptyIndexDTMPointsInsideStudyArea) = [];
-RAll(EmptyIndexDTMPointsInsideStudyArea) = [];
-AspectAngleAll(EmptyIndexDTMPointsInsideStudyArea) = [];
-SlopeAll(EmptyIndexDTMPointsInsideStudyArea) = [];
-GradNAll(EmptyIndexDTMPointsInsideStudyArea) = [];
-GradEAll(EmptyIndexDTMPointsInsideStudyArea) = [];
+NameFileIntersecated = NameFile1(~EmptyIndexDTMPointsInsideStudyArea);
+IndexDTMPointsInsideStudyArea(EmptyIndexDTMPointsInsideStudyArea)      = [];
+IndexDTMPointsExcludedInStudyArea(EmptyIndexDTMPointsInsideStudyArea)  = [];
+xLongAll(EmptyIndexDTMPointsInsideStudyArea)                           = [];
+yLatAll(EmptyIndexDTMPointsInsideStudyArea)                            = [];
+ElevationAll(EmptyIndexDTMPointsInsideStudyArea)                       = [];
+RAll(EmptyIndexDTMPointsInsideStudyArea)                               = [];
+AspectAngleAll(EmptyIndexDTMPointsInsideStudyArea)                     = [];
+SlopeAll(EmptyIndexDTMPointsInsideStudyArea)                           = [];
+GradNAll(EmptyIndexDTMPointsInsideStudyArea)                           = [];
+GradEAll(EmptyIndexDTMPointsInsideStudyArea)                           = [];
+toc
 
 %% Orthophoto
 if OrthophotoAnswer
@@ -209,7 +211,7 @@ AAll =              cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
 nAll =              cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
 BetaStarAll =       cellfun(@cosd, SlopeAll, 'UniformOutput',false); % If Vegetation is not associated, betastar will depends on slope
 RootCohesionAll =   cellfun(@zeros, SizeGridInCell, 'UniformOutput',false); % If Vegetation is not associated, root cohesion will be zero
-toc
+
 
 % Creatings string names of variables in cell arrays to save at the end
 VariablesMorph = {'ElevationAll', 'RAll', 'AspectAngleAll', 'SlopeAll', 'GradNAll', 'GradEAll'};
@@ -217,14 +219,17 @@ VariablesGridCoord = {'xLongAll', 'yLatAll', 'IndexDTMPointsInsideStudyArea', 'I
 VariablesSoilPar = {'CohesionAll', 'PhiAll', 'KtAll', 'AAll', 'nAll'};
 VariablesVegPar = {'RootCohesionAll', 'BetaStarAll'};
 VariablesAnswerB = {'AnswerChangeDTMResolution', 'DTMType', 'FileName_DTM', 'AnswerChangeDTMResolution', ...
-                   'OrthophotoAnswer', 'ScaleFactorX', 'ScaleFactorY'};
+                    'OrthophotoAnswer', 'ScaleFactorX', 'ScaleFactorY', 'NameFileIntersecated'};
 if AnswerChangeDTMResolution == 1; VariablesAnswerB = [VariablesAnswerB, {'NewDx', 'NewDy'}]; end
+if OrthophotoAnswer; VariablesOrtho = {'ZOrtho', 'ROrtho', 'xLongOrtho', 'yLatOrtho', ...
+                                       'OrthoRGB', 'IndexOrthoPointsInsideStudyArea'}; end
+
 VegAttribution = false;
 VariablesAnswerD = {'VegAttribution'};
 
 %% Saving...
 cd(fold_var)
-if OrthophotoAnswer; save('Orthophoto.mat', 'ZOrtho','ROrtho'); end
+if OrthophotoAnswer; save('Orthophoto.mat', VariablesOrtho{:}); end
 save('UserB_Answers.mat', VariablesAnswerB{:});
 save('UserD_Answers.mat', VariablesAnswerD{:});
 save('MorphologyParameters.mat', VariablesMorph{:});
