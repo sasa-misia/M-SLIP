@@ -4,7 +4,10 @@ load('GridCoordinates.mat');
 cd(fold_raw_det_ss)
 Files = {dir('*.xlsx').name};
 Choice = listdlg('PromptString',{'Choose a file:',''},'ListString',Files);
-FileDetectedSoilSlip = string(Files(Choice)); 
+FileDetectedSoilSlip = string(Files(Choice));
+
+drawnow % Remember to remove if in Standalone version
+figure(Fig) % Remember to remove if in Standalone version
 
 detssData = readcell(FileDetectedSoilSlip);
 EmptyPositions = cellfun(@(x) all(ismissing(x)), detssData);
@@ -41,11 +44,16 @@ ChoiceSubArea = uiconfirm(Fig, 'Would you like to create a sub area for each poi
                                'Sub areas', 'Options',Options);
 if strcmp(ChoiceSubArea,'Yes'); ChoiceSubArea = true; else; ChoiceSubArea = false; end
 if ChoiceSubArea
+    InfoDetectedSoilSlipsAverage = cell(1,2);
     InfoPointsNearDetectedSoilSlips = cell(size(Coordinates_DetectedSoilSlip,1), 4);
-    AreaRadius = km2deg(str2double(inputdlg("Set radius that will include points (m)", '', 1, {'100'}))/1000);
-    VariablesInfoDet = [VariablesInfoDet, {'InfoPointsNearDetectedSoilSlips'}];
+
+    AreaRadius = str2double(inputdlg("Set radius that will include points (m)", '', 1, {'100'}));
+    AreaRadiusDegree = km2deg(AreaRadius/1000);
+    InfoDetectedSoilSlipsAverage{1} = AreaRadius;
+    VariablesInfoDet = [VariablesInfoDet, {'InfoPointsNearDetectedSoilSlips', 'InfoDetectedSoilSlipsAverage'}];
 end
 
+InfoDetectedSoilSlips = cell(size(Coordinates_DetectedSoilSlip,1), 19);
 for i1 = 1:size(Coordinates_DetectedSoilSlip,1)
 
     InfoDetectedSoilSlips{i1,1} = Municipalities{i1};
@@ -70,7 +78,7 @@ for i1 = 1:size(Coordinates_DetectedSoilSlip,1)
     InfoDetectedSoilSlips{i1,4} = NearestPoint;
 
     if ChoiceSubArea
-        CheckNearestPoints = cellfun(@(x) x<=AreaRadius, Distance(DTMIncludingPoint), 'UniformOutput',false);
+        CheckNearestPoints = cellfun(@(x) x<=AreaRadiusDegree, Distance(DTMIncludingPoint), 'UniformOutput',false);
         NearestPoints = find([CheckNearestPoints{:}]);
         InfoPointsNearDetectedSoilSlips(i1,1:3) = {Municipalities{i1}; Locations{i1}; Point1};
         InfoPointsNearDetectedSoilSlips{i1,4} = num2cell([repmat(DTMIncludingPoint,size(NearestPoints)), NearestPoints]);
