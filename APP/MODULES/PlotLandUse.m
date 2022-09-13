@@ -19,7 +19,7 @@ else
 end
 
 cd(fold_user)
-Sheet_Ass=readcell(FileName_LandUsesAssociation,'Sheet','Association');
+Sheet_Ass=readcell(FileNameLandUsesAssociation,'Sheet','Association');
 CheckColor=cellfun(@ismissing,Sheet_Ass(2:end,3),'UniformOutput',false);
 AllLandUnique=Sheet_Ass(2:end,2);
 
@@ -51,7 +51,7 @@ switch NumFigPlot
             'PaperSize',[29.68 20.98 ],...    
             'PaperUnits', 'centimeters',...
             'PaperPositionMode','manual',...
-            'PaperPosition', [0 1 30 12],...
+            'PaperPosition', [0 1 7 5],...
             'InvertHardcopy','off');
         set( gcf ,'Name' , filename1);
         
@@ -69,7 +69,7 @@ switch NumFigPlot
                     'FontName',SelectedFont,...
                     'FontSize',SelectedFontSize,...
                     'Location',SelectedLocation,...
-                    'NumColumns',2);
+                    'NumColumns',1);
         
         hleg1.ItemTokenSize(1)=4;
         
