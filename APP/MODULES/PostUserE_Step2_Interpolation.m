@@ -20,6 +20,8 @@ if AnswerRainfallRec==1
 end
 
 [xLongSta, yLatSta] = deal(RainGauges{2}(:,1), RainGauges{2}(:,2));
+xLongStudy=cellfun(@(x,y) x(y),xLongAll,IndexDTMPointsInsideStudyArea,'UniformOutput',false);
+yLatStudy=cellfun(@(x,y) x(y),yLatAll,IndexDTMPointsInsideStudyArea,'UniformOutput',false);
 
 %% Interpolation for recording
 if AnswerRainfallRec == 1
@@ -36,6 +38,7 @@ if AnswerRainfallRec == 1
         end
     end
     
+    tic
     RainInterpolated = cell(size(IndexInterpolation,2),size(xLongAll,2));
 
     ProgressBar.Message = 'Initializing';
@@ -56,7 +59,7 @@ if AnswerRainfallRec == 1
             yLat = yLatAll{i2}(IndexDTMPointsInsideStudyArea{i2});
             hw1 = max(CurrInterpolation(xLong,yLat), 0); % Rain evaluation only in the internal points 
             RainInterpolated{i1,i2} = sparse(hw1); % On rows are saved temporal events of the same raster box
-        end
+        end      
         ProgressBar.Message = strcat("Finished n. ",num2str(i1)," of ",num2str(size(IndexInterpolation,2)));
     end
 
@@ -64,7 +67,9 @@ if AnswerRainfallRec == 1
         save('RainInterpolated.mat', 'RainInterpolated','IndexInterpolation', '-append');
     end
     close(ProgressBar) % ProgressBar instead of Fig if on the app version
+    toc
 end
+
 
 %% Interpolation for forecasting
 if AnswerRainfallFor == 1
