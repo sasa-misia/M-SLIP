@@ -3,8 +3,13 @@ load('UserA_Answers.mat');
 load('StudyAreaVariables.mat');
 cd(fold0)
 
+RefStudyArea = 0.035;
+% ExtentStudyArea = area(StudyAreaPolygon);
+ExtentStudyArea = prod(MaxExtremes-MinExtremes);
+RatioRef = ExtentStudyArea/RefStudyArea;
+
 OrthophotoAnswer = 0;
-if exist("Orthophoto.mat")
+if exist("Orthophoto.mat", 'file')
     load("Orthophoto.mat")
     OrthophotoAnswer = 1;
 end
@@ -32,8 +37,8 @@ end
 
 %%
 Filename1 = 'Municipalities';
-f1=figure(1);
-set(f1 , ...
+F1 = figure(1);
+set(F1, ...
     'Color',[1 1 1],...
     'PaperType','a4',...
     'PaperSize',[29.68 20.98 ],...    
@@ -43,8 +48,9 @@ set(f1 , ...
     'InvertHardcopy','off');
 set(gcf, 'Name',Filename1);
 
+PolygonsPlot = cell(1, size(MunPolygon,2));
 for i1 = 1:size(MunPolygon,2)
-    plot(MunPolygon(i1), 'FaceColor',MunColors(i1,:), 'FaceAlpha',1)
+    PolygonsPlot{i1} = plot(MunPolygon(i1), 'FaceColor',MunColors(i1,:), 'FaceAlpha',1);
     hold on
 end
 
@@ -53,15 +59,35 @@ hold on
 fig_settings(fold0)
 
 cd(fold_var)
-load('PlotSettings.mat', 'LegendPosition')
+InfoDetectedExist = false;
+if exist('InfoDetectedSoilSlips.mat', 'file')
+    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips')
+    hdetected = cellfun(@(x,y) scatter(x, y, 5*RatioRef, '^k','Filled'), InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
+    uistack(hdetected,'top')
+    InfoDetectedExist = true;
+end
+
+if exist('PlotSettings.mat', 'file')
+    load('PlotSettings.mat', 'LegendPosition')
+else
+    LegendPosition = 'best';
+end
+
+LegendObjects = PolygonsPlot;
+LegendCaption = MunSel;
+if InfoDetectedExist
+    LegendObjects = [LegendObjects, {hdetected(1)}];
+    LegendCaption = [LegendCaption; {"Points Analyzed"}];
+end
+
 if exist('LegendPosition', 'var')
-    hleg1 = legend(MunSel,...
-                   'FontName',SelectedFont,...
-                   'FontSize',SelectedFontSize,...
-                   'Location',LegendPosition,...
+    hleg1 = legend([LegendObjects{:}], LegendCaption, ...
+                   'FontName',SelectedFont, ...
+                   'FontSize',SelectedFontSize, ...
+                   'Location',LegendPosition, ...
                    'NumColumns',2);
     
-    hleg1.ItemTokenSize(1) = 4;
+    hleg1.ItemTokenSize(1) = 3;
     
     legend boxoff
     legend('AutoUpdate','off')
@@ -77,5 +103,5 @@ set(gca,'visible','off')
 
 %% Export png
 cd(fold_fig)
-exportgraphics(f1,strcat(Filename1,'.png'),'Resolution',600);
+exportgraphics(F1,strcat(Filename1,'.png'),'Resolution',600);
 cd(fold0)
