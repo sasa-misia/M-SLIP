@@ -5,6 +5,7 @@ load('VegetationParameters.mat');
 load('VegPolygonsStudyArea.mat');
 
 %% Excel reading and coefficient matrix writing
+% Fig = uifigure; % Remember to comment if in app version
 cd(fold_user)
 Sheet_DVCPar = readcell(FileName_VegAssociation,'Sheet','DVCParameters');
 Sheet_Ass = readcell(FileName_VegAssociation,'Sheet','Association');
@@ -28,9 +29,9 @@ if string(ChoiceVU) == string(Options{2})
                                 Sheet_Ass(SelectedVeg+1,4), 'UniformOutput',false));
     catch me
         getReport(me)
-        uialert(app.SLIP,['An error occurred reading colors (see MATLAB command), ' ...
-                          'VU Colors will be randomly generated...'], ...
-                          'VU Color Error')
+        uialert(Fig, ['An error occurred reading colors (see MATLAB command), ' ...
+                      'VU Colors will be randomly generated...'], ...
+                      'VU Color Error')
         VUColors = uint8(rand(size(SelectedVeg,1),3).*255);
     end
 
@@ -49,9 +50,9 @@ if string(ChoiceDVC) == string(Options{2})
                  Sheet_DVCPar(2:size(Sheet_DVCPar,1),4), 'UniformOutput',false));
     catch me
         getReport(me)
-        uialert(app.SLIP,['An error occurred reading colors (see MATLAB command), ' ...
-                          'DVC Colors will be randomly generated...'], ...
-                          'DVC Color Error')
+        uialert(Fig, ['An error occurred reading colors (see MATLAB command), ' ...
+                      'DVC Colors will be randomly generated...'], ...
+                      'DVC Color Error')
         DVCColors = uint8(rand(size(Sheet_DVCPar,1),3).*255);
     end
 
