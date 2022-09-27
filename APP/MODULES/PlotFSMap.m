@@ -4,7 +4,7 @@ load('SoilParameters.mat')
 load('StudyAreaVariables.mat')
 load('UserB_Answers.mat', 'OrthophotoAnswer')
 
-RefStudyArea = 0.035; % 0.0417;
+RefStudyArea = 0.035;
 ExtentStudyArea = area(StudyAreaPolygon);
 RatioRef = ExtentStudyArea/RefStudyArea;
 
@@ -128,7 +128,7 @@ set(f1 , ...
     'InvertHardcopy','off');
 set(gcf, 'Name',filename1);
 
-axes1 = axes('Parent',f1); 
+axes1 = axes('Parent',f1);
 hold(axes1,'on');
 
 PixelSize = .1/RatioRef;
