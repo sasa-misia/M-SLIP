@@ -26,7 +26,8 @@ for i1 = 1:length(NameFile1)
             A = imread(NameFile1(i1));
             R = worldfileread(NameFile2(i1), 'planar', size(A));  
         case 1
-            [A,R] = readgeoraster(NameFile1(i1), 'OutputType','double');
+            % [A,R] = readgeoraster(NameFile1(i1), 'OutputType','double');
+            [A,R] = readgeoraster(NameFile1(i1), 'OutputType','native');
         case 2
             [A,R] = readgeoraster(NameFile1(i1), 'OutputType','double');
     end
@@ -70,18 +71,29 @@ for i1 = 1:length(NameFile1)
         RGeo = georefcells([LatMin,LatMax], [LongMin,LongMax], size(Elevation));
         RGeo.GeographicCRS = R.ProjectedCRS.GeographicCRS;
     else
-        RGeo = R;
+        xLong = X;
+        yLat  = Y;
+        RGeo  = R;
     end
 
+    clear('X', 'Y')
+
     xLongAll{i1} = xLong;
+    clear('xLong')
     yLatAll{i1} = yLat;
+    clear('yLat')
     [AspectDTM, SlopeDTM, GradNDTM, GradEDTM] = gradientm(Elevation, RGeo);
     ElevationAll{i1} = Elevation;
+    clear('Elevation')
     RAll{i1} = RGeo;
     AspectAngleAll{i1} = AspectDTM;
+    clear('AspectDTM')
     SlopeAll{i1} = SlopeDTM;
+    clear('SlopeDTM')
     GradNAll{i1} = GradNDTM;
+    clear('GradNDTM')
     GradEAll{i1} = GradEDTM;
+    clear('GradEDTM')
 end
 
 [IndexDTMPointsInsideStudyArea, IndexDTMPointsExcludedInStudyArea] = deal(cell(1,length(xLongAll)));
@@ -95,7 +107,9 @@ for i2 = 1:length(xLongAll)
     end
 end
 
-EmptyIndexDTMPointsInsideStudyArea = cellfun(@isempty,IndexDTMPointsInsideStudyArea);
+%% Cleaning of DTM with no intersection (or only a single point)
+% EmptyIndexDTMPointsInsideStudyArea = cellfun(@isempty,IndexDTMPointsInsideStudyArea);
+EmptyIndexDTMPointsInsideStudyArea = cellfun(@(x) numel(x)<=1,IndexDTMPointsInsideStudyArea);
 NameFileIntersecated = NameFile1(~EmptyIndexDTMPointsInsideStudyArea);
 IndexDTMPointsInsideStudyArea(EmptyIndexDTMPointsInsideStudyArea)      = [];
 IndexDTMPointsExcludedInStudyArea(EmptyIndexDTMPointsInsideStudyArea)  = [];
