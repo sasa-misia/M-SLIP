@@ -13,14 +13,57 @@ Sheet_Ass = readcell(FileName_LithoAssociation, 'Sheet','Association');
 LU2DSC = Sheet_Ass(2:size(Sheet_Ass,1),2);
 SelectedSoil = find(cellfun(@ismissing,LU2DSC)==0);
 
-if isempty(SelectedSoil); error('L 1'); end
-
 LUAbbr = string(Sheet_Ass(SelectedSoil+1,3)); % Plus 1 because of headers
 
-LUColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
-                        Sheet_Ass(SelectedSoil+1,4), 'UniformOutput',false));  
-DSCColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
-             Sheet_DSCPar(2:size(Sheet_DSCPar,1),7), 'UniformOutput',false));
+if isempty(SelectedSoil); error('L 1'); end
+
+Options = {'Yes', 'No, yet assigned in excel'};
+ChoiceLU = questdlg('Would you like to choose VU color?','Color of VU', ...
+                                        Options{1},Options{2},Options{2});
+ChoiceDSC = questdlg('Would you like to choose DVC color?','Color of DVC', ...
+                                        Options{1},Options{2},Options{2});
+
+if string(ChoiceLU) == string(Options{2})
+
+    try
+        LUColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
+                                Sheet_Ass(SelectedSoil+1,4), 'UniformOutput',false));
+    catch me
+        getReport(me)
+        uialert(Fig, ['An error occurred reading colors (see MATLAB command), ' ...
+                      'LU Colors will be randomly generated...'], ...
+                      'LU Color Error')
+        LUColors = uint8(rand(size(SelectedSoil,1),3).*255);
+    end
+
+elseif string(ChoiceLU) == string(Options{1})
+
+    for i1 = 1:size(SelectedSoil,1)
+        LUColors(i1,:) = uisetcolor(strcat("Chose a color for ",LUAbbr(i1))).*255;
+    end
+
+end
+
+if string(ChoiceDSC) == string(Options{2})
+
+    try
+        DSCColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
+                 Sheet_DSCPar(2:size(Sheet_DSCPar,1),7), 'UniformOutput',false));
+    catch me
+        getReport(me)
+        uialert(Fig, ['An error occurred reading colors (see MATLAB command), ' ...
+                      'DSC Colors will be randomly generated...'], ...
+                      'DSC Color Error')
+        DSCColors = uint8(rand(size(Sheet_DSCPar,1),3).*255);
+    end
+
+elseif string(ChoiceDSC) == string(Options{1})
+
+    for i1 = 1:size(Sheet_DSCPar,1)
+        DSCColors(i1,:) = uisetcolor(strcat("Chose a color for LU ",num2str(i1))).*255;
+    end
+
+end
 
 % Correspondence LU->DSC
 LithoAcronyms = LUAbbr(:,1);
