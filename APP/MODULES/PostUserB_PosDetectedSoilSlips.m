@@ -18,7 +18,7 @@ Locations = detssData(2:end,2);
 
 Coordinates_DetectedSoilSlip = flip( ...
                                     reshape( ...
-                                            [detssData{cellfun(@isnumeric,detssData)}], ...
+                                            [detssData{cellfun(@isnumeric,detssData(:,1:5))}], ...
                                             [], 2), 2);
 
 LocationSs = string(detssData(2:end,2));
@@ -45,7 +45,7 @@ ChoiceSubArea = uiconfirm(Fig, 'Would you like to create a sub area for each poi
 if strcmp(ChoiceSubArea,'Yes'); ChoiceSubArea = true; else; ChoiceSubArea = false; end
 if ChoiceSubArea
     InfoDetectedSoilSlipsAverage = cell(1,2);
-    InfoPointsNearDetectedSoilSlips = cell(size(Coordinates_DetectedSoilSlip,1), 4);
+    InfoPointsNearDetectedSoilSlips = cell(size(Coordinates_DetectedSoilSlip,1), 7);
 
     AreaRadius = str2double(inputdlg("Set radius that will include points (m)", '', 1, {'100'}));
     AreaRadiusDegree = km2deg(AreaRadius/1000);
@@ -76,6 +76,9 @@ for i1 = 1:size(Coordinates_DetectedSoilSlip,1)
     CheckNearestPoint = cellfun(@(x) x==MinDistanceAll, Distance(DTMIncludingPoint), 'UniformOutput',false);
     NearestPoint = find([CheckNearestPoint{:}]);
     InfoDetectedSoilSlips{i1,4} = NearestPoint;
+
+    InfoDetectedSoilSlips{i1,5} = xLongStudy{DTMIncludingPoint}(NearestPoint);
+    InfoDetectedSoilSlips{i1,6} = yLatStudy{DTMIncludingPoint}(NearestPoint);
 
     if ChoiceSubArea
         CheckNearestPoints = cellfun(@(x) x<=AreaRadiusDegree, Distance(DTMIncludingPoint), 'UniformOutput',false);
