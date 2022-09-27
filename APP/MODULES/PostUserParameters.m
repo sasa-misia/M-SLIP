@@ -23,6 +23,7 @@ if exist('LandUsesVariables.mat', 'file')
     load('LandUsesVariables.mat', 'AllLandUnique','LandUsePolygonsStudyArea')
     AnswerLandUseAttribution = 1;
 end
+
 %% Extraction of points in Study Area and Detected points
 DTMIncludingPoint = [InfoDetectedSoilSlips{:,3}]';
 NearestPoint = [InfoDetectedSoilSlips{:,4}]';
@@ -72,8 +73,6 @@ end
 %% Start of the loop for each detected point
 for i1 = 1:size(DTMIncludingPoint,1)
 
-    InfoDetectedSoilSlips{i1,5} = xLongStudy{DTMIncludingPoint(i1)}(NearestPoint(i1));
-    InfoDetectedSoilSlips{i1,6} = yLatStudy{DTMIncludingPoint(i1)}(NearestPoint(i1));
     InfoDetectedSoilSlips{i1,7} = ElevationStudy{DTMIncludingPoint(i1)}(NearestPoint(i1));
     InfoDetectedSoilSlips{i1,8} = SlopeStudy{DTMIncludingPoint(i1)}(NearestPoint(i1));
     InfoDetectedSoilSlips{i1,9} = AspectStudy{DTMIncludingPoint(i1)}(NearestPoint(i1));
@@ -148,11 +147,11 @@ for i1 = 1:size(DTMIncludingPoint,1)
                                                              yLatStudy{DTMIncludingPoint(i1)}(NearestPoints)  ], x, y ), ... 
                                                     pp_lit, ee_lit, 'UniformOutput',false));
             for i2 = 1:length(NearestPoints)
-                VegPolygonsInd = find(LithoPolygons(i2,:));
-                if isempty(LithoPolygons)
+                LithoPolygonsInd = find(LithoPolygons(i2,:));
+                if isempty(LithoPolygonsInd)
                     InfoPointsNearDetectedSoilSlips{i1,4}(i2,8) = cellstr('No Litho');
                 else
-                    InfoPointsNearDetectedSoilSlips{i1,4}(i2,8) = LithoAllUnique(LithoPolygons);
+                    InfoPointsNearDetectedSoilSlips{i1,4}(i2,8) = LithoAllUnique(LithoPolygonsInd);
                 end
             end
         end
@@ -206,6 +205,12 @@ for i1 = 1:size(DTMIncludingPoint,1)
 
 end
 
+%% Option to show or not tables
+Options = {'Yes', 'No'};
+ShowTable = uiconfirm(Fig, 'Do you want to show tables?', ...
+                           'Tables plot', 'Options',Options);
+if strcmp(ShowTable,'Yes'); ShowTable = true; else; ShowTable = false; end
+
 %% Creation of table
 TabParameters = cell2table(InfoDetectedSoilSlips);
 
@@ -215,11 +220,27 @@ ColumnNames = {'Municipality', 'Location', 'N. DTM', 'Pos Elem', 'Long (°)', 'L
 
 TabParameters.Properties.VariableNames = ColumnNames;
 
-FigTable = uifigure('Name','Tab Parameters', 'WindowStyle','modal', 'Color',[0.97, 0.73, 0.58]);
-Tab = uitable(FigTable, 'Data',TabParameters, 'Units','normalized', 'Position',[0.01 0.01 0.98 0.98]);
+if ShowTable
+    FigTable = uifigure('Name','Tab Parameters', 'WindowStyle','modal', 'Color',[0.97, 0.73, 0.58]);
+    Tab = uitable(FigTable, 'Data',TabParameters, 'Units','normalized', 'Position',[0.01 0.01 0.98 0.98]);
+end
 
 %% Creation of table with mean or mode values for every sub area
 if ChoiceSubArea
+    for i1 = 1:size(InfoPointsNearDetectedSoilSlips,1)
+        [LithoCount,   LithoClasses]   = histcounts(categorical(InfoPointsNearDetectedSoilSlips{i1,4}(:,8)));
+        [VegCount,     VegClasses]     = histcounts(categorical(InfoPointsNearDetectedSoilSlips{i1,4}(:,14)));
+        [LandUseCount, LandUseClasses] = histcounts(categorical(InfoPointsNearDetectedSoilSlips{i1,4}(:,17)));
+
+        InfoPointsNearDetectedSoilSlips{i1,5} = cell2table([LithoClasses',   num2cell(LithoCount'),   num2cell(LithoCount'/sum(LithoCount)*100)]);
+        InfoPointsNearDetectedSoilSlips{i1,6} = cell2table([VegClasses',     num2cell(VegCount'),     num2cell(VegCount'/sum(VegCount)*100)]);
+        InfoPointsNearDetectedSoilSlips{i1,7} = cell2table([LandUseClasses', num2cell(LandUseCount'), num2cell(LandUseCount'/sum(LandUseCount)*100)]);
+        
+        ColumnNamesClasses = {'Classes', 'N. of Points', 'Percentage'};
+        InfoPointsNearDetectedSoilSlips{i1,5}.Properties.VariableNames = ColumnNamesClasses;
+        InfoPointsNearDetectedSoilSlips{i1,6}.Properties.VariableNames = ColumnNamesClasses;
+        InfoPointsNearDetectedSoilSlips{i1,7}.Properties.VariableNames = ColumnNamesClasses;
+    end
     InfoDetectedSoilSlipsAverage{2} = [InfoDetectedSoilSlips(:,1:6), ...
                     cellfun(@(x) mean([x{:,5 }]), InfoPointsNearDetectedSoilSlips(:,4), 'UniformOutput',false), ...
                     cellfun(@(x) mean([x{:,6 }]), InfoPointsNearDetectedSoilSlips(:,4), 'UniformOutput',false), ...
@@ -245,8 +266,10 @@ if ChoiceSubArea
     
     TabAverageParameters.Properties.VariableNames = ColumnNamesAverage;
     
-    FigTableAverage = uifigure('Name','Average Tab Parameters', 'WindowStyle','modal', 'Color',[0.97, 0.73, 0.58]);
-    TabAverage = uitable(FigTableAverage, 'Data',TabAverageParameters, 'Units','normalized', 'Position',[0.01 0.01 0.98 0.98]);
+    if ShowTable
+        FigTableAverage = uifigure('Name','Average Tab Parameters', 'WindowStyle','modal', 'Color',[0.97, 0.73, 0.58]);
+        TabAverage = uitable(FigTableAverage, 'Data',TabAverageParameters, 'Units','normalized', 'Position',[0.01 0.01 0.98 0.98]);
+    end
 end
 
 %% Saving...
