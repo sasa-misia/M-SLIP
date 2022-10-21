@@ -128,21 +128,24 @@ save('StudyCTR.mat', VariablesCTR{:});
 cd(fold0)
 
 %% Plot for check
-fig_check = figure(2);
-ax_check = axes(fig_check);
-hold(ax_check,'on')
-for i3 = 1:length(xLongCTRStudy)
-    fastscatter(xLongCTRStudy{i3}, yLatCTRStudy{i3}, double(GrayScaleCTRStudy{i3}), 'Parent',ax_check)
-    colormap(ax_check,'gray')
-    % colormap default
-    % pause
+SkipCheck = false;
+if SkipCheck
+    fig_check = figure(2);
+    ax_check = axes(fig_check);
+    hold(ax_check,'on')
+    for i3 = 1:length(xLongCTRStudy)
+        fastscatter(xLongCTRStudy{i3}, yLatCTRStudy{i3}, double(GrayScaleCTRStudy{i3}), 'Parent',ax_check)
+        colormap(ax_check,'gray')
+        % colormap default
+        % pause
+    end
+    
+    plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1);
+    
+    title('Study Area Polygon Check')
+    
+    fig_settings(fold0, 'AxisTick');
 end
-
-plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1);
-
-title('Study Area Polygon Check')
-
-fig_settings(fold0, 'AxisTick');
 
 %% Figure Creation
 RefStudyArea = 0.035;
@@ -155,9 +158,9 @@ fold_fig_det = strcat(fold_fig,sl,'Detected points plots');
 if ~exist(fold_fig_det,'dir'); mkdir(fold_fig_det); end
 
 Options = {'Yes', 'No'};
-Skip = uiconfirm(Fig, 'Do you want to plot Elevation and Slope too?', ...
+SkipMS = uiconfirm(Fig, 'Do you want to plot Elevation and Slope too?', ...
                       'Tables plot', 'Options',Options);
-if strcmp(Skip,'No'); Skip = true; else; Skip = false; end
+if strcmp(SkipMS,'No'); SkipMS = true; else; SkipMS = false; end
 
 Classes = cellfun(@(x) table2cell(x(:,1)), InfoPointsNearDetectedSoilSlips(:,7), 'UniformOutput',false);
 Classes = unique(string(cat(1, Classes{:})));
@@ -166,6 +169,8 @@ IndClassesNS = strcmp(Classes, 'Land Use not specified'); % Not classified, then
 Classes(IndClassesNS) = [];
 
 PlotColors = arrayfun(@(x) rand(1, 3), Classes, 'UniformOutput',false);
+
+warning('off')
 
 for i1 = 1:length(PolWindow)
     %% Preliminary operations
@@ -223,9 +228,9 @@ for i1 = 1:length(PolWindow)
     ClassesLocal  = Classes(IndClassesNotEmpty);
     PlotColorsLoc = PlotColors(IndClassesNotEmpty);
 
-    PlotClass = cellfun(@(x,z) scatter(PointsNearLong(x), PointsNearLat(x), 0.15*PixelSize, ...
+    PlotClass = cellfun(@(x,z) scatter(PointsNearLong(x), PointsNearLat(x), 0.1*PixelSize, ...
                                        'Marker','o', 'MarkerFaceColor',z, 'MarkerEdgeColor','none', ...
-                                       'MarkerFaceAlpha',0.3, 'Parent',ax_ind1), ...
+                                       'MarkerFaceAlpha',0.35, 'Parent',ax_ind1), ...
                                IndClasses, PlotColorsLoc, 'UniformOutput',false);
 
     %% Plot Contour, detected point & extra settings
@@ -265,7 +270,7 @@ for i1 = 1:length(PolWindow)
     % cla(ax_ind1,'reset')
     % clf(fig_class,'reset')
 
-    if Skip; continue; end
+    if SkipMS; continue; end
 
     %% Plot Morphology
     fig_morph = figure(4);
@@ -290,12 +295,16 @@ for i1 = 1:length(PolWindow)
     PlotMorph = fastscatter2(PointsNearLong, PointsNearLat, PointsNearAlt, 'FaceAlpha',0.4, 'Parent',ax_ind2);
 
     colormap(ax_ind2,'pink')
-    ColBar = colorbar('Location','southoutside');
+    LimitsCol = linspace(min(PointsNearAlt), max(PointsNearAlt), 5);
+    LimitsCol = round(LimitsCol, 3, 'significant');
+    clim([LimitsCol(1), LimitsCol(end)])
+    ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol);
     ColBarPos = get(ColBar,'Position');
-    ColBarPos(1) = ColBarPos(1)*2.2;
-    ColBarPos(2) = ColBarPos(2)-0.3*ColBarPos(2);
-    ColBarPos(3:4) = ColBarPos(3:4)*0.6;
-    set(ColBar,'Position',ColBarPos)
+    ColBarPos(1) = ColBarPos(1)*2.8;
+    ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
+    ColBarPos(3:4) = ColBarPos(3:4)*0.4;
+    set(ColBar, 'Position',ColBarPos)
+    title(ColBar, 'Elevazione [m]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2)
 
     PlotContour = plot(PolWindow(i1),'FaceColor','none','LineWidth',1, 'LineStyle','--', 'Parent',ax_ind2);
 
@@ -338,12 +347,17 @@ for i1 = 1:length(PolWindow)
     PlotSlope = fastscatter2(PointsNearLong, PointsNearLat, PointsNearSlope, 'FaceAlpha',0.4, 'Parent',ax_ind3);
 
     colormap(ax_ind3,'cool')
-    ColBar = colorbar('Location','southoutside');
+    LimitsCol = linspace(min(PointsNearSlope), max(PointsNearSlope), 5);
+    LimitsCol = round(LimitsCol, 2, 'significant');
+    if LimitsCol(end) >= 5; LimitsCol = uint16(LimitsCol); end
+    clim([LimitsCol(1), LimitsCol(end)])
+    ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol);
     ColBarPos = get(ColBar,'Position');
-    ColBarPos(1) = ColBarPos(1)*2.2;
-    ColBarPos(2) = ColBarPos(2)-0.3*ColBarPos(2);
-    ColBarPos(3:4) = ColBarPos(3:4)*0.6;
-    set(ColBar,'Position',ColBarPos)
+    ColBarPos(1) = ColBarPos(1)*2.8;
+    ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
+    ColBarPos(3:4) = ColBarPos(3:4)*0.4;
+    set(ColBar, 'Position',ColBarPos)
+    title(ColBar, 'Inclinazione Pendio [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2)
 
     PlotContour = plot(PolWindow(i1),'FaceColor','none','LineWidth',1, 'LineStyle','--', 'Parent',ax_ind3);
 
@@ -364,3 +378,4 @@ for i1 = 1:length(PolWindow)
     close(fig_slope)
 end
 cd(fold0)
+warning('on')
