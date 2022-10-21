@@ -20,6 +20,10 @@ if AnswerAttributionSoilParameter==1
 
     color_c=LU_DSCPlotColor{2}(Index4Color_c,:)./255;
     color_phi=LU_DSCPlotColor{2}(Index4Color_phi,:)./255;
+    color_kt=LU_DSCPlotColor{2}(Index4Color_k,:)./255;
+    color_A=LU_DSCPlotColor{2}(Index4Color_A,:)./255;
+
+
 else
     n_us=unique(nAll{1});
     phi_us=unique(PhiAll{1});
@@ -29,6 +33,8 @@ else
     
     color_c=[0 0 255]./255;
     color_phi=[0 0 255]./255;
+    color_kt=[0 0 255]./255;
+    color_A=[0 0 255]./255;
 end
 
 if exist('PlotSettings.mat', 'file')
@@ -165,6 +171,7 @@ switch NumFigPlot
         legend boxoff
         
         leg1.ItemTokenSize(1) = 10;
+        title(leg1, '{\it c''} [kPa]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
         
         plot(MunPolygon, 'FaceColor','none', 'LineWidth',1);
         hold on
@@ -212,7 +219,8 @@ switch NumFigPlot
         legend boxoff
         
         leg1.ItemTokenSize(1) = 10;
-        
+        title(leg1, '{\it \phi''} [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
+
         
         plot(MunPolygon, 'FaceColor','none', 'LineWidth',1);
         hold on
@@ -271,5 +279,103 @@ switch NumFigPlot
         set(gca,'visible','off')
         cd(fold_fig)
         exportgraphics(f4, strcat(filename4,'.png'), 'Resolution',600);
+    
+    case 5
+        filename5 = 'KtMap';
+        f5 = figure(5);
+        set(f5, ...
+            'Color',[1 1 1], ...
+            'PaperType','a4', ...
+            'PaperSize',[29.68, 20.98], ...    
+            'PaperUnits','centimeters', ...
+            'PaperPositionMode','manual', ...
+            'PaperPosition', [0 1 13 11], ...
+            'InvertHardcopy','off');
+        set(gcf, 'Name',filename5); 
+
+        axes5 = axes('Parent',f5); 
+        hold(axes5,'on');  
+        
+        for i1 = 1:length(kt_us)
+            hkt(i1,:) = cellfun(@(x,y,z) scatter(x(z),y(z),.1/RatioRef,...
+                                                  'Marker','o', ...
+                                                  'MarkerFaceColor',color_kt(i1,:), ...
+                                                  'MarkerEdgeColor','none'), ...
+                                xLongStudy, yLatStudy, kt_case(i1,:), 'UniformOutput',false);
+            hold on
+        end   
+
+
+        
+        leg_kt = cellstr(num2str(round(kt_us,3)));
+        leg1 = legend([hkt{1:end,1}], leg_kt{:}, ...
+                        'NumColumns',1, ...
+                        'FontName',SelectedFont, ...
+                        'Location',SelectedLocation, ...
+                        'FontSize',SelectedFontSize);
+        legend('AutoUpdate','off');
+        legend boxoff
+        
+        leg1.ItemTokenSize(1) = 10;
+        title(leg1, '{\it k_t} [1/s]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
+
+        
+        plot(MunPolygon, 'FaceColor','none', 'LineWidth',1);
+        hold on
+
+        fig_settings(fold0)
+        
+        set(gca, 'visible','off')
+        cd(fold_fig)
+        exportgraphics(f5, strcat(filename5,'.png'), 'Resolution',600);
+    
+    case 6
+        filename6 = 'AMap';
+        f6 = figure(6);
+        set(f6, ...
+            'Color',[1 1 1], ...
+            'PaperType','a4', ...
+            'PaperSize',[29.68, 20.98], ...    
+            'PaperUnits','centimeters', ...
+            'PaperPositionMode','manual', ...
+            'PaperPosition', [0 1 13 11], ...
+            'InvertHardcopy','off');
+        set(gcf, 'Name',filename6); 
+
+        axes6 = axes('Parent',f6); 
+        hold(axes6,'on');  
+        
+        for i1 = 1:length(kt_us)
+            hA(i1,:) = cellfun(@(x,y,z) scatter(x(z),y(z),.1/RatioRef,...
+                                                  'Marker','o', ...
+                                                  'MarkerFaceColor',color_A(i1,:), ...
+                                                  'MarkerEdgeColor','none'), ...
+                                xLongStudy, yLatStudy, kt_case(i1,:), 'UniformOutput',false);
+            hold on
+        end   
+
+
+        
+        leg_A = cellstr(num2str(A_us,3));
+        leg1 = legend([hA{1:end,1}], leg_A{:}, ...
+                        'NumColumns',1, ...
+                        'FontName',SelectedFont, ...
+                        'Location',SelectedLocation, ...
+                        'FontSize',SelectedFontSize);
+        legend('AutoUpdate','off');
+        legend boxoff
+        
+        leg1.ItemTokenSize(1) = 10;
+        title(leg1, '{\it A} [kPa]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
+
+        
+        plot(MunPolygon, 'FaceColor','none', 'LineWidth',1);
+        hold on
+
+        fig_settings(fold0)
+        
+        set(gca, 'visible','off')
+        cd(fold_fig)
+        exportgraphics(f6, strcat(filename6,'.png'), 'Resolution',600);
 
 end
