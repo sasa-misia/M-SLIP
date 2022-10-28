@@ -1,9 +1,9 @@
 %% File loading...
 cd(fold_var)
-load('MorphologyParameters.mat')
-load('SoilParameters.mat')
-load('VegetationParameters.mat')
-load('GridCoordinates.mat')
+load('MorphologyParameters.mat', 'AspectAngleAll','ElevationAll','SlopeAll')
+load('SoilParameters.mat', 'AAll','CohesionAll','KtAll','PhiAll','nAll')
+load('VegetationParameters.mat', 'BetaStarAll','RootCohesionAll')
+load('GridCoordinates.mat', 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
 load('InfoDetectedSoilSlips.mat')
 load('UserC_Answers.mat')
 load('UserD_Answers.mat')
@@ -30,39 +30,51 @@ NearestPoint = [InfoDetectedSoilSlips{:,4}]';
 
 xLongStudy          = cellfun(@(x,y) x(y), xLongAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('xLongAll')
 
 yLatStudy           = cellfun(@(x,y) x(y), yLatAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('yLatAll')
 
 ElevationStudy      = cellfun(@(x,y) x(y), ElevationAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('ElevationAll')
 
 SlopeStudy          = cellfun(@(x,y) x(y), SlopeAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('SlopeAll')
 
 AspectStudy         = cellfun(@(x,y) x(y), AspectAngleAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('AspectAngleAll')
 
 CohesionStudy       = cellfun(@(x,y) x(y), CohesionAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('CohesionAll')
 
 PhiStudy            = cellfun(@(x,y) x(y), PhiAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('PhiAll')
 
 nStudy              = cellfun(@(x,y) x(y), nAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('nAll')
 
 kStudy              = cellfun(@(x,y) x(y), KtAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('KtAll')
 
 AStudy              = cellfun(@(x,y) x(y), AAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('AAll')
 
 betastarStudy       = cellfun(@(x,y) x(y), BetaStarAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('BetaStarAll')
 
 RootStudy           = cellfun(@(x,y) x(y), RootCohesionAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('RootCohesionAll')
 
 %% Creation of variables to save
 VariablesInfoDet = {'InfoDetectedSoilSlips', 'ChoiceSubArea'};
@@ -189,10 +201,10 @@ for i1 = 1:size(DTMIncludingPoint,1)
         else
             [pp_lu, ee_lu] = arrayfun(@(x) getnan2(x.Vertices), LandUsePolygonsStudyArea, 'UniformOutput',false);
             LUPolygons = cell2mat(cellfun(@(x,y) inpoly( [xLongStudy{DTMIncludingPoint(i1)}(NearestPoints), ...
-                                                         yLatStudy{DTMIncludingPoint(i1)}(NearestPoints)  ], x, y ), ...
+                                                          yLatStudy{DTMIncludingPoint(i1)}(NearestPoints)  ], x, y ), ...
                                                   pp_lu, ee_lu, 'UniformOutput',false));
             for i2 = 1:length(NearestPoints)
-                LUPolygonsInd = find(LUPolygons(i2,:));
+                LUPolygonsInd = find(LUPolygons(i2,:), 1); % Sometimes it can happen that you have multiple classes, the first will be taken
                 if isempty(LUPolygonsInd)
                     InfoPointsNearDetectedSoilSlips{i1,4}(i2,17) = cellstr('Land Use not specified');
                 else
@@ -206,6 +218,7 @@ for i1 = 1:size(DTMIncludingPoint,1)
 end
 
 %% Option to show or not tables
+% Fig = uifigure; % remember to comment if in app version
 Options = {'Yes', 'No'};
 ShowTable = uiconfirm(Fig, 'Do you want to show tables?', ...
                            'Tables plot', 'Options',Options);
