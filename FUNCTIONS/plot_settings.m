@@ -6,7 +6,7 @@ curr_path = pwd;
 if isempty(varargin); save_path = curr_path; else save_path = varargin{1}; end
 
 FigSettings = uifigure('Name','Plot Settings', 'WindowStyle','modal', ...
-                       'Color',[0.97, 0.73, 0.58], 'Position',[800, 400, 400, 400]);
+                       'Color',[0.97, 0.73, 0.58], 'Position',[800, 300, 400, 400]);
 
 FigDimensions = FigSettings.Position(3:4);
 
@@ -14,7 +14,8 @@ FigDimensions = FigSettings.Position(3:4);
 FontList = listfonts;
 FontSizeList = string(4:2:80);
 Locations = {'north', 'south', 'east', 'west', 'northeast', 'northwest', ...
-             'southeast', 'southwest', 'best', 'layout'};
+             'southeast', 'southwest', 'best', 'layout', 'northoutside', ...
+             'southoutside', 'eastoutside', 'westoutside'};
 
 LocationsRed = {'northeast', 'northwest', 'southeast', 'southwest'};
 
