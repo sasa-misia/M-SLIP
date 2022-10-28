@@ -74,13 +74,15 @@ if isfile(FileName_VegAssociation)
     Answer = questdlg('There is an existing association file. Do you want to overwrite it?', ...
                 	  'Existing Association File', ...
                 	  'Yes, thanks','No, for God!','No, for God!');
-    if strcmp(Answer,'Yes, thanks'); delete(FileName_VegAssociation); end
+    if strcmp(Answer,'Yes, thanks')
+        delete(FileName_VegAssociation)
+        ColHeader1 = {VegFieldName, 'UV associated', 'VU Abbrev (For Map)', 'RGB LU (for Map)'};
+        ColHeader2 = {'UV','c_R''(kPa)','\beta (-)','Color'};
+        writecell(ColHeader1,FileName_VegAssociation, 'Sheet','Association', 'Range','A1');
+        writecell(VegetationAllUnique',FileName_VegAssociation, 'Sheet','Association', 'Range','A2');
+        writecell(ColHeader2,FileName_VegAssociation, 'Sheet','DVCParameters', 'Range','A1');
+    end
 end
-ColHeader1 = {VegFieldName, 'UV associated', 'VU Abbrev (For Map)', 'RGB LU (for Map)'};
-ColHeader2 = {'UV','c_R''(kPa)','\beta (-)','Color'};
-writecell(ColHeader1,FileName_VegAssociation, 'Sheet','Association', 'Range','A1');
-writecell(VegetationAllUnique',FileName_VegAssociation, 'Sheet','Association', 'Range','A2');
-writecell(ColHeader2,FileName_VegAssociation, 'Sheet','DVCParameters', 'Range','A1');
 
 VariablesVeg = {'VegPolygonsStudyArea', 'VegetationAllUnique', 'FileName_VegAssociation'};
 VariablesAnswerD = {'AnswerAttributionVegetationParameter', 'FileName_Vegetation', 'VegFieldName'};
