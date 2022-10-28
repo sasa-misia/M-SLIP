@@ -147,7 +147,29 @@ if SkipCheck
     fig_settings(fold0, 'AxisTick');
 end
 
+%% Request for Elevation and Slope
+% Fig = uifigure; % Remember to comment if in app version
+Options = {'All', 'Selected class', 'Elevation + Slope', 'Aspect'};
+SelPlots = uiconfirm(Fig, 'What do you want to plot?', ...
+                        'Tables plot', 'Options',Options);
+switch SelPlots
+    case 'All'
+        SelPlots = 1;
+    case 'Selected class'
+        SelPlots = 2;
+    case 'Elevation + Slope'
+        SelPlots = 3;
+    case 'Aspect'
+        SelPlots = 4;
+end
+% if strcmp(SkipMSA,'No'); SkipMSA = true; else; SkipMSA = false; end
+
+ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
+                           'Show plot', 'Options',{'Yes', 'No'});
+if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
+
 %% Figure Creation
+rng(15) % For havenig the same color palet everytime
 RefStudyArea = 0.035;
 
 xLongCTRTot      = cat(1,xLongCTRStudy{:});
@@ -156,11 +178,6 @@ GrayScaleCTRTot  = cat(1,GrayScaleCTRStudy{:});
 
 fold_fig_det = strcat(fold_fig,sl,'Detected points plots');
 if ~exist(fold_fig_det,'dir'); mkdir(fold_fig_det); end
-
-Options = {'Yes', 'No'};
-SkipMS = uiconfirm(Fig, 'Do you want to plot Elevation and Slope too?', ...
-                      'Tables plot', 'Options',Options);
-if strcmp(SkipMS,'No'); SkipMS = true; else; SkipMS = false; end
 
 Classes = cellfun(@(x) table2cell(x(:,1)), InfoPointsNearDetectedSoilSlips(:,7), 'UniformOutput',false);
 Classes = unique(string(cat(1, Classes{:})));
@@ -174,27 +191,14 @@ warning('off')
 
 for i1 = 1:length(PolWindow)
     %% Preliminary operations
-    fig_class = figure(3);
-    ax_ind1 = axes(fig_class);
-    hold(ax_ind1,'on')
-
     ExtentStudyArea = area(PolWindow(i1));
     ExtremesPlot = PolWindow(i1).Vertices;
     [ppWin, eeWin] = getnan2([PolWindow(i1).Vertices; nan, nan]);
-    RatioRef = ExtentStudyArea/RefStudyArea;
-
-    Filename1 = strcat("Classes for point n. ",string(i1));
-    title(strcat( "Comune: ", string(InfoDetectedSoilSlips{i1,1})), ...
-          'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind1)
-    subtitle(strcat( "Cod. IOP: ", string(InfoDetectedSoilSlips{i1,2})), ...
-             'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind1)
-    set(fig_class, 'Name',Filename1);
-    
+    RatioRef = ExtentStudyArea/RefStudyArea;    
     PixelSize = .1/RatioRef;
 
-    %% Plot CTR
+    % CTR Preliminary operation
     IndexCTRInPolWin = find(inpoly([xLongCTRTot, yLatCTRTot], ppWin, eeWin)==1);
-
     if ~isempty(IndexCTRInPolWin)
         xLongCTRPar     = xLongCTRTot(IndexCTRInPolWin);
         yLatCTRPar      = yLatCTRTot(IndexCTRInPolWin);
@@ -202,180 +206,279 @@ for i1 = 1:length(PolWindow)
     
         xLongCTRToPlot  = xLongCTRPar(~logical(GrayScaleCTRPar));
         yLatCTRToPlot   = yLatCTRPar(~logical(GrayScaleCTRPar));
-    
-        PlotCTR1 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
-                           'MarkerEdgeColor','none', 'MarkerFaceAlpha',1, 'Parent',ax_ind1);
     else
         strcat("Municipality: ", string(InfoDetectedSoilSlips{i1,1}), " does not have CTR")
     end
 
-    %% Plot Classes (LU)
-    PointClassNearDSS = string(InfoPointsNearDetectedSoilSlips{i1,4}(:,17)); % This is LU
     PointsNearLong = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,3));
     PointsNearLat  = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,4));
 
-    IndexPointClassesInPolWin = find(inpoly([PointsNearLong, PointsNearLat], ppWin, eeWin)==1);
+    IndexPointsInPolWin = find(inpoly([PointsNearLong, PointsNearLat], ppWin, eeWin)==1);
 
-    PointClassNearDSS = PointClassNearDSS(IndexPointClassesInPolWin);
-    PointsNearLong    = PointsNearLong(IndexPointClassesInPolWin);
-    PointsNearLat     = PointsNearLat(IndexPointClassesInPolWin);
+    PointsNearLong    = PointsNearLong(IndexPointsInPolWin);
+    PointsNearLat     = PointsNearLat(IndexPointsInPolWin);
+
+    %% Plot Classes
+    if SelPlots == 1 || SelPlots == 2
+        fig_class = figure('visible','off');
+        ax_ind1 = axes(fig_class);
+        hold(ax_ind1,'on')
+
+        Filename1 = strcat("Classes for point n. ",string(i1));
+        title(strcat( "Comune: ", string(InfoDetectedSoilSlips{i1,1})), ...
+              'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind1)
+        subtitle(strcat( "Cod. IOP: ", string(InfoDetectedSoilSlips{i1,2})), ...
+                 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind1)
+        set(fig_class, 'Name',Filename1);
     
-    IndClasses = arrayfun(@(x) strcmp(x, PointClassNearDSS), Classes, 'UniformOutput',false);
-
-    IndClassesNotEmpty = cellfun(@(x) any(x), IndClasses);
-
-    IndClasses    = IndClasses(IndClassesNotEmpty);
-    ClassesLocal  = Classes(IndClassesNotEmpty);
-    PlotColorsLoc = PlotColors(IndClassesNotEmpty);
-
-    PlotClass = cellfun(@(x,z) scatter(PointsNearLong(x), PointsNearLat(x), 0.1*PixelSize, ...
-                                       'Marker','o', 'MarkerFaceColor',z, 'MarkerEdgeColor','none', ...
-                                       'MarkerFaceAlpha',0.35, 'Parent',ax_ind1), ...
-                               IndClasses, PlotColorsLoc, 'UniformOutput',false);
-
-    %% Plot Contour, detected point & extra settings
-    PlotContour = plot(PolWindow(i1),'FaceColor','none','LineWidth',1, 'LineStyle','--', 'Parent',ax_ind1);
-
-    PlotDetected = scatter(InfoDetectedSoilSlips{i1,5}, InfoDetectedSoilSlips{i1,6}, PixelSize, ...
-                           'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
-                           'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind1);
-
-    ax_ind1.XAxis.Visible = 'off';
-    ax_ind1.YAxis.Visible = 'off';
-
-    if exist('LegendPosition', 'var')
-        LegendObjects = [PlotClass; {PlotDetected}];
-        LegendCaption = [ClassesLocal; {'Ponte'}];
-
-        hleg1 = legend([LegendObjects{:}], LegendCaption, ...
-                       'FontName',SelectedFont, ...
-                       'FontSize',SelectedFontSize, ...
-                       'Location',LegendPosition, ...
-                       'NumColumns',1);
+        % Plot CTR
+        if ~isempty(IndexCTRInPolWin)
+            PlotCTR1 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
+                               'MarkerEdgeColor','none', 'MarkerFaceAlpha',1, 'Parent',ax_ind1);
+        end
+    
+        % Plot Classes (LU)
+        PointClassNearDSS = string(InfoPointsNearDetectedSoilSlips{i1,4}(:,17)); % This is LU
+        PointClassNearDSS = PointClassNearDSS(IndexPointsInPolWin);
         
-        hleg1.ItemTokenSize(1) = 3;
-        
-        legend('AutoUpdate','off')
+        IndClasses = arrayfun(@(x) strcmp(x, PointClassNearDSS), Classes, 'UniformOutput',false);
+    
+        IndClassesNotEmpty = cellfun(@(x) any(x), IndClasses);
+    
+        IndClasses    = IndClasses(IndClassesNotEmpty);
+        ClassesLocal  = Classes(IndClassesNotEmpty);
+        PlotColorsLoc = PlotColors(IndClassesNotEmpty);
+    
+        PlotClass = cellfun(@(x,z) scatter(PointsNearLong(x), PointsNearLat(x), 0.1*PixelSize, ...
+                                           'Marker','o', 'MarkerFaceColor',z, 'MarkerEdgeColor','none', ...
+                                           'MarkerFaceAlpha',0.35, 'Parent',ax_ind1), ...
+                                   IndClasses, PlotColorsLoc, 'UniformOutput',false);
+    
+        % Plot Contour, detected point & extra settings
+        PlotContour = plot(PolWindow(i1), 'FaceColor','none', 'LineWidth',1, 'LineStyle','--', 'Parent',ax_ind1);
+    
+        PlotDetected = scatter(InfoDetectedSoilSlips{i1,5}, InfoDetectedSoilSlips{i1,6}, PixelSize, ...
+                               'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
+                               'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind1);
+    
+        ax_ind1.XAxis.Visible = 'off';
+        ax_ind1.YAxis.Visible = 'off';
+    
+        FigSize =  get(fig_class, 'position');
+    
+        if exist('LegendPosition', 'var')
+            LegendObjects = [PlotClass; {PlotDetected}];
+            LegendCaption = [ClassesLocal; {'Ponte'}];
+    
+            hleg1 = legend([LegendObjects{:}], LegendCaption, ...
+                           'FontName',SelectedFont, ...
+                           'FontSize',SelectedFontSize, ...
+                           'Location',LegendPosition, ...
+                           'NumColumns',1);
+            
+            hleg1.ItemTokenSize(1) = 3;
+            
+            legend('AutoUpdate','off')
+    
+            set(hleg1, 'unit','pixels')
+            LegSize = get(hleg1, 'position');
+    
+            FigSize([2, 4]) = [FigSize(2)-LegSize(4), FigSize(4)+LegSize(4)];
+            set(fig_class, 'position', FigSize)
+        end
+    
+        fig_settings(fold0, 'ScaleBar', 'ScaleBarBox', 'SetExtremes',ExtremesPlot);
+    
+        if ShowPlots
+            set(fig_class, 'visible','on');
+            pause
+        end
+    
+        % Saving...
+        cd(fold_fig_det)
+        exportgraphics(fig_class, strcat(Filename1,'.png'), 'Resolution',600);
+    
+        close(fig_class)
+        % cla(ax_ind1,'reset')
+        % clf(fig_class,'reset')
     end
-
-    fig_settings(fold0, 'ScaleBar', 'ScaleBarBox', 'SetExtremes',ExtremesPlot);
-
-    pause
-
-    %% Saving...
-    cd(fold_fig_det)
-    exportgraphics(fig_class, strcat(Filename1,'.png'), 'Resolution',600);
-
-    close(fig_class)
-    % cla(ax_ind1,'reset')
-    % clf(fig_class,'reset')
-
-    if SkipMS; continue; end
 
     %% Plot Morphology
-    fig_morph = figure(4);
-    ax_ind2 = axes(fig_morph);
-    hold(ax_ind2,'on')
-
-    Filename2 = strcat("Morphology of point n. ",string(i1));
-    title(strcat( "Comune: ", string(InfoDetectedSoilSlips{i1,1})), ...
-          'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind2)
-    subtitle(strcat( "Cod. IOP: ", string(InfoDetectedSoilSlips{i1,2})), ...
-             'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind2)
-    set(fig_morph, 'Name',Filename2);
-
-    if ~isempty(IndexCTRInPolWin)
-        PlotCTR2 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
-                               'MarkerEdgeColor','none', 'MarkerFaceAlpha',1, 'Parent',ax_ind2);
+    if SelPlots == 1 || SelPlots == 3
+        fig_morph = figure('visible','off');
+        ax_ind2 = axes(fig_morph);
+        hold(ax_ind2,'on')
+    
+        Filename2 = strcat("Morphology of point n. ",string(i1));
+        title(strcat( "Comune: ", string(InfoDetectedSoilSlips{i1,1})), ...
+              'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind2)
+        subtitle(strcat( "Cod. IOP: ", string(InfoDetectedSoilSlips{i1,2})), ...
+                 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind2)
+        set(fig_morph, 'Name',Filename2);
+    
+        if ~isempty(IndexCTRInPolWin)
+            PlotCTR2 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
+                                   'MarkerEdgeColor','none', 'MarkerFaceAlpha',1, 'Parent',ax_ind2);
+        end
+    
+        PointsNearAlt  = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,5));
+        PointsNearAlt  = PointsNearAlt(IndexPointsInPolWin);
+    
+        PlotMorph = fastscatter2(PointsNearLong, PointsNearLat, PointsNearAlt, 'FaceAlpha',0.4, 'Parent',ax_ind2);
+    
+        colormap(ax_ind2,'pink')
+        LimitsCol = linspace(min(PointsNearAlt), max(PointsNearAlt), 5);
+        LimitsCol = round(LimitsCol, 3, 'significant');
+        clim([LimitsCol(1), LimitsCol(end)])
+        ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol);
+        ColBarPos = get(ColBar,'Position');
+        ColBarPos(1) = ColBarPos(1)*2.8;
+        ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
+        ColBarPos(3:4) = ColBarPos(3:4)*0.4;
+        set(ColBar, 'Position',ColBarPos)
+        title(ColBar, 'Elevazione [m]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2)
+    
+        PlotContour = plot(PolWindow(i1), 'FaceColor','none', 'LineWidth',1, 'LineStyle','--', 'Parent',ax_ind2);
+    
+        PlotDetected = scatter(InfoDetectedSoilSlips{i1,5}, InfoDetectedSoilSlips{i1,6}, PixelSize, ...
+                               'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
+                               'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind2);
+    
+        ax_ind2.XAxis.Visible = 'off';
+        ax_ind2.YAxis.Visible = 'off';
+    
+        fig_settings(fold0, 'ScaleBar', 'ScaleBarBox', 'SetExtremes',ExtremesPlot);
+    
+        if ShowPlots
+            set(fig_morph, 'visible','on');
+            pause
+        end
+    
+        % Saving...
+        cd(fold_fig_det)
+        exportgraphics(fig_morph, strcat(Filename2,'.png'), 'Resolution',600);
+        close(fig_morph)
     end
-
-    PointsNearAlt  = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,5));
-    PointsNearAlt  = PointsNearAlt(IndexPointClassesInPolWin);
-
-    PlotMorph = fastscatter2(PointsNearLong, PointsNearLat, PointsNearAlt, 'FaceAlpha',0.4, 'Parent',ax_ind2);
-
-    colormap(ax_ind2,'pink')
-    LimitsCol = linspace(min(PointsNearAlt), max(PointsNearAlt), 5);
-    LimitsCol = round(LimitsCol, 3, 'significant');
-    clim([LimitsCol(1), LimitsCol(end)])
-    ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol);
-    ColBarPos = get(ColBar,'Position');
-    ColBarPos(1) = ColBarPos(1)*2.8;
-    ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
-    ColBarPos(3:4) = ColBarPos(3:4)*0.4;
-    set(ColBar, 'Position',ColBarPos)
-    title(ColBar, 'Elevazione [m]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2)
-
-    PlotContour = plot(PolWindow(i1),'FaceColor','none','LineWidth',1, 'LineStyle','--', 'Parent',ax_ind2);
-
-    PlotDetected = scatter(InfoDetectedSoilSlips{i1,5}, InfoDetectedSoilSlips{i1,6}, PixelSize, ...
-                           'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
-                           'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind2);
-
-    ax_ind2.XAxis.Visible = 'off';
-    ax_ind2.YAxis.Visible = 'off';
-
-    fig_settings(fold0, 'ScaleBar', 'ScaleBarBox', 'SetExtremes',ExtremesPlot);
-
-    pause
-
-    %% Saving...
-    cd(fold_fig_det)
-    exportgraphics(fig_morph, strcat(Filename2,'.png'), 'Resolution',600);
-    close(fig_morph)
 
     %% Plot Slope
-    fig_slope = figure(5);
-    ax_ind3 = axes(fig_slope);
-    hold(ax_ind3,'on')
-
-    Filename3 = strcat("Slope of point n. ",string(i1));
-    title(strcat( "Comune: ", string(InfoDetectedSoilSlips{i1,1})), ...
-          'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind3)
-    subtitle(strcat( "Cod. IOP: ", string(InfoDetectedSoilSlips{i1,2})), ...
-             'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind3)
-    set(fig_slope, 'Name',Filename3);
-
-    if ~isempty(IndexCTRInPolWin)
-        PlotCTR2 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
-                               'MarkerEdgeColor','none', 'MarkerFaceAlpha',1, 'Parent',ax_ind3);
+    if SelPlots == 1 || SelPlots == 3
+        fig_slope = figure('visible','off');
+        ax_ind3 = axes(fig_slope);
+        hold(ax_ind3,'on')
+    
+        Filename3 = strcat("Slope of point n. ",string(i1));
+        title(strcat( "Comune: ", string(InfoDetectedSoilSlips{i1,1})), ...
+              'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind3)
+        subtitle(strcat( "Cod. IOP: ", string(InfoDetectedSoilSlips{i1,2})), ...
+                 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind3)
+        set(fig_slope, 'Name',Filename3);
+    
+        if ~isempty(IndexCTRInPolWin)
+            PlotCTR2 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
+                                   'MarkerEdgeColor','none', 'MarkerFaceAlpha',1, 'Parent',ax_ind3);
+        end
+    
+        PointsNearSlope  = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,6));
+        PointsNearSlope  = PointsNearSlope(IndexPointsInPolWin);
+    
+        PlotSlope = fastscatter2(PointsNearLong, PointsNearLat, PointsNearSlope, 'FaceAlpha',0.4, 'Parent',ax_ind3);
+    
+        colormap(ax_ind3,'cool')
+        LimitsCol = linspace(min(PointsNearSlope), max(PointsNearSlope), 5);
+        LimitsCol = round(LimitsCol, 2, 'significant');
+        if LimitsCol(end) >= 5; LimitsCol = uint16(LimitsCol); end
+        clim([LimitsCol(1), LimitsCol(end)])
+        ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol);
+        ColBarPos = get(ColBar,'Position');
+        ColBarPos(1) = ColBarPos(1)*2.8;
+        ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
+        ColBarPos(3:4) = ColBarPos(3:4)*0.4;
+        set(ColBar, 'Position',ColBarPos)
+        title(ColBar, 'Inclinazione Pendio [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2)
+    
+        PlotContour = plot(PolWindow(i1), 'FaceColor','none', 'LineWidth',1, 'LineStyle','--', 'Parent',ax_ind3);
+    
+        PlotDetected = scatter(InfoDetectedSoilSlips{i1,5}, InfoDetectedSoilSlips{i1,6}, PixelSize, ...
+                               'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
+                               'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind3);
+    
+        ax_ind3.XAxis.Visible = 'off';
+        ax_ind3.YAxis.Visible = 'off';
+    
+        fig_settings(fold0, 'ScaleBar', 'ScaleBarBox', 'SetExtremes',ExtremesPlot);
+    
+        if ShowPlots
+            set(fig_slope, 'visible','on');
+            pause
+        end
+    
+        % Saving...
+        cd(fold_fig_det)
+        exportgraphics(fig_slope, strcat(Filename3,'.png'), 'Resolution',600);
+        close(fig_slope)
     end
 
-    PointsNearSlope  = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,6));
-    PointsNearSlope  = PointsNearSlope(IndexPointClassesInPolWin);
-
-    PlotSlope = fastscatter2(PointsNearLong, PointsNearLat, PointsNearSlope, 'FaceAlpha',0.4, 'Parent',ax_ind3);
-
-    colormap(ax_ind3,'cool')
-    LimitsCol = linspace(min(PointsNearSlope), max(PointsNearSlope), 5);
-    LimitsCol = round(LimitsCol, 2, 'significant');
-    if LimitsCol(end) >= 5; LimitsCol = uint16(LimitsCol); end
-    clim([LimitsCol(1), LimitsCol(end)])
-    ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol);
-    ColBarPos = get(ColBar,'Position');
-    ColBarPos(1) = ColBarPos(1)*2.8;
-    ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
-    ColBarPos(3:4) = ColBarPos(3:4)*0.4;
-    set(ColBar, 'Position',ColBarPos)
-    title(ColBar, 'Inclinazione Pendio [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2)
-
-    PlotContour = plot(PolWindow(i1),'FaceColor','none','LineWidth',1, 'LineStyle','--', 'Parent',ax_ind3);
-
-    PlotDetected = scatter(InfoDetectedSoilSlips{i1,5}, InfoDetectedSoilSlips{i1,6}, PixelSize, ...
-                           'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
-                           'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind3);
-
-    ax_ind3.XAxis.Visible = 'off';
-    ax_ind3.YAxis.Visible = 'off';
-
-    fig_settings(fold0, 'ScaleBar', 'ScaleBarBox', 'SetExtremes',ExtremesPlot);
-
-    pause
-
-    %% Saving...
-    cd(fold_fig_det)
-    exportgraphics(fig_slope, strcat(Filename3,'.png'), 'Resolution',600);
-    close(fig_slope)
+    %% Plot Aspect
+    if SelPlots == 1 || SelPlots == 4
+        fig_aspect = figure('visible','off');
+        ax_ind4 = axes(fig_aspect);
+        hold(ax_ind4,'on')
+    
+        Filename4 = strcat("Aspect of point n. ",string(i1));
+        title(strcat( "Comune: ", string(InfoDetectedSoilSlips{i1,1})), ...
+              'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind4)
+        subtitle(strcat( "Cod. IOP: ", string(InfoDetectedSoilSlips{i1,2})), ...
+                 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind4)
+        set(fig_aspect, 'Name',Filename4);
+    
+        if ~isempty(IndexCTRInPolWin)
+            PlotCTR2 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
+                                   'MarkerEdgeColor','none', 'MarkerFaceAlpha',1, 'Parent',ax_ind4);
+        end
+    
+        PointsNearAspect  = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,7));
+        PointsNearAspect  = PointsNearAspect(IndexPointsInPolWin);
+    
+        PlotAspect = fastscatter2(PointsNearLong, PointsNearLat, PointsNearAspect, 'FaceAlpha',0.4, 'Parent',ax_ind4);
+    
+        % cmap = summer(8);
+        cmap = hsv(8);
+        colormap(ax_ind4, cmap)
+        % LimitsCol = linspace(min(PointsNearAspect), max(PointsNearAspect), 9);
+        LimitsCol = linspace(0, 360, 9);
+        LimitsCol = round(LimitsCol, 2, 'significant');
+        if LimitsCol(end) >= 9; LimitsCol = uint16(LimitsCol); end
+        clim([LimitsCol(1), LimitsCol(end)])
+        TickLabel = {'S', 'SE', 'E', 'NE', 'N', 'NO', 'O', 'SO'};
+        ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol, 'TickLabels',TickLabel);
+        ColBarPos = get(ColBar,'Position');
+        ColBarPos(1) = ColBarPos(1)*2.8;
+        ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
+        ColBarPos(3:4) = ColBarPos(3:4)*0.4;
+        set(ColBar, 'Position',ColBarPos)
+        title(ColBar, 'Angoli di esposizione [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2)
+    
+        PlotContour = plot(PolWindow(i1), 'FaceColor','none', 'LineWidth',1, 'LineStyle','--', 'Parent',ax_ind4);
+    
+        PlotDetected = scatter(InfoDetectedSoilSlips{i1,5}, InfoDetectedSoilSlips{i1,6}, PixelSize, ...
+                               'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
+                               'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind4);
+    
+        ax_ind4.XAxis.Visible = 'off';
+        ax_ind4.YAxis.Visible = 'off';
+    
+        fig_settings(fold0, 'ScaleBar', 'ScaleBarBox', 'SetExtremes',ExtremesPlot);
+    
+        if ShowPlots
+            set(fig_aspect, 'visible','on');
+            pause
+        end
+    
+        % Saving...
+        cd(fold_fig_det)
+        exportgraphics(fig_aspect, strcat(Filename4,'.png'), 'Resolution',600);
+        close(fig_aspect)
+    end
 end
 cd(fold0)
 warning('on')
