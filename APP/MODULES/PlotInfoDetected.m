@@ -264,8 +264,8 @@ for i1 = 1:length(PolWindow)
         ax_ind1.XAxis.Visible = 'off';
         ax_ind1.YAxis.Visible = 'off';
     
-        FigSize =  get(fig_class, 'position');
-    
+        fig_settings(fold0, 'ScaleBar', 'ScaleBarBox', 'SetExtremes',ExtremesPlot);
+
         if exist('LegendPosition', 'var')
             LegendObjects = [PlotClass; {PlotDetected}];
             LegendCaption = [ClassesLocal; {'Ponte'}];
@@ -279,15 +279,9 @@ for i1 = 1:length(PolWindow)
             hleg1.ItemTokenSize(1) = 3;
             
             legend('AutoUpdate','off')
-    
-            set(hleg1, 'unit','pixels')
-            LegSize = get(hleg1, 'position');
-    
-            FigSize([2, 4]) = [FigSize(2)-LegSize(4), FigSize(4)+LegSize(4)];
-            set(fig_class, 'position', FigSize)
+
+            fig_rescaler(fig_class, hleg1, LegendPosition)
         end
-    
-        fig_settings(fold0, 'ScaleBar', 'ScaleBarBox', 'SetExtremes',ExtremesPlot);
     
         if ShowPlots
             set(fig_class, 'visible','on');
