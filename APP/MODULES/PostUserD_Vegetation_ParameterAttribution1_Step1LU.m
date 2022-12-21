@@ -1,9 +1,9 @@
 %% File loading
 cd(fold_var)
 load('LandUsesVariables');
-load('UserA_Answers','LandUsesFieldName');
+load('UserA_Answers', 'LandUsesFieldName');
 
-if exist('IndexLandUsesToRemove')
+if exist('IndexLandUsesToRemove', 'var')
     AllIndex=1:length(AllLandUnique);
     AllIndex(IndexLandUsesToRemove)=[];
     LandUsePolygonsStudyArea=LandUsePolygonsStudyArea(AllIndex);
@@ -15,23 +15,18 @@ VegetationAllUnique = AllLandUnique;
 VegFieldName = LandUsesFieldName;
 
 %% Writing of an excel that User has to compile before Step2
-cd(fold_user)
-ColHeader1 = {'UV', 'c_R''(kPa)', '\beta (-)', 'Color'};
-ColHeader2 = {LandUsesFieldName,'UV associated','VU Abbrev (For Map)','RGB VU (for Map)',};
+FileName_VegAssociation = 'VuDVCAssociation.xlsx';
+DataToWrite1 = cell(length(VegetationAllUnique)+1, 4); % Plus 1 because of header line
+DataToWrite1(1, :) = {LandUsesFieldName, 'UV Associated', 'VU Abbrev (For Map)', 'RGB VU (for Map)'};
+DataToWrite1(2:end, 1) = cellstr(VegetationAllUnique');
 
-writecell(ColHeader1,'VUDVCAssociation.xlsx', 'Sheet','DVCParameters', 'Range','A1');
-writecell(ColHeader2,'VUDVCAssociation.xlsx', 'Sheet','Association', 'Range','A1');
-writecell(AllLandUnique','VUDVCAssociation.xlsx', 'Sheet','Association', 'Range','A2');
+DataToWrite2 = {'UV','c_R''(kPa)','\beta (-)','Color'};
 
-FileName_VegAssociation='VuDVCAssociation.xlsx';
-if isfile(FileName_VegAssociation)
-    warning(strcat(FileName_VegAssociation,' already exist'))
+WriteFile = checkduplicate(Fig, DataToWrite1, fold_user, FileName_VegAssociation);
+if WriteFile
+    writecell(DataToWrite1, FileName_VegAssociation, 'Sheet','Association');
+    writecell(DataToWrite2, FileName_VegAssociation, 'Sheet','DVCParameters');
 end
-ColHeader1 = {VegFieldName, 'UV associated', 'VU Abbrev (For Map)', 'RGB LU (for Map)'};
-ColHeader2 = {'UV', 'c_R''(kPa)', '\beta (-)', 'Color'};
-writecell(ColHeader1,FileName_VegAssociation, 'Sheet','Association', 'Range','A1');
-writecell(VegetationAllUnique',FileName_VegAssociation, 'Sheet','Association', 'Range','A2');
-writecell(ColHeader2,FileName_VegAssociation, 'Sheet','DVCParameters', 'Range','A1');
 
 VariablesVeg = {'VegPolygonsStudyArea', 'VegetationAllUnique', 'FileName_VegAssociation'};
 VariablesAnswerD = {'AnswerAttributionVegetationParameter', 'FileName_Vegetation', 'VegFieldName'};
