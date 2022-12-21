@@ -1,8 +1,14 @@
+% Fig = uifigure; % Remember to comment if in app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Processing DTM of Study Area', ...
+                                 'Message','Reading file', 'Cancelable','on', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% Import and elaboration of data
 tic
 cd(fold_var)
-load('StudyAreaVariables.mat');
-load('UserA_Answers.mat', 'SpecificWindow');
+load('StudyAreaVariables.mat')
+load('UserA_Answers.mat', 'SpecificWindow')
 
 cd(fold_raw_dtm)
 % Import tif and tfw file names
@@ -20,7 +26,11 @@ end
 [xLongAll, yLatAll, ElevationAll, RAll, AspectAngleAll, SlopeAll,...
             GradNAll,GradEAll] = deal(cell(1,length(NameFile1)));
 
+ProgressBar.Indeterminate = 'off';
 for i1 = 1:length(NameFile1)
+    ProgressBar.Message = strcat("Analyzing DTM n. ",num2str(i1)," of ", num2str(length(NameFile1)));
+    ProgressBar.Value = i1/length(NameFile1);
+
     switch DTMType
         case 0
             A = imread(NameFile1(i1));
@@ -96,6 +106,9 @@ for i1 = 1:length(NameFile1)
     clear('GradEDTM')
 end
 
+ProgressBar.Indeterminate = 'on';
+ProgressBar.Message = 'Cleaning of DTMs...';
+
 [IndexDTMPointsInsideStudyArea, IndexDTMPointsExcludedInStudyArea] = deal(cell(1,length(xLongAll)));
 for i2 = 1:length(xLongAll)
     [pp1, ee1] = getnan2([StudyAreaPolygon.Vertices; nan, nan]);
@@ -125,6 +138,8 @@ toc
 
 %% Orthophoto
 if OrthophotoAnswer
+    ProgressBar.Message = 'Creation of Ortophoto...';
+
     cd(fold_raw_sat)
     FileID = fopen('UrlMap.txt','r');
     UrlMap = fscanf(FileID,'%s');
@@ -152,12 +167,12 @@ if OrthophotoAnswer
     Filename1 = 'fig1';
     fig_ortho = figure(1);
     set(f1 , ...
-        'Color',[1 1 1],...
-        'PaperType','a4',...
-        'PaperSize',[29.68 20.98 ],...    
-        'PaperUnits', 'centimeters',...
-        'PaperPositionMode','manual',...
-        'PaperPosition', [0 1 12 6],...
+        'Color',[1 1 1], ...
+        'PaperType','a4', ...
+        'PaperSize',[29.68 20.98 ], ...    
+        'PaperUnits', 'centimeters', ...
+        'PaperPositionMode','manual', ...
+        'PaperPosition', [0 1 12 6], ...
         'InvertHardcopy','off');
     set(gcf, 'Name',Filename1);
 
@@ -200,6 +215,8 @@ if OrthophotoAnswer
 end
 
 %% Plot to check the Study Area
+ProgressBar.Message = 'Printing to check...';
+
 fig_check = figure(2);
 for i3 = 1:length(xLongAll)
     fastscatter(xLongAll{i3}(IndexDTMPointsInsideStudyArea{i3}), ...
@@ -209,14 +226,18 @@ for i3 = 1:length(xLongAll)
 end
 
 hold on
-plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1);
+plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1);
 hold on
-plot(StudyAreaPolygonClean,'FaceColor','none','LineWidth',0.5);
+if ~isempty(StudyAreaPolygonExcluded.Vertices)
+    plot(StudyAreaPolygonExcluded, 'FaceColor','r', 'FaceAlpha',0.5, 'LineWidth',0.5);
+end
 title('Study Area Polygon Check')
 
 fig_settings(fold0, 'AxisTick');
 
 %% Creation of empty parameter matrices
+ProgressBar.Message = 'Creation of parameter matrices...';
+
 SizeGridInCell =    cellfun(@size, xLongAll, 'UniformOutput',false);
 CohesionAll =       cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
 PhiAll =            cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
@@ -241,6 +262,8 @@ if OrthophotoAnswer; VariablesOrtho = {'ZOrtho', 'ROrtho', 'xLongOrtho', 'yLatOr
 VegAttribution = false;
 VariablesAnswerD = {'VegAttribution'};
 
+ProgressBar.Message = 'Finising...';
+
 %% Saving...
 cd(fold_var)
 if OrthophotoAnswer; save('Orthophoto.mat', VariablesOrtho{:}); end
@@ -251,3 +274,5 @@ save('GridCoordinates', VariablesGridCoord{:});
 save('SoilParameters.mat', VariablesSoilPar{:});
 save('VegetationParameters.mat', VariablesVegPar{:});
 cd(fold0)
+
+close(ProgressBar) % Fig instead of ProgressBar if in Standalone version
