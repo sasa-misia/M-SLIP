@@ -1,3 +1,9 @@
+% Fig = uifigure; % Remember to comment if in app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Soil parameter attribution',...
+                                 'Message','Reading file', 'Cancelable','on', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% Setting parameters and assigning
 tic
 cd(fold_var)
@@ -32,6 +38,7 @@ ktUniform = eval(InputValues{3});
 AUniform = eval(InputValues{4});
 nUniform = eval(InputValues{5});
 
+ProgressBar.Message = 'Writing parameters in matrices...';
 for i1 = 1:length(CohesionAll)
     RowNumber = size(CohesionAll{i1},1);
     ColumnNumber = size(CohesionAll{i1},2);
@@ -47,7 +54,11 @@ Variables = {'CohesionAll', 'PhiAll', 'KtAll', 'AAll', 'nAll'};
 VariablesAnswer = {'AnswerAttributionSoilParameter'};
 toc
 
+ProgressBar.Message = 'Finising...';
+
 %% Saving...
 save('SoilParameters.mat', Variables{:});
 save('UserC_Answers.mat', VariablesAnswer{:});
 cd(fold0)
+
+close(ProgressBar) % Fig instead of ProgressBar if in Standalone version
