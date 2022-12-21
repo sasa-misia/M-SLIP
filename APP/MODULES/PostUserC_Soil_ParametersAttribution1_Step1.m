@@ -67,18 +67,17 @@ drawnow
 
 cd(fold_user)
 FileName_LithoAssociation = 'LuDSCAssociation.xlsx';
-if isfile(FileName_LithoAssociation)
-    Answer = questdlg('There is an existing association file. Do you want to overwrite it?', ...
-                	  'Existing Association File', ...
-                	  'Yes, thanks','No, for God!','No, for God!');
-    if strcmp(Answer,'Yes, thanks'); delete(FileName_LithoAssociation); end
-end
+DataToWrite1 = cell(length(LithoAllUnique)+1, 4); % Plus 1 because of header line
+DataToWrite1(1, :) = {LitFieldName, 'US Associated', 'LU Abbrev (For Map)', 'RGB LU (for Map)'};
+DataToWrite1(2:end, 1) = cellstr(LithoAllUnique');
 
-col_header1 = {LitFieldName,'US associated','LU Abbrev (For Map)','RGB LU (for Map)'};
-col_header2 = {'US','c''(kPa)','phi (°)','kt (h^-1)','A (kPa)','n','Color'};
-writecell(col_header1,FileName_LithoAssociation, 'Sheet','Association', 'Range','A1');
-writecell(LithoAllUnique',FileName_LithoAssociation, 'Sheet','Association', 'Range','A2');
-writecell(col_header2,FileName_LithoAssociation, 'Sheet','DSCParameters', 'Range','A1');
+DataToWrite2 = {'US', 'c''(kPa)', 'phi (°)', 'kt (h^-1)', 'A (kPa)', 'n', 'Color'};
+
+WriteFile = checkduplicate(Fig, DataToWrite1, fold_user, FileName_LithoAssociation);
+if WriteFile
+    writecell(DataToWrite1, FileName_LithoAssociation, 'Sheet','Association');
+    writecell(DataToWrite2, FileName_LithoAssociation, 'Sheet','DSCParameters');
+end
 
 % Creatings string names of variables in a cell array to save at the end
 Variables = {'LithoPolygonsStudyArea', 'LithoAllUnique', 'FileName_LithoAssociation'};
