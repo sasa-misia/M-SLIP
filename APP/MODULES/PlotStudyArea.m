@@ -1,12 +1,7 @@
+%% File loading
 cd(fold_var)
-load('UserA_Answers.mat');
-load('StudyAreaVariables.mat');
-cd(fold0)
-
-RefStudyArea = 0.035;
-% ExtentStudyArea = area(StudyAreaPolygon);
-ExtentStudyArea = prod(MaxExtremes-MinExtremes);
-RatioRef = ExtentStudyArea/RefStudyArea;
+load('UserA_Answers.mat')
+load('StudyAreaVariables.mat')
 
 OrthophotoAnswer = 0;
 if exist("Orthophoto.mat", 'file')
@@ -21,12 +16,32 @@ if exist('PlotSettings.mat', 'file')
 else
     SelectedFont = 'Times New Roman';
     SelectedFontSize = 8;
+    LegendPosition = 'best';
 end
 
+InfoDetectedExist = false;
+if exist('InfoDetectedSoilSlips.mat', 'file')
+    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips')
+    InfoDetectedExist = true;
+end
+
+cd(fold0)
+
+%% For scatter dimension
+RefStudyArea = 0.035;
+% ExtentStudyArea = area(StudyAreaPolygon);
+ExtentStudyArea = prod(MaxExtremes-MinExtremes);
+RatioRef = ExtentStudyArea/RefStudyArea;
+PixelSize = .05/RatioRef;
+DetPixelSize = 2*PixelSize;
+
+%% Loading Excel
 MunColors = zeros(length(MunPolygon),3);
-Answer = questdlg('Do you want to assign random RGB triplets?', 'Colors', ...
-            	  'Yes, thanks','No, manually','Yes, thanks');
-switch Answer
+% Fig = uifigure; % Remember to comment if in App version
+Options = {'Yes, thanks', 'No, manually'};
+AssignRndColors = uiconfirm(Fig, 'Do you want to assign random RGB triplets?', ...
+                                 'Window type', 'Options',Options);
+switch AssignRndColors
     case 'Yes, thanks'
         MunColors = rand(length(MunPolygon),3);
     case 'No, manually'
@@ -35,62 +50,49 @@ switch Answer
         end
 end
 
-%%
+%% Plot of study area
 Filename1 = 'Municipalities';
-F1 = figure(1);
-set(F1, ...
-    'Color',[1 1 1],...
-    'PaperType','a4',...
-    'PaperSize',[29.68 20.98 ],...    
-    'PaperUnits','centimeters',...
-    'PaperPositionMode','manual',...
-    'PaperPosition',[0 1 30 12],...
-    'InvertHardcopy','off');
+fig_mun = figure(1);
+ax_ind1 = axes(fig_mun);
+hold(ax_ind1,'on')
+
 set(gcf, 'Name',Filename1);
 
 PolygonsPlot = cell(1, size(MunPolygon,2));
 for i1 = 1:size(MunPolygon,2)
     PolygonsPlot{i1} = plot(MunPolygon(i1), 'FaceColor',MunColors(i1,:), 'FaceAlpha',1);
-    hold on
 end
 
-plot(StudyAreaPolygon,'FaceColor','none')
-hold on
+plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5)
+
 fig_settings(fold0)
 
-cd(fold_var)
-InfoDetectedExist = false;
-if exist('InfoDetectedSoilSlips.mat', 'file')
-    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips')
-    hdetected = cellfun(@(x,y) scatter(x, y, 5*RatioRef, '^k','Filled'), InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
-    uistack(hdetected,'top')
-    InfoDetectedExist = true;
-end
-
-if exist('PlotSettings.mat', 'file')
-    load('PlotSettings.mat', 'LegendPosition')
-else
-    LegendPosition = 'best';
-end
-
-LegendObjects = PolygonsPlot;
-LegendCaption = MunSel;
 if InfoDetectedExist
-    LegendObjects = [LegendObjects, {hdetected(1)}];
-    LegendCaption = [LegendCaption; {"Points Analyzed"}];
+    hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
+    uistack(hdetected,'top')
 end
 
 if exist('LegendPosition', 'var')
+    LegendObjects = PolygonsPlot;
+    LegendCaption = MunSel;
+
+    if InfoDetectedExist
+        LegendObjects = [LegendObjects, {hdetected(1)}];
+        LegendCaption = [LegendCaption; {"Points Analyzed"}];
+    end
+
     hleg1 = legend([LegendObjects{:}], LegendCaption, ...
                    'FontName',SelectedFont, ...
                    'FontSize',SelectedFontSize, ...
                    'Location',LegendPosition, ...
-                   'NumColumns',2);
+                   'NumColumns',2, ...
+                   'Box','off');
     
     hleg1.ItemTokenSize(1) = 3;
     
-    legend boxoff
     legend('AutoUpdate','off')
+
+    fig_rescaler(fig_mun, hleg1, LegendPosition)
 end
 
 % [xMunTxt yMunTxt] = centroid(MunPolygon);
@@ -99,9 +101,9 @@ end
 %         'VerticalAlignment','middle', 'FontName',SelectedFont, 'FontSize',SelectedFontSize/1.2)
 % end
 
-set(gca,'visible','off')
+set(gca, 'visible','off')
 
 %% Export png
 cd(fold_fig)
-exportgraphics(F1,strcat(Filename1,'.png'),'Resolution',600);
+exportgraphics(fig_mun, strcat(Filename1,'.png'), 'Resolution',600);
 cd(fold0)
