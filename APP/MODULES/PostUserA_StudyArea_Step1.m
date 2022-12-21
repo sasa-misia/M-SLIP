@@ -1,13 +1,27 @@
+% Fig = uifigure; % Remember to comment if in app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Processing shapefile of study area', ...
+                                 'Message','Reading file', 'Cancelable','on', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% Reading shapefile
 cd(fold_raw_mun);
 ReadShapeStudyArea = shaperead(FileName_StudyArea);
 ShapeInfoStudyArea = shapeinfo(FileName_StudyArea);
 
+if isempty(ShapeInfoStudyArea.CoordinateReferenceSystem)
+    EPSG = str2double(inputdlg({["Set Shapefile EPSG"
+                                 "For Example:"
+                                 "Sicily -> 32633"
+                                 "Emilia Romagna -> 25832"]}, '', 1, {'32633'}));
+    ShapeInfoStudyArea.CoordinateReferenceSystem = projcrs(EPSG);
+end
+
 if ~isempty(MunFieldName)
     AllMunInShape = extractfield(ReadShapeStudyArea,MunFieldName);
     IndexMun = zeros(length(MunSel),1);
     for i1 = 1:size(MunSel,1)
-        IndMun = find(strcmp(AllMunInShape,MunSel(i1))); 
+        IndMun = find(strcmp(AllMunInShape,MunSel(i1)));
         IndexMun(i1) = IndMun;
     end
 else
@@ -16,20 +30,28 @@ end
     
 %% Poligon creation and evaluation of Study area extent
 MunPolygon = repmat(polyshape, 1, length(IndexMun)); % Polyshape initialization
+ProgressBar.Indeterminate = 'off';
 for i1 = 1:length(IndexMun)
-    [StudyAreaVertexLat,StudyAreaVertexLon] = projinv(ShapeInfoStudyArea.CoordinateReferenceSystem, ...
-                                                      ReadShapeStudyArea(IndexMun(i1)).X, ...
-                                                      ReadShapeStudyArea(IndexMun(i1)).Y);
-    MunVertex = [StudyAreaVertexLon;StudyAreaVertexLat]';
-    MunPolygon(i1) = polyshape(MunVertex,'Simplify',false);
+    ProgressBar.Message = strcat("Creation of Municipality polygon n. ",num2str(i1)," of ", num2str(length(IndexMun)));
+    ProgressBar.Value = i1/length(IndexMun);
+
+    [StudyAreaVertexLat, StudyAreaVertexLon] = projinv(ShapeInfoStudyArea.CoordinateReferenceSystem, ...
+                                                       ReadShapeStudyArea(IndexMun(i1)).X, ...
+                                                       ReadShapeStudyArea(IndexMun(i1)).Y);
+    MunVertex = [StudyAreaVertexLon; StudyAreaVertexLat]';
+    MunPolygon(i1) = polyshape(MunVertex, 'Simplify',false);
 end
 
 %% Union of Polygons
+ProgressBar.Indeterminate = 'on';
+ProgressBar.Message = 'Union of polygons...';
+
 StudyAreaPolygon = union(MunPolygon);
 StudyAreaPolygonClean = StudyAreaPolygon;
 StudyAreaPolygonExcluded = polyshape();
 
 if SpecificWindow
+    ProgressBar.Message = 'Creation of specific window...';
 
     ChoiceWindow = 'SingleWindow';
     cd(fold_var)
@@ -52,8 +74,8 @@ if SpecificWindow
                                     CoordinatesWindow(2), CoordinatesWindow(1)], ...
                                    [CoordinatesWindow(3), CoordinatesWindow(3), ...
                                     CoordinatesWindow(4), CoordinatesWindow(4)] );
-            StudyAreaPolygon = intersect(StudyAreaPolygon,PolWindow);
-            StudyAreaPolygonClean = StudyAreaPolygon;
+            StudyAreaPolygon = intersect(StudyAreaPolygon, PolWindow); % Maybe not necessary if you want the entire rectangle. You can write: StudyAreaPolygon = PolWindow;
+
         case 'MultiWindows'
             WindowSide = str2double(inputdlg("Set side of each window (m)", '', 1, {'1200'}));
             HalfWindowSideDegree = km2deg(WindowSide/1000)/2;
@@ -67,7 +89,12 @@ if SpecificWindow
                                             yLatDet(i1)+HalfWindowSideDegree,  yLatDet(i1)+HalfWindowSideDegree ] );
             end
             StudyAreaPolygon = union(PolWindow);
-            StudyAreaPolygonClean = StudyAreaPolygon;
+    end
+
+    StudyAreaPolygonClean = StudyAreaPolygon;
+
+    for i1 = 1:length(MunPolygon)
+        MunPolygon(i1) = intersect(StudyAreaPolygon, MunPolygon(i1));
     end
 
 end
@@ -82,7 +109,11 @@ VariablesStudyArea = {'MunPolygon', 'StudyAreaPolygon', 'StudyAreaPolygonClean',
 if SpecificWindow; VariablesStudyArea = [VariablesStudyArea, {'PolWindow'}]; end
 VariablesUserA = {'FileName_StudyArea', 'MunFieldName', 'MunSel', 'SpecificWindow'};
 
+ProgressBar.Message = 'Finising...';
+
 %% Saving..
 cd(fold_var)
 save('StudyAreaVariables.mat', VariablesStudyArea{:});
 save('UserA_Answers.mat', VariablesUserA{:});
+
+close(ProgressBar) % Fig instead of ProgressBar if in Standalone version
