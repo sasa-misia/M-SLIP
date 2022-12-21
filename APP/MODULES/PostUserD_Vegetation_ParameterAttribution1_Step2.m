@@ -1,3 +1,9 @@
+% Fig = uifigure; % Remember to comment if in app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Attribution of vegetation parameters', ...
+                                 'Message','Reading file', 'Cancelable','on', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% Loading of variables previously created
 cd(fold_var)
 load('GridCoordinates.mat');
@@ -5,7 +11,8 @@ load('VegetationParameters.mat');
 load('VegPolygonsStudyArea.mat');
 
 %% Excel reading and coefficient matrix writing
-% Fig = uifigure; % Remember to comment if in app version
+ProgressBar.Message = 'Reading excel...';
+
 cd(fold_user)
 Sheet_DVCPar = readcell(FileName_VegAssociation,'Sheet','DVCParameters');
 Sheet_Ass = readcell(FileName_VegAssociation,'Sheet','Association');
@@ -18,10 +25,11 @@ if isempty(SelectedVeg); error('V 1'); end
 VUAbbr = string(Sheet_Ass(SelectedVeg+1,3)); % Plus 1 because of headers
 
 Options = {'Yes', 'No, yet assigned in excel'};
-ChoiceVU = questdlg('Would you like to choose VU color?','Color of VU', ...
-                                        Options{1},Options{2},Options{2});
-ChoiceDVC = questdlg('Would you like to choose DVC color?','Color of DVC', ...
-                                        Options{1},Options{2},Options{2});
+ChoiceVU = uiconfirm(Fig, 'Would you like to choose VU color?', ...
+                          'Window type', 'Options',Options);
+ChoiceDVC = uiconfirm(Fig, 'Would you like to choose DVC color?', ...
+                           'Window type', 'Options',Options);
+
 if string(ChoiceVU) == string(Options{2})
 
     try
@@ -77,7 +85,11 @@ SelectedVUByUserPolygons = VegPolygonsStudyArea(SelectedVeg);
 
 %% InPolygon Procedure
 tic
-for i1 = 1:size(SelectedVUByUserPolygons,2)   
+ProgressBar.Indeterminate = 'off';
+for i1 = 1:size(SelectedVUByUserPolygons,2)
+    ProgressBar.Message = strcat("Attributing parameters of VU n. ",num2str(i1)," of ", num2str(size(SelectedVUByUserPolygons,2)));
+    ProgressBar.Value = i1/size(SelectedVUByUserPolygons,2);
+
     VUPolygon = SelectedVUByUserPolygons(i1);
     [pp,ee] = getnan2([VUPolygon.Vertices;nan nan]); % Conversion NaN-delimited polygon format to node-edge topological layout required by inpoly2
     for i2 = 1:size(xLongAll,2)    
@@ -106,9 +118,14 @@ VariablesAnswerD = {'VegAttribution'};
 VariablesVUPar = {'VU_DVCPlotColors', 'VU_DVC', 'VUAbbr', 'DVCParameters', 'SelectedVeg'};
 VariablesVegPar = {'RootCohesionAll', 'BetaStarAll'};
 
+ProgressBar.Indeterminate = 'on';
+ProgressBar.Message = 'Finising...';
+
 %% Saving..
 cd(fold_var)
 save('UserD_Answers.mat', VariablesAnswerD{:}, '-append');
 save('VUDVCMapParameters.mat', VariablesVUPar{:})
 save('VegetationParameters.mat', VariablesVegPar{:});
 cd(fold0)
+
+close(ProgressBar) % Fig instead of ProgressBar if in Standalone version
