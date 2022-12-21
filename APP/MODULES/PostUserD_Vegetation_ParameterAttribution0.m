@@ -1,3 +1,9 @@
+% Fig = uifigure; % Remember to comment if in app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Vegetation parameter attribution',...
+                                 'Message','Reading file', 'Cancelable','on', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% Assign uniform values
 cd(fold_var)
 load('GridCoordinates.mat')
@@ -16,6 +22,7 @@ BetaStarUniform = eval(InputValues{3});
 RowNumber=cellfun(@(x) size(x,1),RootCohesionAll,'UniformOutput',false);
 ColumnNumber=cellfun(@(x) size(x,2),RootCohesionAll,'UniformOutput',false);
 
+ProgressBar.Message = 'Writing parameters in matrices...';
 if UniformBeta == "yes"
     BetaStarAll=cellfun(@(x,y) ones(x,y).*BetaStarUniform,RowNumber,ColumnNumber,'UniformOutput',false);
 elseif  UniformBeta == "no"
@@ -32,6 +39,8 @@ VariablesVeg = {'RootCohesionAll';'BetaStarAll'};
 %if UniformBeta == "yes"; VariablesVeg = [VariablesVeg, {'BetaStarAll'}]; end
 VariablesAnswerD = {'AnswerAttributionVegetationParameter', 'VegAttribution'};
 
+ProgressBar.Message = 'Finising...';
+
 %% Saving...
 save('VegetationParameters.mat', VariablesVeg{:}, '-append');
 
@@ -41,3 +50,5 @@ else
     save('UserD_Answers.mat', VariablesAnswerD{:});
 end
 cd(fold0)
+
+close(ProgressBar) % Fig instead of ProgressBar if in Standalone version
