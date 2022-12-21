@@ -1,3 +1,8 @@
+% Fig = uifigure; % Remember to comment this line if is app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% Machine Learning application
 cd(fold_var)
 load('InfoDetectedSoilSlips.mat')
@@ -260,6 +265,7 @@ if StableOption == 2
 end
 
 %% Machine / Deep Learning
+ProgressBar.Message = 'Training of ML models...';
 LearningOptions = {'Artificial Neural Network', 'Random Forest', 'Bag', ...
                    'Adaptive Boosting', 'Logit Boost', 'Gentle Boost', ...
                    'Total Boost', 'Auto Machine Learning', 'Auto ANN'};
@@ -346,9 +352,10 @@ FsFolderName = string(inputdlg({'Choose analysis folder name (inside Results->Fa
                                 '',1, strcat('MachineLearning','-Event-',string(EventSelForTrain))));
 
 if exist(FsFolderName,'dir')
-    Answer = questdlg(strcat(FsFolderName," is an existing folder. " + ...
-                      "Do you want to overwrite it?"), 'Existing Folder', ...
-                	  'Yes, thanks.','No, for God!','No, for God!');
+    Options = {'Yes, thanks', 'No, for God!'};
+    Answer = uiconfirm(Fig, strcat(FsFolderName, " is an existing folder. " + ...
+                                   "Do you want to overwrite it?"), ...
+                            'Window type', 'Options',Options);
     switch Answer
         case 'Yes, thanks.'
             rmdir(FsFolderName,'s')
@@ -371,11 +378,9 @@ StabilityAnalysis{5} = AnalysisParameters;
 
 save('AnalysisInformation.mat','StabilityAnalysis');
 
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing');
-drawnow
 Steps = size(DmCumPar,1)*size(AnalysisTable,1);
 
+ProgressBar.Indeterminate = 'off';
 % Main loop for all events
 for i1 = 1:size(DmCumPar,1)
 
