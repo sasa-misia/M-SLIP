@@ -1,20 +1,27 @@
+% Fig = uifigure; % Remember to comment if in app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Processing shapefile of land uses', ...
+                                 'Message','Reading file', 'Cancelable','on', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% Creation of land uses polygon
 tic
 cd(fold_var)
 load('StudyAreaVariables.mat');
 cd(fold_raw_land_uses)
 
-% Fig = uifigure; % Remember to comment if in app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Processing shapefile of land uses',...
-                                 'Message','Reading file', 'Cancelable','on', ...
-                                 'Indeterminate','on');
-drawnow
-
 ShapeInfoLandUses = shapeinfo(FileNameLandUses);
 
-ShapeTypePoint = strcmp( ShapeInfoLandUses.ShapeType, 'PointZ' );
+if isempty(ShapeInfoLandUses.CoordinateReferenceSystem)
+    EPSG = str2double(inputdlg({["Set Shapefile EPSG"
+                                 "For Example:"
+                                 "Sicily -> 32633"
+                                 "Emilia Romagna -> 25832"]}, '', 1, {'32633'}));
+    ShapeInfoLandUses.CoordinateReferenceSystem = projcrs(EPSG);
+end
 
-if ShapeTypePoint % REMEMBER TO CONTINUE THIS CHANGE IN OTHER SCRIPTS
+PointShapeType = strcmp( ShapeInfoLandUses.ShapeType, 'PointZ' );
+if PointShapeType % REMEMBER TO CONTINUE THIS CHANGE IN OTHER SCRIPTS
 
     ReadShapeLandUses = readgeotable(FileNameLandUses);
     [AllPointShapeLat, AllPointShapeLong] = projinv(ShapeInfoLandUses.CoordinateReferenceSystem, ...
@@ -35,19 +42,18 @@ if ShapeTypePoint % REMEMBER TO CONTINUE THIS CHANGE IN OTHER SCRIPTS
         IndexLandUses{i1} = find(strcmp(AllLandUnique(i1),AllLandInStudy));
     end
 
-    Steps = length(IndexLandUses);
     LandUsePointsStudyArea = repmat(geopointshape, 1, length(IndexLandUses));
     ProgressBar.Indeterminate = 'off';
     for i1 = 1:length(IndexLandUses)
     
         ProgressBar.Message = strcat("Creation of Multipoints n. ",num2str(i1)," of ", num2str(length(IndexLandUses)));
-        ProgressBar.Value = i1/Steps;
+        ProgressBar.Value = i1/length(IndexLandUses);
 
         LandUsePointsStudyArea(i1) = geopointshape({[AllPointInStudyLat(IndexLandUses{i1})]'}, ...
                                                    {[AllPointInStudyLong(IndexLandUses{i1})]'});
     end
 
-    Variables = {'LandUsePointsStudyArea', 'AllLandUnique', 'ShapeTypePoint'};
+    Variables = {'LandUsePointsStudyArea', 'AllLandUnique', 'PointShapeType'};
 
 else
 
@@ -77,13 +83,12 @@ else
     end
     
     % Union of polygon on the same class
-    Steps = length(IndexLandUses);
     LandUsePolygons = repmat(polyshape, 1, length(IndexLandUses)); % Initialize polyshape array
     ProgressBar.Indeterminate = 'off';
     for i1 = 1:length(IndexLandUses)
     
         ProgressBar.Message = strcat("Creation of polygon n. ",num2str(i1)," of ", num2str(length(IndexLandUses)));
-        ProgressBar.Value = i1/Steps;
+        ProgressBar.Value = i1/length(IndexLandUses);
     
         [LandUseVertexLat, LandUseVertexLon] = projinv(ShapeInfoLandUses.CoordinateReferenceSystem,...
                                                 [ReadShapeLandUses(IndexLandUses{i1}).X],...
@@ -109,29 +114,29 @@ else
     
     LandToRemovePolygon = [];
     
-    Variables = {'LandUsePolygonsStudyArea', 'AllLandUnique', 'LandToRemovePolygon', 'ShapeTypePoint'};
+    Variables = {'LandUsePolygonsStudyArea', 'AllLandUnique', 'LandToRemovePolygon', 'PointShapeType'};
 
 end
 
 %% Writing of an excel that User could compile
 cd(fold_user)
 FileNameLandUsesAssociation = 'LandUsesAssociation.xlsx';
-if isfile(FileNameLandUsesAssociation)
-    warning(strcat(FileNameLandUsesAssociation," already exist"))
-end
-ColHeader = {LandUsesFieldName, 'Abbreviation (for Map)', 'RGB (for Map)'};
-writecell(ColHeader,FileNameLandUsesAssociation, 'Sheet','Association', 'Range','A1');
-writecell(AllLandUnique',FileNameLandUsesAssociation, 'Sheet','Association', 'Range','A2');
-writecell(AllLandUnique',FileNameLandUsesAssociation, 'Sheet','Association', 'Range','B2');
+DataToWrite = cell(length(AllLandUnique)+1, 3); % Plus 1 because of header line
+DataToWrite(1,:) = {LandUsesFieldName, 'Abbreviation (for Map)', 'RGB (for Map)'};
+DataToWrite(2:end, 1:2) = repmat(cellstr(AllLandUnique'), 1, 2);
+
+WriteFile = checkduplicate(Fig, DataToWrite, fold_user, FileNameLandUsesAssociation);
+if WriteFile; writecell(DataToWrite, FileNameLandUsesAssociation, 'Sheet','Association'); end
 
 VariablesUserLandUses = {'FileNameLandUses', 'LandUsesFieldName'};
 Variables = [Variables, {'FileNameLandUsesAssociation'}];
 
 toc
 ProgressBar.Message = 'Finising...';
-close(ProgressBar)
 
 %% Saving..
 cd(fold_var)
 save('LandUsesVariables.mat', Variables{:});
 save('UserA_Answers.mat', VariablesUserLandUses{:}, '-append');
+
+close(ProgressBar) % Fig instead of ProgressBar if in Standalone version
