@@ -1,3 +1,9 @@
+% Fig = uifigure; % Remember to comment if in app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Attribution of soil parameters', ...
+                                 'Message','Reading file', 'Cancelable','on', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% Loading of variables previously created
 cd(fold_var)
 load('GridCoordinates.mat');
@@ -6,6 +12,8 @@ load('LithoPolygonsStudyArea.mat');
 load('UserA_Answers.mat','SpecificWindow')
 
 %% Excel reading and coefficient matrix writing
+ProgressBar.Message = 'Reading excel...';
+
 cd(fold_user)
 Sheet_DSCPar = readcell(FileName_LithoAssociation, 'Sheet','DSCParameters');
 Sheet_Ass = readcell(FileName_LithoAssociation, 'Sheet','Association');
@@ -18,10 +26,10 @@ LUAbbr = string(Sheet_Ass(SelectedSoil+1,3)); % Plus 1 because of headers
 if isempty(SelectedSoil); error('L 1'); end
 
 Options = {'Yes', 'No, yet assigned in excel'};
-ChoiceLU = questdlg('Would you like to choose VU color?','Color of VU', ...
-                                        Options{1},Options{2},Options{2});
-ChoiceDSC = questdlg('Would you like to choose DVC color?','Color of DVC', ...
-                                        Options{1},Options{2},Options{2});
+ChoiceLU = uiconfirm(Fig, 'Would you like to choose LU color?', ...
+                          'Window type', 'Options',Options);
+ChoiceDSC = uiconfirm(Fig, 'Would you like to choose DSC color?', ...
+                           'Window type', 'Options',Options);
 
 if string(ChoiceLU) == string(Options{2})
 
@@ -81,7 +89,11 @@ SelectedLUByUserPolygons = LithoPolygonsStudyArea(SelectedSoil);
 
 %% InPolygon Procedure
 tic
-for i1 = 1:size(SelectedLUByUserPolygons,2)   
+ProgressBar.Indeterminate = 'off';
+for i1 = 1:size(SelectedLUByUserPolygons,2)
+    ProgressBar.Message = strcat("Attributing parameters of LU n. ",num2str(i1)," of ", num2str(size(SelectedLUByUserPolygons,2)));
+    ProgressBar.Value = i1/size(SelectedLUByUserPolygons,2);
+
     LUPolygon = SelectedLUByUserPolygons(i1);
     [pp,ee] = getnan2([LUPolygon.Vertices; nan, nan]);
     for i2 = 1:size(xLongAll,2)  
@@ -115,8 +127,13 @@ DSCParameters = {DSC_n DSC_phi DSC_c DSC_A DSC_kt};
 VariablesLUPar = {'LU_DSCPlotColor','LUAbbr','DSCParameters','SelectedSoil','LU2DSC'};
 VariablesSoilPar = {'CohesionAll','PhiAll','KtAll','AAll','nAll'};
 
+ProgressBar.Indeterminate = 'on';
+ProgressBar.Message = 'Finising...';
+
 %% Saving...
 cd(fold_var)
 save('LUDSCMapParameters.mat', VariablesLUPar{:})
 save('SoilParameters.mat', VariablesSoilPar{:})
 cd(fold0)
+
+close(ProgressBar) % Fig instead of ProgressBar if in Standalone version
