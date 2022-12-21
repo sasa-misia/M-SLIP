@@ -65,18 +65,18 @@ if any( [varargin{:}] == "compassrose" )
     switch PositionComprose
         case "northwest"
             xComp = MinExtremes(1)+dExtremes(1)/30;
-            yComp = MaxExtremes(2)-dExtremes(2)/30;
+            yComp = MaxExtremes(2)-dExtremes(2)/15;
     
         case "southwest"
             xComp = MinExtremes(1)+dExtremes(1)/30;
             yComp = MinExtremes(2)+dExtremes(2)/30;
         
         case "northeast"
-            xComp = MaxExtremes(1)-dExtremes(1)/30;
-            yComp = MaxExtremes(2)-dExtremes(2)/30;
+            xComp = MaxExtremes(1)-dExtremes(1)/25;
+            yComp = MaxExtremes(2)-dExtremes(2)/15;
     
         case "southeast"
-            xComp = MaxExtremes(1)-dExtremes(1)/30;
+            xComp = MaxExtremes(1)-dExtremes(1)/25;
             yComp = MinExtremes(2)+dExtremes(2)/30;
     end
 
@@ -126,7 +126,7 @@ if any( [varargin{:}] == "scalebar" )
                               [yPoint1 yPoint1 yPoint2 yPoint2]);
 
     if any( [varargin{:}] == "scalebarbox" )
-        dbox = 2*dScaleBarY;
+        dbox = 2.2*dScaleBarY;
         dboxdx = 8*dScaleBarY;
         pol_box = polyshape([xPoint1-dbox/2,            xPoint3+dbox/2+dboxdx,     xPoint3+dbox/2+dboxdx, xPoint1-dbox/2],...
                             [yPoint1-dbox/2-dScaleBarY, yPoint1-dbox/2-dScaleBarY, yPoint2+dbox/2,        yPoint2+dbox/2]);
@@ -138,11 +138,11 @@ if any( [varargin{:}] == "scalebar" )
     
     text(xPoint1, yPoint1-dScaleBarY, '0', 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
     if DimScalX > 0.5
-        text(xPoint2, yPoint1-dScaleBarY, num2str(DimScalX/2), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
-        text(xPoint3, yPoint1-dScaleBarY, strcat(num2str(DimScalX)," km"), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
+        text(xPoint2, yPoint1-1.1*dScaleBarY, num2str(DimScalX/2), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
+        text(xPoint3, yPoint1-1.1*dScaleBarY, strcat(num2str(DimScalX)," km"), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
     else
-        text(xPoint2, yPoint1-dScaleBarY, num2str(1000*DimScalX/2), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
-        text(xPoint3, yPoint1-dScaleBarY, strcat(num2str(1000*DimScalX)," m"), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
+        text(xPoint2, yPoint1-1.1*dScaleBarY, num2str(1000*DimScalX/2), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
+        text(xPoint3, yPoint1-1.1*dScaleBarY, strcat(num2str(1000*DimScalX)," m"), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
     end
 end
 
