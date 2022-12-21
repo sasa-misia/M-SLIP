@@ -48,9 +48,10 @@ FsFolderName = string(inputdlg({'Choose analysis folder name (inside Results->Fa
 cd(fold_res_fs)
 
 if exist(FsFolderName, 'dir')
-    Answer = questdlg(strcat(FsFolderName,'is an existing folder. Do you want to overwrite it?'), ...
-                	'Existing Folder', ...
-                	'Yes, thanks','No, for God!','No, for God!');
+    Options = {'Yes, thanks', 'No, for God!'};
+    Answer = uiconfirm(Fig, strcat(FsFolderName, " is an existing folder. " + ...
+                                   "Do you want to overwrite it?"), ...
+                            'Window type', 'Options',Options);
     switch Answer
         case 'Yes, thanks'
             rmdir(FsFolderName,'s')
