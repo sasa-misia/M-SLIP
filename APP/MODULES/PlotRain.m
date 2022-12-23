@@ -15,6 +15,20 @@ else
     LegendPosition = 'Best';
 end
 
+InfoDetectedExist = false;
+if exist('InfoDetectedSoilSlips.mat', 'file')
+    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips')
+    InfoDetectedExist = true;
+end
+
+%% For scatter dimension
+RefStudyArea = 0.0417;
+ExtentStudyArea = area(StudyAreaPolygon);
+% ExtentStudyArea = prod(MaxExtremes-MinExtremes);
+RatioRef = ExtentStudyArea/RefStudyArea;
+PixelSize = .028/RatioRef;
+DetPixelSize = 3*PixelSize;
+
 %% Plot based on selection
 switch RainFallType
     case {0, 1}
@@ -92,31 +106,47 @@ switch RainFallType
         set(ax1, 'visible','off')
         
         for i2 = 1:size(xLongAll,2)
-            LegendObjects = cellfun(@(x,y) scatter(xLongStudyArea{i2}(x), yLatStudyArea{i2}(x), .1, 'o', ...
-                                                   'MarkerFaceColor',y./255, 'MarkerEdgeColor','none'), ...
-                                    RainRanges(:,i2), ColorRain, 'UniformOutput',false);
+            hPlotRain = cellfun(@(x,y) scatter(xLongStudyArea{i2}(x), yLatStudyArea{i2}(x), PixelSize, 'o', ...
+                                                        'MarkerFaceColor',y./255, 'MarkerEdgeColor','none'), ...
+                                        RainRanges(:,i2), ColorRain, 'UniformOutput',false);
         end
 
         plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5)
+
+        fig_settings(fold0)
+
+        if InfoDetectedExist
+            hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), ...
+                                    InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
+            uistack(hdetected,'top')
+        end
         
         if exist('LegendPosition', 'var')
+            LegendObjects = hPlotRain;
             LegendCaption = {'< 1', '1 - 1.5', '1.5 - 2', '2 - 2.5', '2.5 - 3', '3 - 4', '> 4'};
+
+            if InfoDetectedExist
+                LegendObjects = [LegendObjects; {hdetected(1)}];
+                LegendCaption = [LegendCaption, {"Points Analyzed"}];
+            end
     
-            hleg = legend([LegendObjects{:}], LegendCaption, ...
+            hleg = legend([LegendObjects{:}], ...
+                          LegendCaption, ...
                           'NumColumns',2, ...
                           'FontName',SelectedFont, ...
                           'Location',LegendPosition, ...
-                          'FontSize',SelectedFontSize);
+                          'FontSize',SelectedFontSize, ...
+                          'Box','off');
     
             hleg.ItemTokenSize(1) = 10;
             
             legend('AutoUpdate','off');
-            legend boxoff
             
-            title(hleg,'Rain [mm]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
+            title(hleg, 'Rain [mm]', 'FontName',SelectedFont, ...
+                        'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
+
+            fig_rescaler(f1, hleg, LegendPosition)
         end
-    
-        fig_settings(fold0)
 
         cd(fold_fig)
         exportgraphics(f1, strcat(filename1,'.png'), 'Resolution',600);
@@ -131,14 +161,14 @@ switch RainFallType
             set(ax2, 'visible','off')
             
             scatter(RainGauges{2}(:,1), RainGauges{2}(:,2), '*k')
-            hold on
+
             plot(StudyAreaPolygon, 'LineWidth',1, 'FaceColor',[255 64 64]./255, ...
                                    'EdgeColor',[179 40 33]./255, 'FaceAlpha',0.3);
             
             for i1 = 1:size(DataInStationSelected,1)
                 text(RainGauges{2}(i1,1)+.01, RainGauges{2}(i1,2), ...
-                     strcat(RainGauges{1}(i1),'(',num2str(DataInStationSelected(i1)),')'), ...
-                     'FontName',SelectedFont)
+                                strcat(RainGauges{1}(i1),'(',num2str(DataInStationSelected(i1)),')'), ...
+                                'FontName',SelectedFont)
             end
             
             fig_settings(fold0)
@@ -159,16 +189,7 @@ switch RainFallType
         filename1 = strcat('RecordedRainfall',SelectedRecordingStation);
         f1 = figure(1);
 
-        set(f1, ...
-            'Color',[1 1 1], ...
-            'PaperType','a4', ...
-            'PaperSize',[29.68 20.98 ], ...    
-            'PaperUnits','centimeters', ...
-            'PaperPositionMode','manual', ...
-            'PaperPosition',[0 1 14 12], ...
-            'InvertHardcopy','off');
-
-        set(gcf, 'Name',filename1);
+        set(f1, 'Name',filename1)
 
         yyaxis left
         bar(RainfallDates, GeneralRainData(PosSelRecStation,:), 'FaceColor',[0 127 255]./255);
