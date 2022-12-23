@@ -32,8 +32,8 @@ RefStudyArea = 0.035;
 % ExtentStudyArea = area(StudyAreaPolygon);
 ExtentStudyArea = prod(MaxExtremes-MinExtremes);
 RatioRef = ExtentStudyArea/RefStudyArea;
-PixelSize = .05/RatioRef;
-DetPixelSize = 2*PixelSize;
+PixelSize = .028/RatioRef;
+DetPixelSize = 3*PixelSize;
 
 %% Loading Excel
 MunColors = zeros(length(MunPolygon),3);
