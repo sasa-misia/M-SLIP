@@ -26,8 +26,8 @@ RefStudyArea = 0.0417;
 ExtentStudyArea = area(StudyAreaPolygon);
 % ExtentStudyArea = prod(MaxExtremes-MinExtremes);
 RatioRef = ExtentStudyArea/RefStudyArea;
-PixelSize = .1/RatioRef;
-DetPixelSize = 2*PixelSize;
+PixelSize = .028/RatioRef;
+DetPixelSize = 3*PixelSize;
 
 %% Extraction of points inside study area
 xLongStudyArea          = cellfun(@(x,y) x(y), xLongAll, ...
