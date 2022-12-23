@@ -25,8 +25,8 @@ RefStudyArea = 0.0417;
 ExtentStudyArea = area(StudyAreaPolygon);
 % ExtentStudyArea = prod(MaxExtremes-MinExtremes);
 RatioRef = ExtentStudyArea/RefStudyArea;
-PixelSize = .05/RatioRef;
-DetPixelSize = 2*PixelSize;
+PixelSize = .028/RatioRef;
+DetPixelSize = 3*PixelSize;
 
 %% Data extraction
 xLongStudy = cellfun(@(x,y) x(y), xLongAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
