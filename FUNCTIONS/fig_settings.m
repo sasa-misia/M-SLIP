@@ -91,7 +91,7 @@ if any( [varargin{:}] == "scalebar" )
     dScaleBarX = km2deg(DimScalX);
     dScaleBarY = dScaleBarX/15;
     dScaleBarOffX = 2*dScaleBarX/15;
-    if exist('PositionComprose', 'var') && PositionComprose==PositionScaleBar
+    if exist('PositionComprose', 'var') && strcmp(PositionComprose,PositionScaleBar)
         dScaleBarOffY = 2*dScaleBarOffX;
     else
         dScaleBarOffY = dScaleBarOffX;
