@@ -15,6 +15,35 @@ else
     LegendPosition = 'Best';
 end
 
+% if AnswerAttributionSoilParameter == 1 || AnswerAttributionSoilParameter == 2
+%     load('VegPolygonsStudyArea.mat')
+%     load('VUDVCMapParameters.mat')
+%     
+%     [n_us, Index4Color_n]     = unique(DSCParameters{1});
+%     [phi_us, Index4Color_phi] = unique(DSCParameters{2});
+%     [c_us, Index4Color_c]     = unique(DSCParameters{3});
+%     [A_us, Index4Color_A]     = unique(DSCParameters{4});
+%     [kt_us, Index4Color_k]    = unique(DSCParameters{5});
+% 
+%     color_polygons = LU_DSCPlotColor{1}./255;
+% 
+%     color_c   = LU_DSCPlotColor{2}(Index4Color_c,:)./255;
+%     color_phi = LU_DSCPlotColor{2}(Index4Color_phi,:)./255;
+%     color_kt  = LU_DSCPlotColor{2}(Index4Color_k,:)./255;
+%     color_A   = LU_DSCPlotColor{2}(Index4Color_A,:)./255;
+% else
+%     n_us   = unique(nAll{1});
+%     phi_us = unique(PhiAll{1});
+%     c_us   = unique(CohesionAll{1});
+%     A_us   = unique(AAll{1});
+%     kt_us  = unique(KtAll{1});
+%     
+%     color_c   = [0 0 255]./255;
+%     color_phi = [0 0 255]./255;
+%     color_kt  = [0 0 255]./255;
+%     color_A   = [0 0 255]./255;
+% end
+
 InfoDetectedExist = false;
 if exist('InfoDetectedSoilSlips.mat', 'file')
     load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips')
@@ -27,7 +56,7 @@ ExtentStudyArea = area(StudyAreaPolygon);
 % ExtentStudyArea = prod(MaxExtremes-MinExtremes);
 RatioRef = ExtentStudyArea/RefStudyArea;
 PixelSize = .028/RatioRef;
-DetPixelSize = 3*PixelSize;
+DetPixelSize = 7.5*PixelSize;
 
 %% Extraction of points inside study area
 xLongStudyArea          = cellfun(@(x,y) x(y), xLongAll, ...
@@ -114,7 +143,7 @@ end
 switch NumFigPlot
 
     case 1
-        if AnswerAttributionVegetationParameter==0
+        if AnswerAttributionVegetationParameter == 0
             warning('Vegetation is uniform!')
         else
             filename1 = 'VegetationMap';
@@ -234,7 +263,7 @@ switch NumFigPlot
     case 3
         % Option for veg association
         % Fig = uifigure; % Remember to comment if in app version
-        if AnswerAttributionVegetationParameter==0
+        if AnswerAttributionVegetationParameter == 0
             ShowOver = false;
         else
             ShowOver = uiconfirm(Fig, 'Do you want to show beta* of veg polygons on top and separately?', ...
@@ -352,5 +381,64 @@ switch NumFigPlot
 
         cd(fold_fig)
         exportgraphics(fig_beta, strcat(filename3,'.png'), 'Resolution',600);
+
+    case 4
+        filename4 = 'VegetationUnit';
+        f4 = figure(4);
+        ax4 = axes('Parent',f4);
+        hold(ax4,'on');
+        
+        set(gcf, 'Name',filename4);
+        
+        hUnit = cell(1, size(VU_DVCPlotColors{2},1));
+        for i1 = 1:size(VU_DVCPlotColors{2},1)
+            IndUnit = cellfun(@(x) x==i1, VU2DVC, 'UniformOutput',false);
+            hUnit{i1} = plot(VegPolygonsStudyArea(([IndUnit{:}])), ...
+                                'FaceColor',single(VU_DVCPlotColors{2}(i1,:))./255, ...
+                                'FaceAlpha',1, 'EdgeColor','none', 'DisplayName',num2str(i1));
+        end
+        
+        plot(MunPolygon, 'FaceColor','none', 'LineWidth',1);
+        
+        fig_settings(fold0)
+        
+        if InfoDetectedExist
+            hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), ...
+                                    InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
+            uistack(hdetected,'top')
+        end
+        
+        if exist('LegendPosition', 'var')
+            IndLeg = find(~cellfun(@isempty, hUnit'));
+            LegendCaption = cellstr(string(IndLeg));
+        
+            hUnitGood = hUnit(IndLeg);
+            LegendObjects = cellfun(@(x) x(1), hUnitGood, 'UniformOutput',false);
+        
+            if InfoDetectedExist
+                LegendObjects = [LegendObjects, {hdetected(1)}];
+                LegendCaption = [LegendCaption; {"Points Analyzed"}];
+            end
+            
+            hleg4 = legend([LegendObjects{:}], ...
+                           LegendCaption, ...
+                           'AutoUpdate','off', ...
+                           'NumColumns',1, ...
+                           'FontName',SelectedFont, ...
+                           'Location',LegendPosition, ...
+                           'FontSize',SelectedFontSize, ...
+                           'Box','off');
+        
+            hleg4.ItemTokenSize(1) = 10;
+        
+            title(hleg4, 'VC')
+        
+            fig_rescaler(f4, hleg4, LegendPosition)
+        end
+    
+        set(gca, 'visible','off')
+        
+        cd(fold_fig)
+        exportgraphics(f4, strcat(filename4,'.png'), 'Resolution',600);
 
 end
