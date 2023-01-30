@@ -20,7 +20,15 @@ end
 
 AnswerLandUseAttribution = 0;
 if exist('LandUsesVariables.mat', 'file')
-    load('LandUsesVariables.mat', 'AllLandUnique','LandUsePolygonsStudyArea')
+    load('LandUsesVariables.mat', 'AllLandUnique','LandUsePolygonsStudyArea','FileNameLandUsesAssociation')
+
+    cd(fold_user)
+    Sheet_Ass = readcell(FileNameLandUsesAssociation,'Sheet','Association');
+    AllLandUniqueAbbr = Sheet_Ass(2:end,2)';
+    EmptyCells = any(cellfun(@(x) all(ismissing(x)), AllLandUniqueAbbr));
+    if EmptyCells; AllLandUniqueAbbr = AllLandUnique; end
+    cd(fold_var)
+
     AnswerLandUseAttribution = 1;
 end
 
@@ -136,7 +144,7 @@ for i1 = 1:size(DTMIncludingPoint,1)
         if isempty(LUPolygon)
             InfoDetectedSoilSlips{i1,19} = 'Land Use not specified';
         else
-            InfoDetectedSoilSlips{i1,19} = AllLandUnique{LUPolygon};
+            InfoDetectedSoilSlips{i1,19} = AllLandUniqueAbbr{LUPolygon};
         end
     end
 
@@ -208,7 +216,7 @@ for i1 = 1:size(DTMIncludingPoint,1)
                 if isempty(LUPolygonsInd)
                     InfoPointsNearDetectedSoilSlips{i1,4}(i2,17) = cellstr('Land Use not specified');
                 else
-                    InfoPointsNearDetectedSoilSlips{i1,4}(i2,17) = AllLandUnique(LUPolygonsInd);
+                    InfoPointsNearDetectedSoilSlips{i1,4}(i2,17) = AllLandUniqueAbbr(LUPolygonsInd);
                 end
             end
         end
