@@ -175,6 +175,25 @@ for i1 = 1:ROCToPlot
             end
 
             ThresholdValues{i1} = InstabilityThresholds;
+
+        case "Hybrid"
+            load(strcat('FsH',num2str(IndexFS),'.mat'));
+            FactorSafetyHybridROC = cellfun(@(x,y) x(y), FsHybrid, ...
+                                                         IndexDTMPointsForROC, ...
+                                                         'UniformOutput',false);
+
+            InstabilityProbabilities = FactorSafetyHybridROC;
+            InstabilityThresholds = 1.01:-.01:-.01;
+            InstabilityValues = flip( unique(cell2mat( ...
+                                      cellfun(@(x) unique(x), FactorSafetyHybridROC, ...
+                                      'UniformOutput',false)')) );
+            if length(InstabilityValues)>100
+                for i2 = 3:101
+                    InstabilityThresholds(i2) = InstabilityValues(uint64((i2-1)*length(InstabilityValues)/101));
+                end
+            end
+
+            ThresholdValues{i1} = InstabilityThresholds;
             
         otherwise
             error('S.a. type not specified')
@@ -349,7 +368,7 @@ for i1 = 1:ROCToPlot
     switch StabilityAnalysis{4}(1)
         case "Slip"
             BestThreshold{i1} = (1-InstabilityThresholds(IndMax))*(MaxFS-MinFS)+MinFS;
-        case "Machine Learning"
+        case {"Machine Learning", "Hybrid"}
             BestThreshold{i1} = InstabilityThresholds(IndMax);
     end
 end
@@ -366,9 +385,9 @@ set(fig_ROC , ...
     'Color',[1 1 1],...
     'PaperType','a4',...
     'PaperSize',[29.68 20.98 ],...    
-    'PaperUnits', 'centimeters',...
+    'PaperUnits','centimeters',...
     'PaperPositionMode','manual',...
-    'PaperPosition', [0 1 12 6],...
+    'PaperPosition',[0 1 12 6],...
     'InvertHardcopy','off');
 axes1 = axes('Parent',fig_ROC); 
 hold(axes1,'on');
