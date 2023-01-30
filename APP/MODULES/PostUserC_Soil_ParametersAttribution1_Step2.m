@@ -62,12 +62,12 @@ if string(ChoiceDSC) == string(Options{2})
         uialert(Fig, ['An error occurred reading colors (see MATLAB command), ' ...
                       'DSC Colors will be randomly generated...'], ...
                       'DSC Color Error')
-        DSCColors = uint8(rand(size(Sheet_DSCPar,1),3).*255);
+        DSCColors = uint8(rand(size(Sheet_DSCPar,1)-1, 3).*255);
     end
 
 elseif string(ChoiceDSC) == string(Options{1})
 
-    for i1 = 1:size(Sheet_DSCPar,1)
+    for i1 = 1:(size(Sheet_DSCPar,1)-1)
         DSCColors(i1,:) = uisetcolor(strcat("Chose a color for LU ",num2str(i1))).*255;
     end
 
