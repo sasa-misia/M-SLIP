@@ -67,20 +67,21 @@ end
 
 % Select location to plot
 MunUnique = unique(Municipalities);
-IndMun = cell(1, size(MunUnique,2));
-for i1 = 1:size(MunUnique,2)
+IndMun = cell(1, length(MunUnique));
+for i1 = 1:length(MunUnique)
     IndMun{i1} = cellfun(@(x) strcmp(x,MunUnique{i1}), Municipalities);
 end
 
 MunUnique = string(MunUnique);
 ChoiceMun = listdlg('PromptString',{'Select Municipality:',''}, 'ListString',MunUnique);
+SelectedMun = MunUnique(ChoiceMun);
 
-Locations = string(Locations);
-ChoiceLoc = listdlg('PromptString',{'Select Location:',''}, 'ListString',Locations(IndMun{ChoiceMun}));
-SelectedLoc = Locations(ChoiceLoc);
+Locations = strcat(string(Locations), " ", string(1:length(Locations))');
+LocationsOpts = Locations(IndMun{ChoiceMun});
+ChoiceLoc = listdlg('PromptString',{'Select Location:',''}, 'ListString',LocationsOpts);
+SelectedLoc = LocationsOpts(ChoiceLoc);
 
-Ind = cellfun(@(x) strcmp(x,SelectedLoc), InfoDetectedSoilSlips(:,2), 'UniformOutput',false); % Maybe a double strcmp would be better but it doesn't work
-Ind = cell2mat(Ind);
+Ind = strcmp(SelectedLoc, Locations);
 
 Fs2Plot = [FsAll{:,Ind}];
 IndFsUnstab = Fs2Plot < 1;
