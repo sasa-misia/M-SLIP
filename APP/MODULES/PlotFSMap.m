@@ -31,7 +31,7 @@ RefStudyArea = 0.035;
 ExtentStudyArea = prod(MaxExtremes-MinExtremes);
 RatioRef = ExtentStudyArea/RefStudyArea;
 PixelSize = .028/RatioRef;
-DetPixelSize = 3*PixelSize;
+DetPixelSize = 7.5*PixelSize;
 
 %% Choice of stability type
 cd(fold_res_fs)
@@ -114,6 +114,30 @@ switch StabilityAnalysis{4}(1)
                                     InstabilityProbabilities, 'UniformOutput',false);
         end
 
+        case "Hybrid"
+        load(strcat('FsH',num2str(IndexFS),'.mat'));
+        InstabilityProbabilities = FsHybrid;
+
+        InputValues = inputdlg({'Indicate the probability above which the point is unstable:'
+                                ['Indicate the probability below which the point is stable ' ...
+                                 '(<= than the previous):']}, '', 1, {'0.8', '0.3'});
+
+        figure(Fig)
+        drawnow
+
+        MinProbForInstability = eval(InputValues{1});
+        MaxProbForStability = eval(InputValues{2});
+
+        FsLow = cellfun(@(x) x>=MinProbForInstability, InstabilityProbabilities, 'UniformOutput',false);
+        FsHigh = cellfun(@(x) x<MaxProbForStability, InstabilityProbabilities, 'UniformOutput',false);
+
+        Answer = uiconfirm(Fig, 'Do you want the medium class of FS?', ...
+                                'Window type', 'Options',{'Yes','No, only High and Low'});
+        if string(Answer) == "Yes"
+            FsMedium = cellfun(@(x) x>=MaxProbForStability & x<MinProbForInstability, ...
+                                    InstabilityProbabilities, 'UniformOutput',false);
+        end
+
     otherwise
         error('PLT 1')
 end
@@ -175,7 +199,7 @@ switch StabilityAnalysis{4}(1)
         LegendCaption = ([strcat("High Susceptibility ({\itFS} <= ",compose("%4.2f",MaxFSForInstability),")"), ...
                           strcat("Medium Susceptibility (",compose("%4.2f",MaxFSForInstability)," < {\itFS} <= ",compose("%4.2f",MinFSForStability),")"), ...
                           strcat("Low Susceptibility ({\itFS} > ",compose("%4.2f",MinFSForStability),")")]);
-    case "Machine Learning"
+    case {"Machine Learning", "Hybrid"}
         LegendCaption = ([strcat("High Susceptibility ({\itProbability} >= ",compose("%4.2f",MinProbForInstability*100),"%)"), ...
                           strcat("Medium Susceptibility (",compose("%4.2f",MaxProbForStability*100),"% <= {\itProbability} < ",compose("%4.2f",MinProbForInstability*100),"%)"), ...
                           strcat("Low Susceptibility ({\itProbability} < ",compose("%4.2f",MaxProbForStability*100),"%)")]);
@@ -188,8 +212,8 @@ IndLeg = [any(~cellfun(@isempty, hSlipLow)), ...
           false, ...
           any(~cellfun(@isempty, hSlipHigh))];
 
-AllPlot = {hSlipLow, hSlipHigh};
-AllPlotGood = {hSlipLowGood, hSlipHighGood};
+AllPlot = {hSlipLow, [], hSlipHigh};
+AllPlotGood = {hSlipLowGood, [], hSlipHighGood};
 
 if exist('FsMedium', 'var') == 1
     hSlipMedium = cellfun(@(x,y) scatter(x, y, PixelSize, 'Marker','o', ...
