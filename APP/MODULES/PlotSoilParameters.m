@@ -25,12 +25,12 @@ if AnswerAttributionSoilParameter == 1
     [A_us, Index4Color_A]     = unique(DSCParameters{4});
     [kt_us, Index4Color_k]    = unique(DSCParameters{5});
 
-    color_polygons = LU_DSCPlotColor{1}./255;
+    color_polygons = single(LU_DSCPlotColor{1})./255;
 
-    color_c   = LU_DSCPlotColor{2}(Index4Color_c,:)./255;
-    color_phi = LU_DSCPlotColor{2}(Index4Color_phi,:)./255;
-    color_kt  = LU_DSCPlotColor{2}(Index4Color_k,:)./255;
-    color_A   = LU_DSCPlotColor{2}(Index4Color_A,:)./255;
+    color_c   = single(LU_DSCPlotColor{2}(Index4Color_c,:))./255;
+    color_phi = single(LU_DSCPlotColor{2}(Index4Color_phi,:))./255;
+    color_kt  = single(LU_DSCPlotColor{2}(Index4Color_k,:))./255;
+    color_A   = single(LU_DSCPlotColor{2}(Index4Color_A,:))./255;
 else
     n_us   = unique(nAll{1});
     phi_us = unique(PhiAll{1});
@@ -56,7 +56,7 @@ ExtentStudyArea = area(StudyAreaPolygon);
 % ExtentStudyArea = prod(MaxExtremes-MinExtremes);
 RatioRef = ExtentStudyArea/RefStudyArea;
 PixelSize = .028/RatioRef;
-DetPixelSize = 3*PixelSize;
+DetPixelSize = 7.5*PixelSize;
 
 %% Creation of Study Area Matrices
 xLongStudy = cellfun(@(x,y) x(y), xLongAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
@@ -284,7 +284,7 @@ switch NumFigPlot
         for i1 = 1:size(LU_DSCPlotColor{2},1)
             IndUnit = cellfun(@(x) x==i1, LU2DSC, 'UniformOutput',false);
             hUnit{i1} = plot(LithoPolygonsStudyArea(([IndUnit{:}])), ...
-                                'FaceColor',LU_DSCPlotColor{2}(i1,:)./255, ...
+                                'FaceColor',single(LU_DSCPlotColor{2}(i1,:))./255, ...
                                 'FaceAlpha',1, 'EdgeColor','none', 'DisplayName',num2str(i1));
         end
 
@@ -303,10 +303,10 @@ switch NumFigPlot
             LegendCaption = cellstr(string(IndLeg));
 
             hUnitGood = hUnit(IndLeg);
-            LegendObjects = cellfun(@(x) x(1), hUnitGood);
+            LegendObjects = cellfun(@(x) x(1), hUnitGood, 'UniformOutput',false);
 
             if InfoDetectedExist
-                LegendObjects = [LegendObjects; {hdetected(1)}];
+                LegendObjects = [LegendObjects, {hdetected(1)}];
                 LegendCaption = [LegendCaption; {"Points Analyzed"}];
             end
             
