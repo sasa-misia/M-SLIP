@@ -5,7 +5,7 @@ drawnow
 
 %% Machine Learning application
 cd(fold_var)
-load('InfoDetectedSoilSlips.mat')
+load('InfoDetectedSoilSlips.mat') % Remember that you have to run the script that made it everytime because you could have old values!
 load('RainInterpolated.mat')
 load('GridCoordinates.mat')
 load('MorphologyParameters.mat')
@@ -64,7 +64,7 @@ StableOption = listdlg('PromptString',{'How do you want to define unconditionall
 switch StableOption
     case 1
         SlopeUncStab = str2double(inputdlg("Set Critical Slope Angle", '', 1, {'10'}));
-        SlopeUnstab = 70;
+        SlopeUnstab = 40;
     case 2
         cd(fold_res_fs)
         fold_res_fs_an = uigetdir('open');
@@ -79,13 +79,15 @@ rng(1) % For reproducibility
 
 if StableOption == 2
     FSForInstability = 1.2;
-    FSForStability = 6;
+    FSForStability = 9;
     RealFS = zeros(TrainingSamples,1);
 end
 
 RatioNegToPos = 2;
 ConditioningFactors = 10;
-PositiveSamples = size(InfoDetectedSoilSlips,1);
+PercentageOfDatset = 0.7;
+PositiveSamples = uint64(size(InfoDetectedSoilSlips,1)*PercentageOfDatset);
+RandomIndexing = randperm(size(InfoDetectedSoilSlips,1));
 ResamplePositive = false;
 TrainingSamples = uint64((1+RatioNegToPos)*PositiveSamples);
 NegativeSamples = TrainingSamples-PositiveSamples;
@@ -95,11 +97,11 @@ TrainingCell = cell(TrainingSamples,ConditioningFactors); % Initializing cells a
 TrainingDTMPoints = zeros(TrainingSamples,3);
 
 if ~ResamplePositive
-    for i1 = 1:size(InfoDetectedSoilSlips,1)
-        DTMi = InfoDetectedSoilSlips{i1,3};
-        Indexi = InfoDetectedSoilSlips{i1,4};
+    for i1 = 1:PositiveSamples
+        DTMi = InfoDetectedSoilSlips{RandomIndexing(i1),3};
+        Indexi = InfoDetectedSoilSlips{RandomIndexing(i1),4};
         IndexAlli = IndexDTMPointsInsideStudyArea{DTMi}(Indexi);
-        TrainingCell(i1,:) = [InfoDetectedSoilSlips(i1,[8, 9, 11:15, 17, 18]), ...
+        TrainingCell(i1,:) = [InfoDetectedSoilSlips( RandomIndexing(i1), [8, 9, 11:15, 17, 18] ), ...
                               {DmCumPar{end-RowFromLast, DTMi}(Indexi)}];
         TrainingDTMPoints(i1,:) = [DTMi, Indexi, IndexAlli];
         if StableOption == 2; RealFS(i1) = FactorSafety{DTMi}(Indexi); end
@@ -164,7 +166,6 @@ while i2 <= TrainingSamples
         if StableOption == 2; RealFS(i2) = FactorSafety{DTMi}(Indexi); end
         i2 = i2+1;
     end
-
 end
 
 TrainingFs = [true(PositiveSamples,1); false(NegativeSamples,1)];
@@ -333,6 +334,7 @@ switch LearnChoice
 
     case "Auto ANN"
         Model = fitcnet(TrainingTableNorm,TrainingFs,'OptimizeHyperparameters','auto');
+        LearnMethod = LearnChoice;
 end
 
 [FsTrainingPrediction, FsTrainingScores] = predict(Model,TrainingTableNorm);
