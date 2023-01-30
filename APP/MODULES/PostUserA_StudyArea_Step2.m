@@ -12,6 +12,11 @@ cd(fold_raw_land_uses)
 
 ShapeInfoLandUses = shapeinfo(FileNameLandUses);
 
+if ShapeInfoLandUses.NumFeatures == 0
+    error('Shapefile is empty')
+end
+
+
 if isempty(ShapeInfoLandUses.CoordinateReferenceSystem)
     EPSG = str2double(inputdlg({["Set Shapefile EPSG"
                                  "For Example:"
