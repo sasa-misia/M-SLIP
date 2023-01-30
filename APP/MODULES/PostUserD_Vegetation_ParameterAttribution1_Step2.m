@@ -61,12 +61,12 @@ if string(ChoiceDVC) == string(Options{2})
         uialert(Fig, ['An error occurred reading colors (see MATLAB command), ' ...
                       'DVC Colors will be randomly generated...'], ...
                       'DVC Color Error')
-        DVCColors = uint8(rand(size(Sheet_DVCPar,1),3).*255);
+        DVCColors = uint8(rand(size(Sheet_DVCPar,1)-1, 3).*255);
     end
 
 elseif string(ChoiceDVC) == string(Options{1})
 
-    for i1 = 1:size(Sheet_DVCPar,1)
+    for i1 = 1:(size(Sheet_DVCPar,1)-1)
         DVCColors(i1,:) = uisetcolor(strcat("Chose a color for UV ",num2str(i1))).*255;
     end
 
@@ -84,6 +84,22 @@ DVC_betastar = [Sheet_DVCPar{2:size(Sheet_DVCPar,1),3}]';
 SelectedVUByUserPolygons = VegPolygonsStudyArea(SelectedVeg);
 
 %% InPolygon Procedure
+cd(fold_var)
+MantainVegOfSS = 'No';
+if exist('InfoDetectedSoilSlips.mat', 'file')
+    Options = {'Yes', 'No', 'Average'};
+    MantainVegOfSS = uiconfirm(Fig, 'Do you want to mantain soil slip points with no vegetation?', ...
+                               'Window type', 'Options',Options);
+    if strcmp(MantainVegOfSS, 'Yes') || strcmp(MantainVegOfSS, 'Average')
+        load('InfoDetectedSoilSlips.mat')
+        DTMi = InfoDetectedSoilSlips(:,3);
+        Indexi = InfoDetectedSoilSlips(:,4);
+        IndexAlli = cellfun(@(x,y) IndexDTMPointsInsideStudyArea{x}(y), DTMi, Indexi, 'UniformOutput',false);
+        RootCohesionToMantain = cellfun(@(x,y) RootCohesionAll{x}(y), DTMi, IndexAlli);
+        BetaStarToMantain = cellfun(@(x,y) BetaStarAll{x}(y), DTMi, IndexAlli);
+    end
+end
+
 tic
 ProgressBar.Indeterminate = 'off';
 for i1 = 1:size(SelectedVUByUserPolygons,2)
@@ -106,6 +122,18 @@ for i1 = 1:size(SelectedVUByUserPolygons,2)
     end
     disp(strcat('Finished VU',num2str(i1),'of ',num2str(size(SelectedVUByUserPolygons,2))))
 end
+
+if strcmp(MantainVegOfSS, 'Yes') || strcmp(MantainVegOfSS, 'Average')
+    for i1 = 1:length(BetaStarToMantain)
+        if strcmp(MantainVegOfSS, 'Average')
+            RootCohesionAll{DTMi{i1}}(IndexAlli{i1}) = (RootCohesionToMantain(i1)+RootCohesionAll{DTMi{i1}}(IndexAlli{i1}))/2;
+            BetaStarAll{DTMi{i1}}(IndexAlli{i1}) = (BetaStarToMantain(i1)+BetaStarAll{DTMi{i1}}(IndexAlli{i1}))/2;
+        else
+            RootCohesionAll{DTMi{i1}}(IndexAlli{i1}) = RootCohesionToMantain(i1);
+            BetaStarAll{DTMi{i1}}(IndexAlli{i1}) = BetaStarToMantain(i1);
+        end
+    end
+end
 toc
 
 VegAttribution = true;
@@ -115,7 +143,7 @@ VU_DVCPlotColors = {VUColors, DVCColors};
 DVCParameters = {DVC_cr, DVC_betastar};
 
 VariablesAnswerD = {'VegAttribution'};
-VariablesVUPar = {'VU_DVCPlotColors', 'VU_DVC', 'VUAbbr', 'DVCParameters', 'SelectedVeg'};
+VariablesVUPar = {'VU_DVCPlotColors', 'VU_DVC', 'VUAbbr', 'DVCParameters', 'SelectedVeg', 'VU2DVC'};
 VariablesVegPar = {'RootCohesionAll', 'BetaStarAll'};
 
 ProgressBar.Indeterminate = 'on';
