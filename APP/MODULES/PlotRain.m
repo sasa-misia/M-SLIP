@@ -27,7 +27,7 @@ ExtentStudyArea = area(StudyAreaPolygon);
 % ExtentStudyArea = prod(MaxExtremes-MinExtremes);
 RatioRef = ExtentStudyArea/RefStudyArea;
 PixelSize = .028/RatioRef;
-DetPixelSize = 3*PixelSize;
+DetPixelSize = 7.5*PixelSize;
 
 %% Plot based on selection
 switch RainFallType
