@@ -1,5 +1,4 @@
 %% Data import
-
 cd(fold_var)
 
 % Fig = uifigure;
@@ -7,15 +6,17 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait..', 'Message','Loading fil
                                  'Cancelable','on', 'Indeterminate','on');
 drawnow
 
-load('GridCoordinates.mat')
+load('GridCoordinates.mat', 'xLongAll','IndexDTMPointsInsideStudyArea')
 load('SoilParameters.mat', 'KtAll')
-load('GeneralRainfall.mat')
-load('RainInterpolated.mat')
-load('AnalysisInformation.mat')
-load('UserE_Answers.mat')
+% load('GeneralRainfall.mat')
+load('RainInterpolated.mat', 'RainInterpolated')
+load('AnalysisInformation.mat', 'StabilityAnalysis')
+load('UserE_Answers.mat', 'AnswerRainfallFor')
 
 tic
 %% Preliminary operations and data extraction
+NumberOfDTM = length(xLongAll);
+clear('xLongAll')
 AnalysisNumber = StabilityAnalysis{1};
 RainStart = StabilityAnalysis{3}(1);
 RW = 30*24;
@@ -28,14 +29,15 @@ end
 KtStudyArea = cellfun(@(x,y) x(y), KtAll, ...
                                    IndexDTMPointsInsideStudyArea, ...
                                    'UniformOutput',false);
+clear('KtAll')
 
 %% Evalutation of m
-DmCumPar = cell(AnalysisNumber,length(xLongAll));
-Steps = AnalysisNumber*length(xLongAll);
+DmCumPar = cell(AnalysisNumber,NumberOfDTM);
+Steps = AnalysisNumber*NumberOfDTM;
 ProgressBar.Indeterminate = 'off';
 
 IndexRainAnalysis = arrayfun(@(x) x:x+RW-1, 1:StabilityAnalysis{1}, 'UniformOutput',false);
-Rain = cell(1,AnalysisNumber);
+% Rain = cell(1,AnalysisNumber);
 
 for i1 = 1:AnalysisNumber
 
@@ -52,24 +54,28 @@ for i1 = 1:AnalysisNumber
         RainForecast = RainForecastInterpolated(SelectedHoursRun{i1,1},:);
     end
 
-    for i2 = 1:length(xLongAll)
-        RowNumber = size(xLongAll{i2},1);
-        ColumnNumber = size(xLongAll{i2},2);
+    for i2 = 1:NumberOfDTM
+        % RowNumber = size(xLongAll{i2},1);
+        % ColumnNumber = size(xLongAll{i2},2);
 
         ExpKtDt = arrayfun(@(x) exp(-KtStudyArea{i2}*x), dt, 'UniformOutput',false);
-        Rain = cellfun(@(x) RainInterpolated(x,i2), IndexRainAnalysis, 'UniformOutput', false);
+        % Rain = cellfun(@(x) RainInterpolated(x,i2), IndexRainAnalysis(i1), 'UniformOutput',false);
+        Rain = RainInterpolated(IndexRainAnalysis{i1},i2);
 
         if AnswerRainfallFor == 1
-            Rain{i1}(RW-HoursPrediction(i1)+1:RW) = RainForecast(:,1); % MG had put i2 instead of 1, please investigate
+            Rain(RW-HoursPrediction(i1)+1:RW) = RainForecast(:,1); % PLEASE MODIFY!
         end
 
-        DmCumTemp = cellfun(@(x,y) full(x)./1000.*y, Rain{i1}, ...
+        DmCumTemp = cellfun(@(x,y) full(x)./1000.*y, Rain, ...
                                                      ExpKtDt', ...
                                                      'UniformOutput',false);
+        clear('Rain')
+        clear('ExpKtDt')
 
         DmCumPar{i1,i2} = sum( cat(3, DmCumTemp{:}), 3 );
+        clear('DmCumTemp')
         
-        ProgressBar.Value = (length(xLongAll)*(i1-1)+i2)/Steps;
+        ProgressBar.Value = (NumberOfDTM*(i1-1)+i2)/Steps;
     end
 
 end
