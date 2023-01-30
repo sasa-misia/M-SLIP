@@ -1,5 +1,6 @@
 cd(fold_var)
-load('GridCoordinates.mat');
+load('GridCoordinates.mat')
+load('StudyAreaVariables.mat', 'StudyAreaPolygonClean')
 
 cd(fold_raw_det_ss)
 Files = {dir('*.xlsx').name};
@@ -21,7 +22,19 @@ Coordinates_DetectedSoilSlip = flip( ...
                                             [detssData{cellfun(@isnumeric,detssData(:,1:5))}], ...
                                             [], 2), 2);
 
-LocationSs = string(detssData(2:end,2));
+[pp1, ee1] = getnan2([StudyAreaPolygonClean.Vertices; nan, nan]);
+IndexPointsInsideStudyArea = find(inpoly([Coordinates_DetectedSoilSlip(:,1), Coordinates_DetectedSoilSlip(:,2)], pp1, ee1)==1);
+
+if length(IndexPointsInsideStudyArea) ~= length(Municipalities)
+    DeletedPoints = length(Municipalities)-length(IndexPointsInsideStudyArea);
+    warning(strcat(string(DeletedPoints),' points were deleted!'))
+end
+
+Municipalities = Municipalities(IndexPointsInsideStudyArea);
+Locations = Locations(IndexPointsInsideStudyArea);
+Coordinates_DetectedSoilSlip = Coordinates_DetectedSoilSlip(IndexPointsInsideStudyArea, :);
+
+% LocationSs = string(detssData(2:end,2)); % Maybe not necessary
 % dateSs = detssData(2:end,5); % Maybe not necessary
 
 xLongStudy = cellfun(@(x,y) x(y), xLongAll, ...
