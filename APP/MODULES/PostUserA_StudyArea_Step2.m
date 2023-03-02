@@ -16,7 +16,6 @@ if ShapeInfoLandUses.NumFeatures == 0
     error('Shapefile is empty')
 end
 
-
 if isempty(ShapeInfoLandUses.CoordinateReferenceSystem)
     EPSG = str2double(inputdlg({["Set Shapefile EPSG"
                                  "For Example:"
@@ -62,15 +61,21 @@ if PointShapeType % REMEMBER TO CONTINUE THIS CHANGE IN OTHER SCRIPTS
 
 else
 
+    EB = 1000*360/2/pi/earthRadius; % ExtraBounding Lat/Lon increment for a respective 100 m length, necessary due to conversion errors
     [BoundingBoxX, BoundingBoxY] = projfwd(ShapeInfoLandUses.CoordinateReferenceSystem,...
-                        [MinExtremes(2) MaxExtremes(2)],[MinExtremes(1) MaxExtremes(1)]);
+                                           [MinExtremes(2)-EB, MaxExtremes(2)+EB], ...
+                                           [MinExtremes(1)-EB, MaxExtremes(1)+EB]);
     ReadShapeLandUses = shaperead(FileNameLandUses, ...
                                   'BoundingBox',[BoundingBoxX(1), BoundingBoxY(1)
                                                  BoundingBoxX(2), BoundingBoxY(2)]);
+
+    if size(ReadShapeLandUses, 1) < 1
+        error('Shapefile is not empty but have no element in bounding box!')
+    end
     
     IndexToRemove = false(1, size(ReadShapeLandUses,1)); % Initialize logic array
     for i1 = 1:size(ReadShapeLandUses,1)
-        IndexToRemove(i1) = numel(ReadShapeLandUses(i1).X)>30000;
+        IndexToRemove(i1) = numel(ReadShapeLandUses(i1).X)>80000;  % IMPORTANT! Based on this number you will remove some polygons
     end
     ReadShapeLandUses(IndexToRemove) = [];
     
@@ -84,7 +89,11 @@ else
     AllLandUnique = unique(AllLandRaw);
     IndexLandUses = cell(1,length(AllLandUnique)); % Initialize cell array
     for i1 = 1:length(AllLandUnique)
-        IndexLandUses{i1} = find(strcmp(AllLandUnique(i1),AllLandRaw));
+        if isnumeric(AllLandRaw)
+            IndexLandUses{i1} = find(AllLandUnique(i1) == AllLandRaw);
+        else
+            IndexLandUses{i1} = find(strcmp(AllLandUnique(i1),AllLandRaw));
+        end
     end
     
     % Union of polygon on the same class
@@ -116,6 +125,7 @@ else
     
     LandUsePolygonsStudyArea(EmptyLandUseInStudyArea) = [];
     AllLandUnique(EmptyLandUseInStudyArea) = [];
+    if isnumeric(AllLandUnique); AllLandUnique = string(AllLandUnique); end
     
     LandToRemovePolygon = [];
     

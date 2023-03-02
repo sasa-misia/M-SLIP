@@ -1,3 +1,10 @@
+% Fig = uifigure; % Remember to comment if in app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Reading data', ...
+                                 'Message','Reading files...', 'Cancelable','off', ...
+                                 'Indeterminate','on');
+drawnow
+
+%% Loading Files
 cd(fold_var)
 load('GridCoordinates.mat')
 load('StudyAreaVariables.mat', 'StudyAreaPolygonClean')
@@ -9,6 +16,9 @@ FileDetectedSoilSlip = string(Files(Choice));
 
 drawnow % Remember to remove if in Standalone version
 figure(Fig) % Remember to remove if in Standalone version
+
+%% Data extraction
+ProgressBar.Message = 'Data extraction...';
 
 detssData = readcell(FileDetectedSoilSlip);
 EmptyPositions = cellfun(@(x) all(ismissing(x)), detssData);
@@ -22,6 +32,8 @@ Coordinates_DetectedSoilSlip = flip( ...
                                             [detssData{cellfun(@isnumeric,detssData(:,1:5))}], ...
                                             [], 2), 2);
 
+%% Prcessing
+ProgressBar.Message = 'Processing...';
 [pp1, ee1] = getnan2([StudyAreaPolygonClean.Vertices; nan, nan]);
 IndexPointsInsideStudyArea = find(inpoly([Coordinates_DetectedSoilSlip(:,1), Coordinates_DetectedSoilSlip(:,2)], pp1, ee1)==1);
 
@@ -51,7 +63,6 @@ GridPointsAll = cellfun(@(x,y) cat(2,x,y), xLongStudy, ...
 
 VariablesInfoDet = {'InfoDetectedSoilSlips', 'ChoiceSubArea'};
 
-% Fig = uifigure; % Remember to comment if in app version
 Options = {'Yes', 'No'};
 ChoiceSubArea = uiconfirm(Fig, 'Would you like to create a sub area for each point detected?', ...
                                'Sub areas', 'Options',Options);
@@ -94,14 +105,36 @@ for i1 = 1:size(Coordinates_DetectedSoilSlip,1)
     InfoDetectedSoilSlips{i1,6} = yLatStudy{DTMIncludingPoint}(NearestPoint);
 
     if ChoiceSubArea
-        CheckNearestPoints = cellfun(@(x) x<=AreaRadiusDegree, Distance(DTMIncludingPoint), 'UniformOutput',false);
-        NearestPoints = find([CheckNearestPoints{:}]);
+        DTMIntersecated = find(cellfun(@(x) any(x<=AreaRadiusDegree), Distance));
+        NearestPoints = cellfun(@(x) find(x<=AreaRadiusDegree), Distance, 'UniformOutput',false);
         InfoPointsNearDetectedSoilSlips(i1,1:3) = {Municipalities{i1}; Locations{i1}; Point1};
-        InfoPointsNearDetectedSoilSlips{i1,4} = num2cell([repmat(DTMIncludingPoint,size(NearestPoints)), NearestPoints]);
+        
+        OverlapDTMs = false; % GIVE THE CHOICE TO USER!!
+        if OverlapDTMs
+            InfoPointsNearTemp = [repmat(DTMIntersecated(1),size(NearestPoints{DTMIntersecated(1)})), ...
+                                  NearestPoints{DTMIntersecated(1)}];
+            if length(DTMIntersecated)>1
+                for i2 = 2:length(DTMIntersecated)
+                    InfoPointsNearTemp = [ InfoPointsNearTemp;
+                                          [repmat(DTMIntersecated(i2),size(NearestPoints{DTMIntersecated(i2)})), NearestPoints{DTMIntersecated(i2)}] ];
+                end
+            end
+
+            InfoPointsNearDetectedSoilSlips{i1,4} = num2cell(InfoPointsNearTemp);
+
+        else
+            
+            [~, DTMWithMorePoints] = max(cellfun(@length, NearestPoints));
+            InfoPointsNearDetectedSoilSlips{i1,4} = num2cell( [repmat(DTMWithMorePoints,size(NearestPoints{DTMWithMorePoints})), ...
+                                                               NearestPoints{DTMWithMorePoints}] );
+        end
     end
 
 end
 
+%% Saving...
+ProgressBar.Message = 'Saving...';
 cd(fold_var)
 save('InfoDetectedSoilSlips.mat', VariablesInfoDet{:})
 cd(fold0)
+close(ProgressBar) % Fig instead of ProgressBar if in standalone version

@@ -8,11 +8,22 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing'
 drawnow
 
 ShapeInfo_Lithology = shapeinfo(FileName_Lithology);
-[BoundingBoxX, BoundingBoxY] = projfwd(ShapeInfo_Lithology.CoordinateReferenceSystem,...
-                    [MinExtremes(2) MaxExtremes(2)],[MinExtremes(1) MaxExtremes(1)]);
+
+if ShapeInfo_Lithology.NumFeatures == 0
+    error('Shapefile is empty')
+end
+
+EB = 1000*360/2/pi/earthRadius; % ExtraBounding Lat/Lon increment for a respective 100 m length, necessary due to conversion errors
+[BoundingBoxX, BoundingBoxY] = projfwd(ShapeInfo_Lithology.CoordinateReferenceSystem, ...
+                                       [MinExtremes(2)-EB, MaxExtremes(2)+EB], ...
+                                       [MinExtremes(1)-EB, MaxExtremes(1)+EB]);
 ReadShape_Lithology = shaperead(FileName_Lithology, ...
                                 'BoundingBox',[BoundingBoxX(1) BoundingBoxY(1)
                                                BoundingBoxX(2) BoundingBoxY(2)]);
+
+if size(ReadShape_Lithology, 1) < 1
+    error('Shapefile is not empty but have no element in bounding box!')
+end
 
 %% Extract litho name abbreviations
 LithoAll = extractfield(ReadShape_Lithology,LitFieldName);

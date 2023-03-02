@@ -140,7 +140,7 @@ switch NumFigPlot
         
         if exist('LegendPosition', 'var')
             LegendObjects = LUExcludedPlot;
-            LegendCaption = cellstr(AllLandUnique{IndexLandUsesToRemove});
+            LegendCaption = cellstr(AllLandUnique(IndexLandUsesToRemove));
 
             if InfoDetectedExist
                 LegendObjects = [LegendObjects, {hdetected(1)}];

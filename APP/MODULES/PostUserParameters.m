@@ -1,3 +1,9 @@
+% Fig = uifigure; % Remember to comment if in app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Reading data', ...
+                                 'Message','Reading files...', 'Cancelable','off', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% File loading...
 cd(fold_var)
 load('MorphologyParameters.mat', 'AspectAngleAll','ElevationAll','SlopeAll')
@@ -33,6 +39,8 @@ if exist('LandUsesVariables.mat', 'file')
 end
 
 %% Extraction of points in Study Area and Detected points
+ProgressBar.Message = 'Data extraction...';
+
 DTMIncludingPoint = [InfoDetectedSoilSlips{:,3}]';
 NearestPoint = [InfoDetectedSoilSlips{:,4}]';
 
@@ -91,6 +99,8 @@ if ChoiceSubArea
 end
 
 %% Start of the loop for each detected point
+ProgressBar.Message = 'Processing...';
+
 for i1 = 1:size(DTMIncludingPoint,1)
 
     InfoDetectedSoilSlips{i1,7} = ElevationStudy{DTMIncludingPoint(i1)}(NearestPoint(i1));
@@ -151,74 +161,79 @@ for i1 = 1:size(DTMIncludingPoint,1)
     %% Parameter attribution for every sub area of each detected soil slip
     if ChoiceSubArea
 
-        NearestPoints = [InfoPointsNearDetectedSoilSlips{i1,4}{:,2}];
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,3) = num2cell(xLongStudy{DTMIncludingPoint(i1)}(NearestPoints));
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,4) = num2cell(yLatStudy{DTMIncludingPoint(i1)}(NearestPoints));
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,5) = num2cell(ElevationStudy{DTMIncludingPoint(i1)}(NearestPoints));
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,6) = num2cell(SlopeStudy{DTMIncludingPoint(i1)}(NearestPoints));
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,7) = num2cell(AspectStudy{DTMIncludingPoint(i1)}(NearestPoints));
-
-        % Intersection of detected point with litho
-        if ~AnswerAttributionSoilParameter
-            InfoPointsNearDetectedSoilSlips{i1,4}(:,8) = cellstr( repmat("Uniform", size(NearestPoints))' );
-        else
-            [pp_lit, ee_lit] = arrayfun(@(x) getnan2(x.Vertices), LithoPolygonsStudyArea, 'UniformOutput',false);
-            LithoPolygons = cell2mat(cellfun(@(x,y) inpoly( [xLongStudy{DTMIncludingPoint(i1)}(NearestPoints), ...
-                                                             yLatStudy{DTMIncludingPoint(i1)}(NearestPoints)  ], x, y ), ... 
-                                                    pp_lit, ee_lit, 'UniformOutput',false));
-            for i2 = 1:length(NearestPoints)
-                LithoPolygonsInd = find(LithoPolygons(i2,:));
-                if isempty(LithoPolygonsInd)
-                    InfoPointsNearDetectedSoilSlips{i1,4}(i2,8) = cellstr('No Litho');
-                else
-                    InfoPointsNearDetectedSoilSlips{i1,4}(i2,8) = LithoAllUnique(LithoPolygonsInd);
+        DTMNP = unique([InfoPointsNearDetectedSoilSlips{i1,4}{:,1}]);
+        for i2 = 1:length(DTMNP)
+            RowWithDTMNP = find([InfoPointsNearDetectedSoilSlips{i1,4}{:,1}] == DTMNP(i2));
+            NearestPoints = [InfoPointsNearDetectedSoilSlips{i1,4}{RowWithDTMNP,2}];
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,3) = num2cell(xLongStudy{DTMNP(i2)}(NearestPoints));
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,4) = num2cell(yLatStudy{DTMNP(i2)}(NearestPoints));
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,5) = num2cell(ElevationStudy{DTMNP(i2)}(NearestPoints));
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,6) = num2cell(SlopeStudy{DTMNP(i2)}(NearestPoints));
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,7) = num2cell(AspectStudy{DTMNP(i2)}(NearestPoints));
+    
+            % Intersection of detected point with litho
+            if ~AnswerAttributionSoilParameter
+                InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,8) = cellstr( repmat("Uniform", size(NearestPoints))' );
+            else
+                [pp_lit, ee_lit] = arrayfun(@(x) getnan2(x.Vertices), LithoPolygonsStudyArea, 'UniformOutput',false);
+                LithoPolygons = cell2mat(cellfun(@(x,y) inpoly( [xLongStudy{DTMNP(i2)}(NearestPoints), ...
+                                                                 yLatStudy{DTMNP(i2)}(NearestPoints)  ], x, y ), ... 
+                                                        pp_lit, ee_lit, 'UniformOutput',false));
+                for i3 = 1:length(NearestPoints)
+                    LithoPolygonsInd = find(LithoPolygons(i3,:));
+                    if isempty(LithoPolygonsInd)
+                        InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP(i3),8) = cellstr('No Litho');
+                    else
+                        InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP(i3),8) = LithoAllUnique(LithoPolygonsInd);
+                    end
                 end
             end
-        end
-
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,9)  = num2cell(CohesionStudy{DTMIncludingPoint(i1)}(NearestPoints));
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,10) = num2cell(PhiStudy{DTMIncludingPoint(i1)}(NearestPoints));
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,11) = num2cell(kStudy{DTMIncludingPoint(i1)}(NearestPoints));
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,12) = num2cell(AStudy{DTMIncludingPoint(i1)}(NearestPoints));
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,13) = num2cell(nStudy{DTMIncludingPoint(i1)}(NearestPoints));
-
-        % Intersection of detected point with veg
-        if ~AnswerAttributionVegetationParameter
-            InfoPointsNearDetectedSoilSlips{i1,4}(:,14) = cellstr( repmat("Uniform", size(NearestPoints))' );
-        else
-            [pp_veg, ee_veg] = arrayfun(@(x) getnan2(x.Vertices), VegPolygonsStudyArea, 'UniformOutput',false);
-            VegPolygons = cell2mat(cellfun(@(x,y) inpoly( [xLongStudy{DTMIncludingPoint(i1)}(NearestPoints), ...
-                                                           yLatStudy{DTMIncludingPoint(i1)}(NearestPoints)  ], x, y ), ...
-                                                  pp_veg, ee_veg, 'UniformOutput',false));
-            for i2 = 1:length(NearestPoints)
-                VegPolygonsInd = find(VegPolygons(i2,:));
-                if isempty(VegPolygonsInd)
-                    InfoPointsNearDetectedSoilSlips{i1,4}(i2,14) = cellstr('No Vegetation');
-                else
-                    InfoPointsNearDetectedSoilSlips{i1,4}(i2,14) = VegetationAllUnique(VegPolygonsInd);
+    
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,9)  = num2cell(CohesionStudy{DTMNP(i2)}(NearestPoints));
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,10) = num2cell(PhiStudy{DTMNP(i2)}(NearestPoints));
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,11) = num2cell(kStudy{DTMNP(i2)}(NearestPoints));
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,12) = num2cell(AStudy{DTMNP(i2)}(NearestPoints));
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,13) = num2cell(nStudy{DTMNP(i2)}(NearestPoints));
+    
+            % Intersection of detected point with veg
+            if ~AnswerAttributionVegetationParameter
+                InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,14) = cellstr( repmat("Uniform", size(NearestPoints))' );
+            else
+                [pp_veg, ee_veg] = arrayfun(@(x) getnan2(x.Vertices), VegPolygonsStudyArea, 'UniformOutput',false);
+                VegPolygons = cell2mat(cellfun(@(x,y) inpoly( [xLongStudy{DTMNP(i2)}(NearestPoints), ...
+                                                               yLatStudy{DTMNP(i2)}(NearestPoints)  ], x, y ), ...
+                                                      pp_veg, ee_veg, 'UniformOutput',false));
+                for i3 = 1:length(NearestPoints)
+                    VegPolygonsInd = find(VegPolygons(i3,:));
+                    if isempty(VegPolygonsInd)
+                        InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP(i3),14) = cellstr('No Vegetation');
+                    else
+                        InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP(i3),14) = VegetationAllUnique(VegPolygonsInd);
+                    end
                 end
             end
-        end
-
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,15) = num2cell(betastarStudy{DTMIncludingPoint(i1)}(NearestPoints));
-        InfoPointsNearDetectedSoilSlips{i1,4}(:,16) = num2cell(RootStudy{DTMIncludingPoint(i1)}(NearestPoints));
-
-        % Intersection of detected point with land use
-        if ~AnswerLandUseAttribution
-            InfoPointsNearDetectedSoilSlips{i1,4}(:,17) = cellstr( repmat("Land Use not processed", size(NearestPoints))' );
-        else
-            [pp_lu, ee_lu] = arrayfun(@(x) getnan2(x.Vertices), LandUsePolygonsStudyArea, 'UniformOutput',false);
-            LUPolygons = cell2mat(cellfun(@(x,y) inpoly( [xLongStudy{DTMIncludingPoint(i1)}(NearestPoints), ...
-                                                          yLatStudy{DTMIncludingPoint(i1)}(NearestPoints)  ], x, y ), ...
-                                                  pp_lu, ee_lu, 'UniformOutput',false));
-            for i2 = 1:length(NearestPoints)
-                LUPolygonsInd = find(LUPolygons(i2,:), 1); % Sometimes it can happen that you have multiple classes, the first will be taken
-                if isempty(LUPolygonsInd)
-                    InfoPointsNearDetectedSoilSlips{i1,4}(i2,17) = cellstr('Land Use not specified');
-                else
-                    InfoPointsNearDetectedSoilSlips{i1,4}(i2,17) = AllLandUniqueAbbr(LUPolygonsInd);
+    
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,15) = num2cell(betastarStudy{DTMNP(i2)}(NearestPoints));
+            InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,16) = num2cell(RootStudy{DTMNP(i2)}(NearestPoints));
+    
+            % Intersection of detected point with land use
+            if ~AnswerLandUseAttribution
+                InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP,17) = cellstr( repmat("Land Use not processed", size(NearestPoints))' );
+            else
+                [pp_lu, ee_lu] = arrayfun(@(x) getnan2(x.Vertices), LandUsePolygonsStudyArea, 'UniformOutput',false);
+                LUPolygons = cell2mat(cellfun(@(x,y) inpoly( [xLongStudy{DTMNP(i2)}(NearestPoints), ...
+                                                              yLatStudy{DTMNP(i2)}(NearestPoints)  ], x, y ), ...
+                                                      pp_lu, ee_lu, 'UniformOutput',false));
+                for i3 = 1:length(NearestPoints)
+                    LUPolygonsInd = find(LUPolygons(i3,:), 1); % Sometimes it can happen that you have multiple classes, the first will be taken
+                    if isempty(LUPolygonsInd)
+                        InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP(i3),17) = cellstr('Land Use not specified');
+                    else
+                        InfoPointsNearDetectedSoilSlips{i1,4}(RowWithDTMNP(i3),17) = AllLandUniqueAbbr(LUPolygonsInd);
+                    end
                 end
             end
+
         end
 
     end
@@ -233,6 +248,8 @@ ShowTable = uiconfirm(Fig, 'Do you want to show tables?', ...
 if strcmp(ShowTable,'Yes'); ShowTable = true; else; ShowTable = false; end
 
 %% Creation of table
+ProgressBar.Message = 'Creating tables...';
+
 TabParameters = cell2table(InfoDetectedSoilSlips);
 
 ColumnNames = {'Municipality', 'Location', 'N. DTM', 'Pos Elem', 'Long (°)', 'Lat (°)', ...
@@ -294,5 +311,7 @@ if ChoiceSubArea
 end
 
 %% Saving...
+ProgressBar.Message = 'Saving...';
 save('InfoDetectedSoilSlips.mat', VariablesInfoDet{:})
 cd(fold0)
+close(ProgressBar) % Fig instead of ProgressBar if in standalone version

@@ -130,7 +130,7 @@ switch NumFigPlot
             LegendCaption = cellstr(LUAbbr);
 
             if InfoDetectedExist
-                LegendObjects = [LegendObjects; {hdetected(1)}];
+                LegendObjects = [LegendObjects, {hdetected(1)}];
                 LegendCaption = [LegendCaption; {"Points Analyzed"}];
             end
 

@@ -79,149 +79,166 @@ switch CTRType
         error('Filetype not supported!')
 end
 
-%% Raster CTR Processing
-ProgressBar.Indeterminate = 'off';
-
-[xLongCTRStudy, yLatCTRStudy, GrayScaleCTRStudy] = deal(cell(1,length(NameFile1)));
-
-[pp1, ee1] = getnan2([StudyAreaPolygon.Vertices; nan, nan]);
-for i1 = 1:length(NameFile1)
-
-    ProgressBar.Message = strcat("Creation of CTR n. ",num2str(i1)," of ", num2str(length(NameFile1)));
-    ProgressBar.Value = i1/length(NameFile1);
-
-    switch CTRType
-        case 0
-            A = imread(NameFile1(i1));
-            R = worldfileread(NameFile2(i1), 'planar', size(A));
-
-        case 1
-            [A,R] = readgeoraster(NameFile1(i1), 'OutputType','native');
-
-        case 2
-            [A,R] = readgeoraster(NameFile1(i1), 'OutputType','native');
-
-        case 3
-            A = imread(NameFile1(i1));
-
-            if size(A, 3) == 3 && isequal(A(:, :, 1), A(:, :, 2), A(:, :, 3))
-                A = A(:, :, 1);
-            elseif size(A, 3) == 3 && ~isequal(A(:, :, 1), A(:, :, 2), A(:, :, 3))
-                A = rgb2gray(A);
-            end
-
-            if ~YetReferenced % REMEMBER TO MODIFY FOR DIFFERENT CRS!
-                fileID = fopen(NameFile3(i1), 'r');
-                ImageExt = fscanf(fileID, '%f');
-                fclose(fileID);
-
-                LatN  = ImageExt(3);
-                LongW = ImageExt(2);
-                LatS  = ImageExt(1);
-                LongE = ImageExt(4);
-
-                EPSGDest = projcrs(32633); % CHANGE THIS LINE
-
-                [xW, yN] = projfwd(EPSGDest, LatN, LongW);
-                [xE, yS] = projfwd(EPSGDest, LatS, LongE);
-
-                dLat  = -(LatN-LatS)/size(A, 1); % KEEP ATTENTION
-                dLong = (LongE-LongW)/size(A, 2); % KEEP ATTENTION
-                dy = -(yN-yS)/size(A, 1);
-                dx = (xE-xW)/size(A, 2);
-
-                WorldFileContGeo  = [dLong; 0; 0; dLat; LongW; LatN];
-                WorldFileContPlan = [dx; 0; 0; dy; xW; yN];
-                WorldFileame  = getworldfilename(NameFile1(i1));
-
-                fileID = fopen(WorldFileame, 'w');
-                ImageExt = fprintf(fileID, '%f\n', WorldFileContPlan);
-                fclose(fileID);
-
-                % [~, NameFile2NoExt, ~] = fileparts(NameFile3(i1));
-                R = worldfileread(WorldFileame, 'planar', size(A));
-            else
-                R = worldfileread(NameFile2(i1), 'planar', size(A));
-            end
-
-    end
-
-    if string(R.CoordinateSystemType)=="planar" && isempty(R.ProjectedCRS) && i1==1
-        EPSG = str2double(inputdlg({["Set DTM EPSG"
-                                     "For Example:"
-                                     "Sicily -> 32633"
-                                     "Emilia Romagna -> 25832"]}, '', 1, {'32633'}));
-        R.ProjectedCRS = projcrs(EPSG);
-    elseif string(R.CoordinateSystemType)=="planar" && isempty(R.ProjectedCRS) && i1>1
-        R.ProjectedCRS = projcrs(EPSG);
-    elseif string(R.CoordinateSystemType)=="geographic"
-        R.GeographicCRS = geocrs(4326);
-    end
-
-    [x_lim,y_lim] = mapoutline(R, size(A));
-    RasterExtentInWorldX = max(x_lim)-min(x_lim);
-    RasterExtentInWorldY = max(y_lim)-min(y_lim);
-    dX = RasterExtentInWorldX/(size(A,2)-1);
-    dY = RasterExtentInWorldY/(size(A,1)-1);
-    [X,Y] = worldGrid(R);
-
-    AnswerChangeCTRResolution = true;
-    NewDx = 1;
-    NewDy = 1;
-    if AnswerChangeCTRResolution
-        ScaleFactorX = int64(NewDx/dX);
-        ScaleFactorY = int64(NewDy/dY);
-    else
-        ScaleFactorX = 1;
-        ScaleFactorY = 1;
-    end
-
-    X = X(1:ScaleFactorX:end, 1:ScaleFactorY:end);
-    Y = Y(1:ScaleFactorX:end, 1:ScaleFactorY:end);
-
-    GrayScaleCTR = A(1:ScaleFactorX:end, 1:ScaleFactorY:end);
-
-    if string(R.CoordinateSystemType)=="planar"
-        [yLat,xLong] = projinv(R.ProjectedCRS, X, Y);
-        LatMin = min(yLat, [], "all");
-        LatMax = max(yLat, [], "all");
-        LongMin = min(xLong, [], "all");
-        LongMax = max(xLong, [], "all");
-        RGeo = georefcells([LatMin,LatMax], [LongMin,LongMax], size(GrayScaleCTR));
-        RGeo.GeographicCRS = R.ProjectedCRS.GeographicCRS;
-    else
-        xLong = X;
-        yLat  = Y;
-        RGeo  = R;
-    end
-
-    clear('X', 'Y')
-
-    IndexCTRPointsInsideStudyArea = find(inpoly([xLong(:), yLat(:)], pp1, ee1)==1);
-
-    xLongCTRStudy{i1} = xLong(IndexCTRPointsInsideStudyArea);
-    clear('xLong')
-    yLatCTRStudy{i1}  = yLat(IndexCTRPointsInsideStudyArea);
-    clear('yLat')
-    GrayScaleCTRStudy{i1} = GrayScaleCTR(IndexCTRPointsInsideStudyArea);
-    clear('GrayScaleCTR')
-end
-
-%% Cleaning of CTR files with no intersection (or only a single point)
-EmptyIndexCTRPointsInsideStudyArea = cellfun(@(x) numel(x)<=1,xLongCTRStudy);
-NameFileIntersecated = NameFile1(~EmptyIndexCTRPointsInsideStudyArea);
-xLongCTRStudy(EmptyIndexCTRPointsInsideStudyArea)                   = [];
-yLatCTRStudy(EmptyIndexCTRPointsInsideStudyArea)                    = [];
-GrayScaleCTRStudy(EmptyIndexCTRPointsInsideStudyArea)               = [];
-
-%% Saving...
-ProgressBar.Indeterminate = 'on';
-ProgressBar.Message = 'Saving created files...';
-
+%% Check pre existing CTR
+SkipCTRProcessing = false;
 cd(fold_var)
-VariablesCTR = {'xLongCTRStudy', 'yLatCTRStudy', 'GrayScaleCTRStudy', 'NameFileIntersecated'};
-save('StudyCTR.mat', VariablesCTR{:});
+if exist('StudyCTR.mat', 'file')
+    load('StudyCTR.mat')
+    if exist('NameFileTotUsed', 'var') && all(NameFileTotUsed == NameFile1)
+        SkipCTRProcessing = true;
+        warning('Pre existing CTR Processing is equal -> CTR Processing will be skipped')
+    end
+end
 cd(fold0)
+
+%% Raster CTR Processing
+if ~SkipCTRProcessing
+    cd(fold_raw_ctr)
+    ProgressBar.Indeterminate = 'off';
+    
+    [xLongCTRStudy, yLatCTRStudy, GrayScaleCTRStudy] = deal(cell(1,length(NameFile1)));
+    
+    [pp1, ee1] = getnan2([StudyAreaPolygon.Vertices; nan, nan]);
+    for i1 = 1:length(NameFile1)
+    
+        ProgressBar.Message = strcat("Creation of CTR n. ",num2str(i1)," of ", num2str(length(NameFile1)));
+        ProgressBar.Value = i1/length(NameFile1);
+    
+        switch CTRType
+            case 0
+                A = imread(NameFile1(i1));
+                R = worldfileread(NameFile2(i1), 'planar', size(A));
+    
+            case 1
+                [A,R] = readgeoraster(NameFile1(i1), 'OutputType','native');
+    
+            case 2
+                [A,R] = readgeoraster(NameFile1(i1), 'OutputType','native');
+    
+            case 3
+                A = imread(NameFile1(i1));
+    
+                if size(A, 3) == 3 && isequal(A(:, :, 1), A(:, :, 2), A(:, :, 3))
+                    A = A(:, :, 1);
+                elseif size(A, 3) == 3 && ~isequal(A(:, :, 1), A(:, :, 2), A(:, :, 3))
+                    A = rgb2gray(A);
+                end
+    
+                if ~YetReferenced % REMEMBER TO MODIFY FOR DIFFERENT CRS!
+                    fileID = fopen(NameFile3(i1), 'r');
+                    ImageExt = fscanf(fileID, '%f');
+                    fclose(fileID);
+    
+                    LatN  = ImageExt(3);
+                    LongW = ImageExt(2);
+                    LatS  = ImageExt(1);
+                    LongE = ImageExt(4);
+    
+                    EPSGDest = projcrs(32633); % CHANGE THIS LINE
+    
+                    [xW, yN] = projfwd(EPSGDest, LatN, LongW);
+                    [xE, yS] = projfwd(EPSGDest, LatS, LongE);
+    
+                    dLat  = -(LatN-LatS)/size(A, 1); % KEEP ATTENTION
+                    dLong = (LongE-LongW)/size(A, 2); % KEEP ATTENTION
+                    dy = -(yN-yS)/size(A, 1);
+                    dx = (xE-xW)/size(A, 2);
+    
+                    WorldFileContGeo  = [dLong; 0; 0; dLat; LongW; LatN];
+                    WorldFileContPlan = [dx; 0; 0; dy; xW; yN];
+                    WorldFileame  = getworldfilename(NameFile1(i1));
+    
+                    fileID = fopen(WorldFileame, 'w');
+                    ImageExt = fprintf(fileID, '%f\n', WorldFileContPlan);
+                    fclose(fileID);
+    
+                    % [~, NameFile2NoExt, ~] = fileparts(NameFile3(i1));
+                    R = worldfileread(WorldFileame, 'planar', size(A));
+                else
+                    R = worldfileread(NameFile2(i1), 'planar', size(A));
+                end
+    
+        end
+    
+        if string(R.CoordinateSystemType)=="planar" && isempty(R.ProjectedCRS) && i1==1
+            EPSG = str2double(inputdlg({["Set DTM EPSG"
+                                         "For Example:"
+                                         "Sicily -> 32633"
+                                         "Emilia Romagna -> 25832"]}, '', 1, {'32633'}));
+            R.ProjectedCRS = projcrs(EPSG);
+        elseif string(R.CoordinateSystemType)=="planar" && isempty(R.ProjectedCRS) && i1>1
+            R.ProjectedCRS = projcrs(EPSG);
+        elseif string(R.CoordinateSystemType)=="geographic"
+            R.GeographicCRS = geocrs(4326);
+        end
+    
+        [x_lim,y_lim] = mapoutline(R, size(A));
+        RasterExtentInWorldX = max(x_lim)-min(x_lim);
+        RasterExtentInWorldY = max(y_lim)-min(y_lim);
+        dX = RasterExtentInWorldX/(size(A,2)-1);
+        dY = RasterExtentInWorldY/(size(A,1)-1);
+        [X,Y] = worldGrid(R);
+    
+        AnswerChangeCTRResolution = true;
+        NewDx = 1;
+        NewDy = 1;
+        if AnswerChangeCTRResolution
+            ScaleFactorX = int64(NewDx/dX);
+            ScaleFactorY = int64(NewDy/dY);
+        else
+            ScaleFactorX = 1;
+            ScaleFactorY = 1;
+        end
+    
+        X = X(1:ScaleFactorX:end, 1:ScaleFactorY:end);
+        Y = Y(1:ScaleFactorX:end, 1:ScaleFactorY:end);
+    
+        GrayScaleCTR = A(1:ScaleFactorX:end, 1:ScaleFactorY:end);
+        clear('A')
+    
+        if string(R.CoordinateSystemType)=="planar"
+            [yLat,xLong] = projinv(R.ProjectedCRS, X, Y);
+            LatMin = min(yLat, [], "all");
+            LatMax = max(yLat, [], "all");
+            LongMin = min(xLong, [], "all");
+            LongMax = max(xLong, [], "all");
+            RGeo = georefcells([LatMin,LatMax], [LongMin,LongMax], size(GrayScaleCTR));
+            RGeo.GeographicCRS = R.ProjectedCRS.GeographicCRS;
+        else
+            xLong = X;
+            yLat  = Y;
+            RGeo  = R;
+        end
+    
+        clear('X', 'Y')
+    
+        IndexCTRPointsInsideStudyArea = find(inpoly([xLong(:), yLat(:)], pp1, ee1)==1);
+    
+        xLongCTRStudy{i1} = xLong(IndexCTRPointsInsideStudyArea);
+        clear('xLong')
+        yLatCTRStudy{i1}  = yLat(IndexCTRPointsInsideStudyArea);
+        clear('yLat')
+        GrayScaleCTRStudy{i1} = GrayScaleCTR(IndexCTRPointsInsideStudyArea);
+        clear('GrayScaleCTR')
+    end
+    
+    %% Cleaning of CTR files with no intersection (or only a single point)
+    EmptyIndexCTRPointsInsideStudyArea = cellfun(@(x) numel(x)<=1,xLongCTRStudy);
+    NameFileIntersecated = NameFile1(~EmptyIndexCTRPointsInsideStudyArea);
+    NameFileTotUsed = NameFile1;
+    xLongCTRStudy(EmptyIndexCTRPointsInsideStudyArea)                   = [];
+    yLatCTRStudy(EmptyIndexCTRPointsInsideStudyArea)                    = [];
+    GrayScaleCTRStudy(EmptyIndexCTRPointsInsideStudyArea)               = [];
+    
+    %% Saving...
+    ProgressBar.Indeterminate = 'on';
+    ProgressBar.Message = 'Saving created files...';
+    
+    cd(fold_var)
+    VariablesCTR = {'xLongCTRStudy', 'yLatCTRStudy', 'GrayScaleCTRStudy', 'NameFileIntersecated', 'NameFileTotUsed'};
+    save('StudyCTR.mat', VariablesCTR{:});
+    cd(fold0)
+end
 
 %% Plot for check
 SkipCheck = true;
@@ -328,7 +345,7 @@ for i1 = 1:length(PolWindow)
     IndexCTRInPolWin = find(inpoly([xLongCTRTot, yLatCTRTot], ppWin, eeWin)==1);
     if ~isempty(IndexCTRInPolWin)
 
-        OverlapDTMs = false; % GIVE THE CHOICE TO USER
+        OverlapDTMs = true; % GIVE THE CHOICE TO USER
         if OverlapDTMs
             xLongCTRPar     = xLongCTRTot(IndexCTRInPolWin);
             yLatCTRPar      = yLatCTRTot(IndexCTRInPolWin);
@@ -496,7 +513,7 @@ for i1 = 1:length(PolWindow)
     
         colormap(ax_ind2,'pink')
         LimitsCol = linspace(min(PointsNearAlt), max(PointsNearAlt), 5);
-        LimitsCol = round(LimitsCol, 3, 'significant');
+        LimitsCol = round(LimitsCol, 3, 'significant'); % CHECK FOR LEGEND THAT IS CUTTED AND WITH 3 DECIMAL NUMBERS, WHEN 0 IS PRESENT
         clim([LimitsCol(1), LimitsCol(end)])
         ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol);
         ColBarPos = get(ColBar,'Position');

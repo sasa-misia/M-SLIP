@@ -70,7 +70,7 @@ for i1 = 1:length(NameFile1)
     X = XTBS(1:ScaleFactorX:end, 1:ScaleFactorY:end);
     Y = YTBS(1:ScaleFactorX:end, 1:ScaleFactorY:end);
 
-    Elevation = A(1:ScaleFactorX:end, 1:ScaleFactorY:end);
+    Elevation = max(A(1:ScaleFactorX:end, 1:ScaleFactorY:end), 0); % Sometimes raster have big negative elevation values for sea
     
     if string(R.CoordinateSystemType)=="planar"
         [yLat,xLong] = projinv(R.ProjectedCRS, X, Y);
