@@ -72,7 +72,7 @@ switch StableOption
         cd(fold_res_fs_an)
         FSLoadIndex = hours(EventSelForTrain-StabilityAnalysis{2}(1))+1;
         load(strcat('Fs',num2str(FSLoadIndex),'.mat'));
-end
+end 
 
 %% Calculate cumulate rainfall
 rng(1) % For reproducibility
@@ -416,7 +416,7 @@ for i1 = 1:size(DmCumPar,1)
     AnalysisTableNorm(:,end) = cellfun(@(x) (x-Minimum(10))./(Maximum(10)-Minimum(10)), ...
                                                         AnalysisTable(:,10), ...
                                                         'UniformOutput',false); % Remember to modify if you add some parameters
-    NanIntoAnTblNorm = cellfun(@isnan, AnalysisTableNorm, 'UniformOutput', false);
+    NanIntoAnTblNorm = cellfun(@isnan, AnalysisTableNorm, 'UniformOutput',false);
     for i2 = 1:size(AnalysisTableNorm,1)*size(AnalysisTableNorm,2)
         AnalysisTableNorm{i2}(NanIntoAnTblNorm{i2}) = 0; % To remove value consistant that normalized give NaNs
     end
