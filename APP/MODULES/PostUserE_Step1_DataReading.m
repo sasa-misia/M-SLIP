@@ -1,3 +1,9 @@
+% Fig = uifigure; % Remember to comment if in app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Reading of rainfall files', ...
+                                 'Message','Reading file', 'Cancelable','on', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% Data import
 cd(fold_var)
 
@@ -21,11 +27,8 @@ if AnswerRainfallRec == 1
     cd(fold_raw_rain)
 
     if isempty({dir('*.xlsx').name})
-        % Fig = uifigure; % Remember to comment this line if is app version
         Answer = uiconfirm(Fig, strcat("No excel in ",fold_raw_rain), ...
                            'No file in directory', 'Options','Search file');
-        % close(Fig) % Remember to comment this line if is app version
-        
         copyindirectory('xlsx', fold_raw_rain, 'mode','multiple')
     end
 
@@ -108,6 +111,7 @@ if AnswerRainfallFor == 1
     FileNameForecast = strcat(fold_raw_rain_for,sl,char(Files(ChoiceForcstFile)));
     try setup_nctoolbox; catch; disp('A problem has occurred in nctoolbox'); end
 
+    ProgressBar.Message = strcat("Processing data...");
     drawnow % Remember to remove if in Standalone version
     figure(Fig) % Remember to remove if in Standalone version
     
@@ -205,7 +209,8 @@ switch AnalysisCase
         RainfallEvents = string(RainfallDates(ChoiceRain));
         RainfallEvents = datetime(RainfallEvents, 'Format','dd/MM/yyyy HH:mm');
 
-        drawnow
+        drawnow % Remember to remove if in Standalone version
+        figure(Fig) % Remember to remove if in Standalone version
 
         if AnswerRainfallFor == 1
             ForecastChoice = RainfallDates(ChoiceRain);
@@ -257,14 +262,16 @@ if AnswerRainfallFor == 1
 end
 
 %% Saving
-save('UserE_Answers.mat', NameFile{:}, 'AnalysisCase', AnswerRainfall{:});
+ProgressBar.Message = strcat("Saving data...");
+drawnow
 
+save('UserE_Answers.mat', NameFile{:}, 'AnalysisCase', AnswerRainfall{:});
 if exist('RainInterpolated.mat', 'file')
     save('RainInterpolated.mat', VariablesInterpolation{:}, '-append');
 else
     save('RainInterpolated.mat', VariablesInterpolation{:}, '-v7.3');
 end
-
 save('GeneralRainfall.mat', VariablesRainfall{:});
 
 cd(fold0)
+% close(Fig) % Remember to comment this line if is app version
