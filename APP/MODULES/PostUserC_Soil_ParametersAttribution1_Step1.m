@@ -1,11 +1,11 @@
+% Fig = uifigure; % Remember to comment this line if is app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing');
+drawnow
+
 %% File loading
 cd(fold_var)
 load('StudyAreaVariables.mat');
 cd(fold_raw_lit);
-
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing');
-drawnow
 
 ShapeInfo_Lithology = shapeinfo(FileName_Lithology);
 
@@ -24,6 +24,12 @@ ReadShape_Lithology = shaperead(FileName_Lithology, ...
 if size(ReadShape_Lithology, 1) < 1
     error('Shapefile is not empty but have no element in bounding box!')
 end
+
+%% Choice between Top Soil or Sub Soil
+Options = {'Top Soil', 'Sub Soil'};
+TypeOfSoil = uiconfirm(Fig, 'What type of information contains your file?', ...
+                            'Soil info type', 'Options',Options);
+if strcmp(TypeOfSoil,'Top Soil'); TopSoil = true; end
 
 %% Extract litho name abbreviations
 LithoAll = extractfield(ReadShape_Lithology,LitFieldName);
@@ -100,4 +106,10 @@ close(ProgressBar) % ProgressBar instead of Fig if on the app version
 cd(fold_var)
 save('LithoPolygonsStudyArea.mat', Variables{:});
 save('UserC_Answers.mat', Variables_Answer{:});
+if TopSoil
+    TopSoilPolygonsStudyArea = LithoPolygonsStudyArea;
+    TopSoilAllUnique = LithoAllUnique;
+    VariablesTopSoil = {'TopSoilPolygonsStudyArea', 'TopSoilAllUnique'};
+    save('TopSoilPolygonsStudyArea.mat', VariablesTopSoil{:});
+end
 cd(fold0)
