@@ -94,10 +94,3 @@ end
 cd(fold_var)
 save('Distance.mat',Distance{:});
 save('RoadPolygon.mat','RoadPoly')
-
-
-
-
-
-
-
