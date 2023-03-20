@@ -168,7 +168,7 @@ if ~SkipCTRProcessing
             R.ProjectedCRS = projcrs(EPSG);
         elseif string(R.CoordinateSystemType)=="planar" && isempty(R.ProjectedCRS) && i1>1
             R.ProjectedCRS = projcrs(EPSG);
-        elseif string(R.CoordinateSystemType)=="geographic"
+        elseif string(R.CoordinateSystemType)=="geographic" && isempty(R.GeographicCRS)
             R.GeographicCRS = geocrs(4326);
         end
     
