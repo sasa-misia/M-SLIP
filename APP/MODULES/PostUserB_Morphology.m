@@ -8,7 +8,7 @@ drawnow
 tic
 cd(fold_var)
 load('StudyAreaVariables.mat')
-load('UserA_Answers.mat', 'SpecificWindow')
+% load('UserA_Answers.mat', 'SpecificWindow') % It could be deleted
 
 cd(fold_raw_dtm)
 % Import tif and tfw file names
@@ -34,7 +34,7 @@ for i1 = 1:length(NameFile1)
     switch DTMType
         case 0
             A = imread(NameFile1(i1));
-            R = worldfileread(NameFile2(i1), 'planar', size(A));  
+            R = worldfileread(NameFile2(i1), 'planar', size(A));
         case 1
             % [A,R] = readgeoraster(NameFile1(i1), 'OutputType','double');
             [A,R] = readgeoraster(NameFile1(i1), 'OutputType','native');
@@ -46,18 +46,21 @@ for i1 = 1:length(NameFile1)
         EPSG = str2double(inputdlg({["Set DTM EPSG"
                                      "For Example:"
                                      "Sicily -> 32633"
-                                     "Emilia Romagna -> 25832"]}, '', 1, {'32633'}));
+                                     "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
         R.ProjectedCRS = projcrs(EPSG);
     elseif isempty(R.ProjectedCRS) && i1>1
         R.ProjectedCRS = projcrs(EPSG);
     end
         
-    [x_lim,y_lim] = mapoutline(R, size(A));
-    RasterExtentInWorldX = max(x_lim)-min(x_lim);
-    RasterExtentInWorldY = max(y_lim)-min(y_lim);
-    dX = RasterExtentInWorldX/(size(A,2)-1);
-    dY = RasterExtentInWorldY/(size(A,1)-1);
-    [XTBS,YTBS] = worldGrid(R);
+    if R.CoordinateSystemType == "planar"
+        [XTBS,YTBS] = worldGrid(R);
+        dX = R.CellExtentInWorldX;
+        dY = R.CellExtentInWorldY;
+    elseif R.CoordinateSystemType == "geographic"
+        [YTBS, XTBS] = geographicGrid(R);
+        dX = acos(sind(YTBS(1,1))*sind(YTBS(1,2))+cosd(YTBS(1,1))*cosd(YTBS(1,2))*cosd(XTBS(1,2)-XTBS(1,1)))*earthRadius;
+        dY = acos(sind(YTBS(1,1))*sind(YTBS(2,1))+cosd(YTBS(1,1))*cosd(YTBS(2,1))*cosd(XTBS(2,1)-XTBS(1,1)))*earthRadius;
+    end
 
     if AnswerChangeDTMResolution == 1
         ScaleFactorX = int64(NewDx/dX);
@@ -74,11 +77,8 @@ for i1 = 1:length(NameFile1)
     
     if string(R.CoordinateSystemType)=="planar"
         [yLat,xLong] = projinv(R.ProjectedCRS, X, Y);
-        LatMin = min(yLat, [], "all");
-        LatMax = max(yLat, [], "all");
-        LongMin = min(xLong, [], "all");
-        LongMax = max(xLong, [], "all");
-        RGeo = georefcells([LatMin,LatMax], [LongMin,LongMax], size(Elevation));
+        [yLatExt, xLongExt] = projinv(R.ProjectedCRS, R.XWorldLimits, R.YWorldLimits);
+        RGeo = georefcells(yLatExt, xLongExt, size(Elevation), 'ColumnsStartFrom','north'); % Remember to automatize this parameter (ColumnsStartFrom) depending on emisphere!
         RGeo.GeographicCRS = R.ProjectedCRS.GeographicCRS;
     else
         xLong = X;
@@ -150,11 +150,11 @@ if OrthophotoAnswer
         UrlMap = string(Choice{1});
     end
 
-    ServerMap = WebMapServer(UrlMap);
-    Info = wmsinfo(UrlMap);
+    ServerMap  = WebMapServer(UrlMap);
+    Info       = wmsinfo(UrlMap);
     OrthoLayer = Info.Layer(1);
     
-    LimMap =    cellfun(@(x) [x.LongitudeLimits; x.LatitudeLimits], RAll, 'UniformOutput',false);
+    LimMap    = cellfun(@(x) [x.LongitudeLimits; x.LatitudeLimits], RAll, 'UniformOutput',false);
     LimLatMap = cellfun(@(x) x(2,:), LimMap, 'UniformOutput',false);
     LimLonMap = cellfun(@(x) x(1,:), LimMap, 'UniformOutput',false);
     
@@ -164,20 +164,9 @@ if OrthophotoAnswer
                                       'CellSize',SamplesPerInterval),...
                                       LimLatMap, LimLonMap, 'UniformOutput',false);
 
-    Filename1 = 'fig1';
     fig_ortho = figure(1);
-    set(f1 , ...
-        'Color',[1 1 1], ...
-        'PaperType','a4', ...
-        'PaperSize',[29.68 20.98 ], ...    
-        'PaperUnits', 'centimeters', ...
-        'PaperPositionMode','manual', ...
-        'PaperPosition', [0 1 12 6], ...
-        'InvertHardcopy','off');
-    set(gcf, 'Name',Filename1);
-
-    Axes1 = axes('Parent',fig_ortho); 
-    hold(Axes1,'on');
+    ax_ortho  = axes('Parent',fig_ortho); 
+    hold(ax_ortho,'on');
 
     % cellfun(@(x,y) geoshow(x,y),ZOrtho,ROrtho);
 
@@ -209,7 +198,7 @@ if OrthophotoAnswer
                 yLatOrtho{i}(IndexOrthoPointsInsideStudyArea{i}), ...
                 2, double(OrthoRGB{i}(IndexOrthoPointsInsideStudyArea{i},:))./255, ... % Note that it is important to convert OrthoRGB in double!
                 's', 'filled', 'MarkerEdgeColor','none') % , 'MarkerFaceAlpha',0.5)
-        hold on
+        % hold on
     end
     daspect([1, 1, 1])
 end
@@ -218,19 +207,21 @@ end
 ProgressBar.Message = 'Printing to check...';
 
 fig_check = figure(2);
+ax_check  = axes(fig_check);
+hold(ax_check,'on')
+
 for i3 = 1:length(xLongAll)
     fastscatter(xLongAll{i3}(IndexDTMPointsInsideStudyArea{i3}), ...
                 yLatAll{i3}(IndexDTMPointsInsideStudyArea{i3}), ...
                 ElevationAll{i3}(IndexDTMPointsInsideStudyArea{i3}))
-    hold on
 end
 
-hold on
 plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1);
-hold on
+
 if ~isempty(StudyAreaPolygonExcluded.Vertices)
     plot(StudyAreaPolygonExcluded, 'FaceColor','r', 'FaceAlpha',0.5, 'LineWidth',0.5);
 end
+
 title('Study Area Polygon Check')
 
 fig_settings(fold0, 'AxisTick');
@@ -238,23 +229,23 @@ fig_settings(fold0, 'AxisTick');
 %% Creation of empty parameter matrices
 ProgressBar.Message = 'Creation of parameter matrices...';
 
-SizeGridInCell =    cellfun(@size, xLongAll, 'UniformOutput',false);
-CohesionAll =       cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
-PhiAll =            cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
-KtAll =             cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
-AAll =              cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
-nAll =              cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
-BetaStarAll =       cellfun(@cosd, SlopeAll, 'UniformOutput',false); % If Vegetation is not associated, betastar will depends on slope
-RootCohesionAll =   cellfun(@zeros, SizeGridInCell, 'UniformOutput',false); % If Vegetation is not associated, root cohesion will be zero
+SizeGridInCell  = cellfun(@size, xLongAll, 'UniformOutput',false);
+CohesionAll     = cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
+PhiAll          = cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
+KtAll           = cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
+AAll            = cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
+nAll            = cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
+BetaStarAll     = cellfun(@cosd, SlopeAll, 'UniformOutput',false); % If Vegetation is not associated, betastar will depends on slope
+RootCohesionAll = cellfun(@zeros, SizeGridInCell, 'UniformOutput',false); % If Vegetation is not associated, root cohesion will be zero
 
 
 % Creatings string names of variables in cell arrays to save at the end
-VariablesMorph = {'ElevationAll', 'RAll', 'AspectAngleAll', 'SlopeAll', 'GradNAll', 'GradEAll'};
+VariablesMorph     = {'ElevationAll', 'RAll', 'AspectAngleAll', 'SlopeAll', 'GradNAll', 'GradEAll'};
 VariablesGridCoord = {'xLongAll', 'yLatAll', 'IndexDTMPointsInsideStudyArea', 'IndexDTMPointsExcludedInStudyArea'};
-VariablesSoilPar = {'CohesionAll', 'PhiAll', 'KtAll', 'AAll', 'nAll'};
-VariablesVegPar = {'RootCohesionAll', 'BetaStarAll'};
-VariablesAnswerB = {'AnswerChangeDTMResolution', 'DTMType', 'FileName_DTM', 'AnswerChangeDTMResolution', ...
-                    'OrthophotoAnswer', 'ScaleFactorX', 'ScaleFactorY', 'NameFileIntersecated'};
+VariablesSoilPar   = {'CohesionAll', 'PhiAll', 'KtAll', 'AAll', 'nAll'};
+VariablesVegPar    = {'RootCohesionAll', 'BetaStarAll'};
+VariablesAnswerB   = {'AnswerChangeDTMResolution', 'DTMType', 'FileName_DTM', 'AnswerChangeDTMResolution', ...
+                      'OrthophotoAnswer', 'ScaleFactorX', 'ScaleFactorY', 'NameFileIntersecated'};
 if AnswerChangeDTMResolution == 1; VariablesAnswerB = [VariablesAnswerB, {'NewDx', 'NewDy'}]; end
 if OrthophotoAnswer; VariablesOrtho = {'ZOrtho', 'ROrtho', 'xLongOrtho', 'yLatOrtho', ...
                                        'OrthoRGB', 'IndexOrthoPointsInsideStudyArea'}; end
