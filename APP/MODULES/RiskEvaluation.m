@@ -1,5 +1,5 @@
 load('GridCoordinates.mat');
-load('Distance.mat');
+load('Distances.mat');
 load('SusceptibilityRes.mat');
 
 xLongStudy=cellfun(@(x,y) x(y),xLongAll,IndexDTMPointsInsideStudyArea,...
