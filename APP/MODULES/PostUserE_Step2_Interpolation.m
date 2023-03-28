@@ -15,7 +15,7 @@ if exist('AnalysisInformation.mat', 'file')
     load('AnalysisInformation.mat', 'StatusPrevAnalysis')
 end
 
-if AnswerRainfallRec==1
+if AnswerRainfallRec == 1
     load('GeneralRainfall.mat')
 end
 
