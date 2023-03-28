@@ -1,11 +1,11 @@
-Fig = uifigure; % Remember to comment this line if is app version
+% Fig = uifigure; % Remember to comment this line if is app version
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
                                  'Indeterminate','on');
 drawnow
 
 rng(10) % For reproducibility of the model
 
-%% Loading data
+%% Loading data and initialization of AnalysisInformation
 cd(fold_var)
 load('MorphologyParameters.mat',     'AspectAngleAll','ElevationAll','SlopeAll')
 load('LithoPolygonsStudyArea.mat',   'LithoAllUnique','LithoPolygonsStudyArea')
@@ -16,7 +16,11 @@ load('GridCoordinates.mat',          'IndexDTMPointsInsideStudyArea','xLongAll',
 load('RainInterpolated.mat',         'RainInterpolated')
 load('InfoDetectedSoilSlips.mat',    'InfoDetectedSoilSlips')
 load('StudyAreaVariables.mat',       'StudyAreaPolygon')
+load('Distances.mat',                'MinDistToRoadAll')
 cd(fold0)
+
+AnalysisType = "ANN Trained in TrainingANNs script";
+AnalysisInformation = table(AnalysisType);
 
 %% Defining curvature
 ProgressBar.Message = "Defining curvature...";
@@ -38,14 +42,34 @@ VariablesMorphology = {'MeanCurvatureAll'};
 save('MorphologyParameters.mat', VariablesMorphology{:}, '-append');
 cd(fold0)
 
+%% Defining contributing area (upslope area)
+ProgressBar.Message = "Defining contributing area...";
+ElevationAllFilled = cellfun(@(x) imfill(x, 8, 'holes'), ElevationAll, 'UniformOutput',false); % Necessary to avoid stopping flow in unwanted points. If 2nd term is 8 it means that it look in the other 8 neighbors
+[FlowDirAll, FlowMagnitAll, ContributingAreaAll, ContributingAreaLogAll] = deal(cell(size(xLongAll)));
+for i1 = 1:length(xLongAll)
+    dx = abs(xPlanAll{i1}(ceil(end/2),2)-xPlanAll{i1}(ceil(end/2),1));
+    dy = abs(yPlanAll{i1}(1,ceil(end/2))-yPlanAll{i1}(2,ceil(end/2)));
+
+    [FlowDirAll{i1}, FlowMagnitAll{i1}] = dem_flow(ElevationAllFilled{i1}, dx, dy, 0);
+    ContributingAreaAll{i1}    = upslope_area( ElevationAllFilled{1}, flow_matrix(ElevationAllFilled{1},FlowDirAll{i1},dx,dy) );
+    ContributingAreaLogAll{i1} = log(ContributingAreaAll{i1}); % It is not necessary but for plot is more representative than ContributingArea
+end
+
+cd(fold_var)
+VariablesMorphology = {'ContributingArea'};
+save('MorphologyParameters.mat', VariablesMorphology{:}, '-append');
+cd(fold0)
+
 %% Extraction of data in study area
-ProgressBar.Message = "Data extraction in study area...";
-xLongStudy          = cellfun(@(x,y) x(y), xLongAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-yLatStudy           = cellfun(@(x,y) x(y), yLatAll         , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-ElevationStudy      = cellfun(@(x,y) x(y), ElevationAll    , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-SlopeStudy          = cellfun(@(x,y) x(y), SlopeAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-AspectStudy         = cellfun(@(x,y) x(y), AspectAngleAll  , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-MeanCurvatureStudy  = cellfun(@(x,y) x(y), MeanCurvatureAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+ProgressBar.Message      = "Data extraction in study area...";
+xLongStudy               = cellfun(@(x,y) x(y), xLongAll              , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+yLatStudy                = cellfun(@(x,y) x(y), yLatAll               , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+ElevationStudy           = cellfun(@(x,y) x(y), ElevationAll          , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+SlopeStudy               = cellfun(@(x,y) x(y), SlopeAll              , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+AspectStudy              = cellfun(@(x,y) x(y), AspectAngleAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+MeanCurvatureStudy       = cellfun(@(x,y) x(y), MeanCurvatureAll      , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+ContributingAreaLogStudy = cellfun(@(x,y) x(y), ContributingAreaLogAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+MinDistToRoadStudy       = cellfun(@(x,y) x(y), MinDistToRoadAll      , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
 
 xLongTotCat = cat(1, xLongStudy{:});
 yLatTotCat  = cat(1, yLatStudy{:});
@@ -53,22 +77,6 @@ yLatTotCat  = cat(1, yLatStudy{:});
 yLatMean    = mean(yLatTotCat);
 
 RainDailyInterpStudy = cellfun(@full, RainInterpolated, 'UniformOutput',false);
-
-%% Creation of a copy at different time
-Options = {'Yes', 'No, only a single day'};
-MultipleDayChoice = uiconfirm(Fig, 'Do you want to perform analyses in different days?', ...
-                                   'Time sensitive analyses', 'Options',Options, 'DefaultOption',2);
-if strcmp(MultipleDayChoice,'Yes'); MultipleDayAnalysis = true; else; MultipleDayAnalysis = false; end
-if MultipleDayAnalysis
-    xLongStudyToAdd          = xLongStudy;
-    yLatStudyToAdd           = yLatStudy;
-    ElevationStudyToAdd      = ElevationStudy;
-    SlopeStudyToAdd          = SlopeStudy;
-    AspectStudyToAdd         = AspectStudy;
-    MeanCurvatureStudyToAdd  = MeanCurvatureStudy;
-    xLongTotCatToAdd         = xLongTotCat;
-    yLatTotCatToAdd          = yLatTotCat;
-end
 
 %% Creation of classes
 Options = {'Categorical classes', 'Numbered classes'};
@@ -161,13 +169,7 @@ for i1 = 1:size(VegetationAllUnique,2)
     end
 end
 
-%% Creation of a copy at different time
-if MultipleDayAnalysis
-    LithoStudyToAdd   = LithoStudy;
-    TopSoilStudyToAdd = TopSoilStudy;
-    LandUseStudyToAdd = LandUseStudy;
-    VegStudyToAdd     = VegStudy;
-end
+AnalysisInformation.CategoricalClasses = CategoricalClasses;
 
 %% Table soil creation
 ProgressBar.Message = "Creating table normalized...";
@@ -175,50 +177,58 @@ DatasetTable = table( cat(1,SlopeStudy{:}), ...
                       cat(1,AspectStudy{:}), ...
                       cat(1,ElevationStudy{:}), ...
                       cat(1,MeanCurvatureStudy{:}), ...
+                      cat(1,ContributingAreaLogStudy{:}), ...
+                      cat(1,MinDistToRoadStudy{:}), ...
                       cat(1,LithoStudy{:}), ...
                       cat(1,TopSoilStudy{:}), ...
                       cat(1,LandUseStudy{:}), ...
                       cat(1,VegStudy{:})                 );
 
+RangesForNorm = [ 0      ,   80  ;      % Slope
+                  0      ,   360 ;      % Aspect
+                  0      ,   2000;      % Elevation
+                  -.05   ,   .05 ;      % Mean Curvature
+                  1      ,   10  ;      % Contributing Area % PLEASE KEEP ATTENTION! IT DEPEND ON SIZE OF DTM!
+                  0      ,   7000 ];    % Min Distance to road
+
 if CategoricalClasses   
-    RangesForNorm = [ 0      ,   80  ;    % Slope
-                      0      ,   360 ;    % Aspect
-                      0      ,   2000;    % Elevation
-                      -.07   ,   .07 ;    % Mean Curvature
+    RangesForNorm = [ RangesForNorm  ;
                       nan    ,   nan ;    % Litho (Subsoil) classes
                       nan    ,   nan ;    % Topsoil classes
                       nan    ,   nan ;    % Land Use classes
                       nan    ,   nan  ];  % Vegetation classes
 
-    DatasetTableNorm = table( rescale(cat(1,SlopeStudy{:}),         'InputMin',RangesForNorm(1,1),    'InputMax',RangesForNorm(1,2)), ...
-                              rescale(cat(1,AspectStudy{:}),        'InputMin',RangesForNorm(2,1),    'InputMax',RangesForNorm(2,2)), ...
-                              rescale(cat(1,ElevationStudy{:}),     'InputMin',RangesForNorm(3,1),    'InputMax',RangesForNorm(3,2)), ...
-                              rescale(cat(1,MeanCurvatureStudy{:}), 'InputMin',RangesForNorm(4,1),    'InputMax',RangesForNorm(4,2)), ...
-                              cat(1,LithoStudy{:}), ...
-                              cat(1,TopSoilStudy{:}), ...
-                              cat(1,LandUseStudy{:}), ...
-                              cat(1,VegStudy{:})                                                                                           );
+    DatasetTableNorm = table( rescale(cat(1,SlopeStudy{:})              , 'InputMin',RangesForNorm(1,1),    'InputMax',RangesForNorm(1,2)), ...
+                              rescale(cat(1,AspectStudy{:})             , 'InputMin',RangesForNorm(2,1),    'InputMax',RangesForNorm(2,2)), ...
+                              rescale(cat(1,ElevationStudy{:})          , 'InputMin',RangesForNorm(3,1),    'InputMax',RangesForNorm(3,2)), ...
+                              rescale(cat(1,MeanCurvatureStudy{:})      , 'InputMin',RangesForNorm(4,1),    'InputMax',RangesForNorm(4,2)), ...
+                              rescale(cat(1,ContributingAreaLogStudy{:}), 'InputMin',RangesForNorm(5,1),    'InputMax',RangesForNorm(5,2)), ...
+                              rescale(cat(1,MinDistToRoadStudy{:})      , 'InputMin',RangesForNorm(6,1),    'InputMax',RangesForNorm(6,2)), ...
+                              cat(1,LithoStudy{:})                      , ...
+                              cat(1,TopSoilStudy{:})                    , ...
+                              cat(1,LandUseStudy{:})                    , ...
+                              cat(1,VegStudy{:})                                                                                                 );
 else
-    RangesForNorm = [ 0      ,   80  ;    % Slope
-                      0      ,   360 ;    % Aspect
-                      0      ,   2000;    % Elevation
-                      -.07   ,   .07 ;    % Mean Curvature
+    RangesForNorm = [ RangesForNorm  ;
                       0      ,   12  ;    % Litho (Subsoil) classes
                       0      ,   120 ;    % Topsoil classes
                       0      ,   70  ;    % Land Use classes
                       0      ,   80   ];  % Vegetation classes
 
-    DatasetTableNorm = table( rescale(cat(1,SlopeStudy{:}),         'InputMin',RangesForNorm(1,1),    'InputMax',RangesForNorm(1,2)), ...
-                              rescale(cat(1,AspectStudy{:}),        'InputMin',RangesForNorm(2,1),    'InputMax',RangesForNorm(2,2)), ...
-                              rescale(cat(1,ElevationStudy{:}),     'InputMin',RangesForNorm(3,1),    'InputMax',RangesForNorm(3,2)), ...
-                              rescale(cat(1,MeanCurvatureStudy{:}), 'InputMin',RangesForNorm(4,1),    'InputMax',RangesForNorm(4,2)), ...
-                              rescale(cat(1,LithoStudy{:}),         'InputMin',RangesForNorm(5,1),    'InputMax',RangesForNorm(5,2)), ...
-                              rescale(cat(1,TopSoilStudy{:}),       'InputMin',RangesForNorm(6,1),    'InputMax',RangesForNorm(6,2)), ...
-                              rescale(cat(1,LandUseStudy{:}),       'InputMin',RangesForNorm(7,1),    'InputMax',RangesForNorm(7,2)), ...
-                              rescale(cat(1,VegStudy{:}),           'InputMin',RangesForNorm(8,1),    'InputMax',RangesForNorm(8,2))      );
+    DatasetTableNorm = table( rescale(cat(1,SlopeStudy{:})              , 'InputMin',RangesForNorm(1 ,1),    'InputMax',RangesForNorm(1 ,2)), ...
+                              rescale(cat(1,AspectStudy{:})             , 'InputMin',RangesForNorm(2 ,1),    'InputMax',RangesForNorm(2 ,2)), ...
+                              rescale(cat(1,ElevationStudy{:})          , 'InputMin',RangesForNorm(3 ,1),    'InputMax',RangesForNorm(3 ,2)), ...
+                              rescale(cat(1,MeanCurvatureStudy{:})      , 'InputMin',RangesForNorm(4 ,1),    'InputMax',RangesForNorm(4 ,2)), ...
+                              rescale(cat(1,ContributingAreaLogStudy{:}), 'InputMin',RangesForNorm(5 ,1),    'InputMax',RangesForNorm(5 ,2)), ...
+                              rescale(cat(1,MinDistToRoadStudy{:})      , 'InputMin',RangesForNorm(6 ,1),    'InputMax',RangesForNorm(6 ,2)), ...
+                              rescale(cat(1,LithoStudy{:})              , 'InputMin',RangesForNorm(7 ,1),    'InputMax',RangesForNorm(7 ,2)), ...
+                              rescale(cat(1,TopSoilStudy{:})            , 'InputMin',RangesForNorm(8 ,1),    'InputMax',RangesForNorm(8 ,2)), ...
+                              rescale(cat(1,LandUseStudy{:})            , 'InputMin',RangesForNorm(9 ,1),    'InputMax',RangesForNorm(9 ,2)), ...
+                              rescale(cat(1,VegStudy{:})                , 'InputMin',RangesForNorm(10,1),    'InputMax',RangesForNorm(10,2))       );
 end
 
-ConditioningFactorsNames = {'Slope', 'Aspect', 'Elevation', 'Curvature', 'Lithology', 'TopSoil', 'LandUse', 'Vegetation'};
+ConditioningFactorsNames = {'Slope', 'Aspect', 'Elevation', 'Curvature', 'ContributingAreaLog', ...
+                            'MinDistanceRoads', 'Lithology', 'TopSoil', 'LandUse', 'Vegetation'};
 DatasetTable.Properties.VariableNames     = ConditioningFactorsNames;
 DatasetTableNorm.Properties.VariableNames = ConditioningFactorsNames;
 
@@ -240,6 +250,16 @@ end
 %% Creation of a copy at different time and copy to mantain with all points
 DatasetTableStudy     = DatasetTable;
 DatasetTableStudyNorm = DatasetTableNorm;
+DatasetCoordinates    = table(xLongTotCat, yLatTotCat);
+DatasetCoordinates.Properties.VariableNames = {'Longitude', 'Latitude'};
+
+Options = {'Yes', 'No, only a single day'};
+MultipleDayChoice = uiconfirm(Fig, 'Do you want to perform analyses in different days?', ...
+                                   'Time sensitive analyses', 'Options',Options, 'DefaultOption',2);
+if strcmp(MultipleDayChoice,'Yes'); MultipleDayAnalysis = true; else; MultipleDayAnalysis = false; end
+
+AnalysisInformation.MultipleDayAnalysis = MultipleDayAnalysis;
+
 if MultipleDayAnalysis
     DatasetTableToAdd     = DatasetTable;
     DatasetTableNormToAdd = DatasetTableNorm;
@@ -252,54 +272,108 @@ InputsSizeWindows = str2double(inputdlg(["Size of the window side where are loca
                                          "Size of the window side to define stable area"            ], ...
                                          '', 1, {'45', '200', '300'}));
 
-% Polygons around detected soil slips (you will attribute certain event)
-SizeForUnstPoints = InputsSizeWindows(1); % This is the size in meters around the detected soil slip
-dLatUnstPoints  = rad2deg(SizeForUnstPoints/2/earthRadius); % /2 to have half of the size from the centre
-dLongUnstPoints = rad2deg(acos( (cos(SizeForUnstPoints/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
-BoundUnstabPoints = [cellfun(@(x) x-dLongUnstPoints, InfoDetectedSoilSlips(:,5)), ...
-                     cellfun(@(x) x-dLatUnstPoints,  InfoDetectedSoilSlips(:,6)), ...
-                     cellfun(@(x) x+dLongUnstPoints, InfoDetectedSoilSlips(:,5)), ...
-                     cellfun(@(x) x+dLatUnstPoints,  InfoDetectedSoilSlips(:,6))];
-PolUnstabPoints = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
-                                         BoundUnstabPoints(:,1), ...
-                                         BoundUnstabPoints(:,3), ...
-                                         BoundUnstabPoints(:,2), ...
-                                         BoundUnstabPoints(:,4));
+PolyCreationMode = 'Planar'; % CHOICE TO USER!!!
+switch PolyCreationMode
+    case 'Geographic'
+        % Polygons around detected soil slips (you will attribute certain event)
+        SizeForUnstPoints = InputsSizeWindows(1); % This is the size in meters around the detected soil slip
+        dLatUnstPoints    = rad2deg(SizeForUnstPoints/2/earthRadius); % /2 to have half of the size from the centre
+        dLongUnstPoints   = rad2deg(acos( (cos(SizeForUnstPoints/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
+        BoundUnstabPoints = [cellfun(@(x) x-dLongUnstPoints, InfoDetectedSoilSlips(:,5)), ...
+                             cellfun(@(x) x-dLatUnstPoints,  InfoDetectedSoilSlips(:,6)), ...
+                             cellfun(@(x) x+dLongUnstPoints, InfoDetectedSoilSlips(:,5)), ...
+                             cellfun(@(x) x+dLatUnstPoints,  InfoDetectedSoilSlips(:,6))];
+        
+        % Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 45x45)
+        SizeForIndecisionAroundDet  = InputsSizeWindows(2); % This is the size in meters around the detected soil slip
+        dLatIndecisionAround        = rad2deg(SizeForIndecisionAroundDet/2/earthRadius); % /2 to have half of the size from the centre
+        dLongIndecisionAround       = rad2deg(acos( (cos(SizeForIndecisionAroundDet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
+        BoundIndecisionAroundDet    = [cellfun(@(x) x-dLongIndecisionAround, InfoDetectedSoilSlips(:,5)), ...
+                                       cellfun(@(x) x-dLatIndecisionAround,  InfoDetectedSoilSlips(:,6)), ...
+                                       cellfun(@(x) x+dLongIndecisionAround, InfoDetectedSoilSlips(:,5)), ...
+                                       cellfun(@(x) x+dLatIndecisionAround,  InfoDetectedSoilSlips(:,6))];
+        
+        % Polygons around detected soil slips (max polygon visible by human)
+        SizeForMaxExtAroundDet = InputsSizeWindows(3); % This is the size in meters around the detected soil slip
+        dLatMaxAround          = rad2deg(SizeForMaxExtAroundDet/2/earthRadius); % /2 to have half of the size from the centre
+        dLongMaxAround         = rad2deg(acos( (cos(SizeForMaxExtAroundDet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
+        BoundMaxExtAroundDet   = [cellfun(@(x) x-dLongMaxAround, InfoDetectedSoilSlips(:,5)), ...
+                                  cellfun(@(x) x-dLatMaxAround,  InfoDetectedSoilSlips(:,6)), ...
+                                  cellfun(@(x) x+dLongMaxAround, InfoDetectedSoilSlips(:,5)), ...
+                                  cellfun(@(x) x+dLatMaxAround,  InfoDetectedSoilSlips(:,6))];
 
-% Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 40x40)
-SizeForIndecisionAroundDet = InputsSizeWindows(2); % This is the size in meters around the detected soil slip
-dLatIndecisionAround  = rad2deg(SizeForIndecisionAroundDet/2/earthRadius); % /2 to have half of the size from the centre
-dLongIndecisionAround = rad2deg(acos( (cos(SizeForIndecisionAroundDet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
-BoundIndecisionAroundDet = [cellfun(@(x) x-dLongIndecisionAround, InfoDetectedSoilSlips(:,5)), ...
-                            cellfun(@(x) x-dLatIndecisionAround,  InfoDetectedSoilSlips(:,6)), ...
-                            cellfun(@(x) x+dLongIndecisionAround, InfoDetectedSoilSlips(:,5)), ...
-                            cellfun(@(x) x+dLatIndecisionAround,  InfoDetectedSoilSlips(:,6))];
+    case 'Planar'
+        InfoDetectedSoilSlipsPlan = zeros(size(InfoDetectedSoilSlips,1), 2);    
+        [InfoDetectedSoilSlipsPlan(:,1), InfoDetectedSoilSlipsPlan(:,2)] = ...
+                        projfwd(ProjCRS, [InfoDetectedSoilSlips{:,6}]', [InfoDetectedSoilSlips{:,5}]');
+        InfoDetectedSoilSlipsPlan = num2cell(InfoDetectedSoilSlipsPlan);
+
+        % Polygons around detected soil slips (you will attribute certain event)
+        SizeForUnstPoints     = InputsSizeWindows(1); % This is the size in meters around the detected soil slip
+        dXUnstPoints          = SizeForUnstPoints/2; % /2 to have half of the size from the centre
+        dYUnstPoints          = dXUnstPoints;
+        BoundUnstabPointsPlan = [cellfun(@(x) x-dXUnstPoints, InfoDetectedSoilSlipsPlan(:,1)), ...
+                                 cellfun(@(x) x-dYUnstPoints, InfoDetectedSoilSlipsPlan(:,2)), ...
+                                 cellfun(@(x) x+dXUnstPoints, InfoDetectedSoilSlipsPlan(:,1)), ...
+                                 cellfun(@(x) x+dYUnstPoints, InfoDetectedSoilSlipsPlan(:,2))];
+        [BoundUnstabPoints(:,2), BoundUnstabPoints(:,1)] = projinv(ProjCRS, BoundUnstabPointsPlan(:,1), BoundUnstabPointsPlan(:,2));
+        [BoundUnstabPoints(:,4), BoundUnstabPoints(:,3)] = projinv(ProjCRS, BoundUnstabPointsPlan(:,3), BoundUnstabPointsPlan(:,4));
+        
+        % Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 45x45)
+        SizeForIndecisionAroundDet   = InputsSizeWindows(2); % This is the size in meters around the detected soil slip
+        dXIndecisionAround           = SizeForIndecisionAroundDet/2; % /2 to have half of the size from the centre
+        dYIndecisionAround           = dXIndecisionAround;
+        BoundIndecisionAroundDetPlan = [cellfun(@(x) x-dXIndecisionAround, InfoDetectedSoilSlipsPlan(:,1)), ...
+                                        cellfun(@(x) x-dYIndecisionAround, InfoDetectedSoilSlipsPlan(:,2)), ...
+                                        cellfun(@(x) x+dXIndecisionAround, InfoDetectedSoilSlipsPlan(:,1)), ...
+                                        cellfun(@(x) x+dYIndecisionAround, InfoDetectedSoilSlipsPlan(:,2))];
+        [BoundIndecisionAroundDet(:,2), BoundIndecisionAroundDet(:,1)] = projinv(ProjCRS, BoundIndecisionAroundDetPlan(:,1), BoundIndecisionAroundDetPlan(:,2));
+        [BoundIndecisionAroundDet(:,4), BoundIndecisionAroundDet(:,3)] = projinv(ProjCRS, BoundIndecisionAroundDetPlan(:,3), BoundIndecisionAroundDetPlan(:,4));
+        
+        % Polygons around detected soil slips (max polygon visible by human)
+        SizeForMaxExtAroundDet   = InputsSizeWindows(3); % This is the size in meters around the detected soil slip
+        dXMaxAround              = SizeForMaxExtAroundDet/2; % /2 to have half of the size from the centre
+        dYMaxAround              = dXMaxAround;
+        BoundMaxExtAroundDetPlan = [cellfun(@(x) x-dXMaxAround, InfoDetectedSoilSlipsPlan(:,1)), ...
+                                    cellfun(@(x) x-dYMaxAround, InfoDetectedSoilSlipsPlan(:,2)), ...
+                                    cellfun(@(x) x+dXMaxAround, InfoDetectedSoilSlipsPlan(:,1)), ...
+                                    cellfun(@(x) x+dYMaxAround, InfoDetectedSoilSlipsPlan(:,2))];
+        [BoundMaxExtAroundDet(:,2), BoundMaxExtAroundDet(:,1)] = projinv(ProjCRS, BoundMaxExtAroundDetPlan(:,1), BoundMaxExtAroundDetPlan(:,2));
+        [BoundMaxExtAroundDet(:,4), BoundMaxExtAroundDet(:,3)] = projinv(ProjCRS, BoundMaxExtAroundDetPlan(:,3), BoundMaxExtAroundDetPlan(:,4));
+end
+
+% Polygons around detected soil slips (you will attribute certain event)
+PolUnstabPoints             = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
+                                                         BoundUnstabPoints(:,1), ...
+                                                         BoundUnstabPoints(:,3), ...
+                                                         BoundUnstabPoints(:,2), ...
+                                                         BoundUnstabPoints(:,4));
+
+% Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 45x45)
 PolIndecisionAroundDetGross = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
-                                                 BoundIndecisionAroundDet(:,1), ...
-                                                 BoundIndecisionAroundDet(:,3), ...
-                                                 BoundIndecisionAroundDet(:,2), ...
-                                                 BoundIndecisionAroundDet(:,4));
+                                                         BoundIndecisionAroundDet(:,1), ...
+                                                         BoundIndecisionAroundDet(:,3), ...
+                                                         BoundIndecisionAroundDet(:,2), ...
+                                                         BoundIndecisionAroundDet(:,4));
 
 % Polygons around detected soil slips (max polygon visible by human)
-SizeForMaxExtAroundDet = InputsSizeWindows(3); % This is the size in meters around the detected soil slip
-dLatMaxAround  = rad2deg(SizeForMaxExtAroundDet/2/earthRadius); % /2 to have half of the size from the centre
-dLongMaxAround = rad2deg(acos( (cos(SizeForMaxExtAroundDet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
-BoundMaxExtAroundDet = [cellfun(@(x) x-dLongMaxAround, InfoDetectedSoilSlips(:,5)), ...
-                        cellfun(@(x) x-dLatMaxAround,  InfoDetectedSoilSlips(:,6)), ...
-                        cellfun(@(x) x+dLongMaxAround, InfoDetectedSoilSlips(:,5)), ...
-                        cellfun(@(x) x+dLatMaxAround,  InfoDetectedSoilSlips(:,6))];
-PolMaxExtAroundDet = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
-                                         BoundMaxExtAroundDet(:,1), ...
-                                         BoundMaxExtAroundDet(:,3), ...
-                                         BoundMaxExtAroundDet(:,2), ...
-                                         BoundMaxExtAroundDet(:,4));
+PolMaxExtAroundDet          = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
+                                                         BoundMaxExtAroundDet(:,1), ...
+                                                         BoundMaxExtAroundDet(:,3), ...
+                                                         BoundMaxExtAroundDet(:,2), ...
+                                                         BoundMaxExtAroundDet(:,4));
+
+AnalysisInformation.PolygonCreationMode   = PolyCreationMode;
+AnalysisInformation.SizeForUnstablePoints = SizeForUnstPoints;
+AnalysisInformation.SizeForIndecisionArea = SizeForIndecisionAroundDet;
+AnalysisInformation.SizeForMaxAreaVisible = SizeForMaxExtAroundDet;
 
 %% Union and subtraction of polygons
-TotPolUnstabPoints = union(PolUnstabPoints);
-TotPolMaxExtAroundDet = union(PolMaxExtAroundDet);
+TotPolUnstabPoints             = union(PolUnstabPoints);
+TotPolMaxExtAroundDet          = union(PolMaxExtAroundDet);
 TotPolIndecisionAroundDetGross = union(PolIndecisionAroundDetGross);
-TotPolIndecision = subtract(TotPolIndecisionAroundDetGross, TotPolUnstabPoints);
-TotPolUncStable = subtract(TotPolMaxExtAroundDet, TotPolIndecisionAroundDetGross);
+TotPolIndecision               = subtract(TotPolIndecisionAroundDetGross, TotPolUnstabPoints);
+TotPolUncStable                = subtract(TotPolMaxExtAroundDet, TotPolIndecisionAroundDetGross);
 
 %% Index of study area points inside polygons
 [pp1, ee1] = getnan2([TotPolUnstabPoints.Vertices; nan, nan]);
@@ -341,6 +415,8 @@ switch UncondStablePointsApproach
         IndToRemove1 = find(isnan(OutputCat));
 end
 
+AnalysisInformation.UnconditionallyStableApproach = UncondStablePointsApproach;
+
 DatasetTable(IndToRemove1,:)       = [];
 DatasetTableNorm(IndToRemove1,:)   = [];
 OutputCat(IndToRemove1)            = [];
@@ -351,6 +427,9 @@ Options = {'Yes', 'No'};
 ModifyRatioChoice  = uiconfirm(Fig, 'Do you want to modify ratio of positive and negative points?', ...
                                     'Ratio Pos to Neg', 'Options',Options, 'DefaultOption',1);
 if strcmp(ModifyRatioChoice,'Yes'); ModifyRatioPosNeg = true; else; ModifyRatioPosNeg = false; end
+
+AnalysisInformation.RatioPosToNegModified = ModifyRatioPosNeg;
+
 if ModifyRatioPosNeg
     IndOutPos   = find(OutputCat==1);
     IndOutNeg   = find(OutputCat==0);
@@ -375,6 +454,8 @@ if ModifyRatioPosNeg
     if (numel(IndOutPosNew) ~= numel(IndOutPos)) || (round(OptimalRatio, 1) ~= round(RatioPosNegNew, 1))
         error("Something went wrong in re-attributing the correct ratio between positive and negative outputs!")
     end
+
+    AnalysisInformation.RatioPosToNeg = RatioPosNegNew;
 end
 
 %% Creation of a copy at different time
@@ -397,15 +478,35 @@ end
 ProgressBar.Indeterminate = 'off';
 
 if MultipleDayAnalysis
-    DaysBeforeEventWhenStable = 10; % CHOICE TO USER!!
+    ProgressBar.Message = "Starting ANNs creation...";
+    DaysBeforeEventWhenStable = str2double(inputdlg({["Please specify how many days before the event you want "
+                                                      "to consider all points as stable."
+                                                      strcat("(You have ",string(size(RainDailyInterpStudy, 1))," days of cumulate rainfalls)")]}, ...
+                                                      '', 1, {'10'}));
+
+    if (size(RainDailyInterpStudy, 1)-DaysBeforeEventWhenStable) <= 0
+        error('You have to select another day for stable points, more forward in time than the start of your dataset')
+    end
+
+    AnalysisInformation.DayBeforeEventForStablePoints = DaysBeforeEventWhenStable;
+
     if ModifyRatioPosNeg
-        MantainPointsUnstab = true; % CHOICE TO USER!!
+        Options = {'Yes', 'No'};
+        MantainUnstabChoice  = uiconfirm(Fig, ['Do you want to mantain points where there is instability ' ...
+                                               'even in the day when all points are stable? ' ...
+                                               '(these points will be mantained during the merge and ' ...
+                                               'the subsequent ratio adjustment)'], ...
+                                               'Mantain unstable points', 'Options',Options, 'DefaultOption',1);
+        if strcmp(MantainUnstabChoice,'Yes'); MantainPointsUnstab = true; else; MantainPointsUnstab = false; end
+
+        AnalysisInformation.UnstablePointsMantainedInDayOfStable = MantainPointsUnstab;
     end
 end
 
 Options = {'SeparateDailyCumulate', 'SingleCumulate'};
 RainfallMethod  = uiconfirm(Fig, 'How do you want to built the topology of your neural network?', ...
                                  'Neural network topology', 'Options',Options, 'DefaultOption',2);
+AnalysisInformation.RainfallMethod = RainfallMethod;
 switch RainfallMethod
     case 'SeparateDailyCumulate'
         Options = {'Auto', 'Manual'};
@@ -413,6 +514,8 @@ switch RainfallMethod
                                   'Neural network choice', 'Options',Options, 'DefaultOption',2);
         ANNModels = cell(12, size(RainDailyInterpStudy, 1));
         NumOfDayToConsider = 15; % size(RainDailyInterpStudy, 1);
+        AnalysisInformation.MaxDaysConsidered = NumOfDayToConsider;
+        AnalysisInformation.ANNMode           = ANNMode;
         for i1 = 1:NumOfDayToConsider
             ProgressBar.Value = i1/size(RainDailyInterpStudy, 1);
             ProgressBar.Message = strcat("Training model n. ", string(i1)," of ", string(size(RainDailyInterpStudy, 1)));
@@ -424,8 +527,9 @@ switch RainfallMethod
             RowOfRainfall = size(RainDailyInterpStudy,1)-i1+1;
             ColumnToAdd = cat(1,RainDailyInterpStudy{RowOfRainfall,:});
 
-            RangesForNorm = [ RangesForNorm;      % Pre-existing
-                              0      ,  200 ];    % Cumulative daily rainfall
+            MaxDailyRain  = 150; % To discuss this value (max in Emilia was 134 mm in a day)
+            RangesForNorm = [ RangesForNorm  ;      % Pre-existing
+                              0, MaxDailyRain ];    % Cumulative daily rainfall
 
             DatasetTableStudy.(ConditioningFactorToAdd{:})     = ColumnToAdd;
             DatasetTableStudyNorm.(ConditioningFactorToAdd{:}) = rescale(ColumnToAdd, ...
@@ -545,20 +649,36 @@ switch RainfallMethod
 
     case 'SingleCumulate'
         %% Table rainfall addition
-        DayToCumulate = 15; % CHOICE TO USER!!
+        if MultipleDayAnalysis
+            MaxDaysToCumulate = size(RainDailyInterpStudy, 1)-DaysBeforeEventWhenStable;
+        else
+            MaxDaysToCumulate = size(RainDailyInterpStudy, 1);
+        end
 
-        ConditioningFactorToAdd  = {['RainfallCumulated',num2str(DayToCumulate),'d']};
+        DaysToCumulate = str2double(inputdlg({["Please specify how many days you want to cumulate: "
+                                               strcat("(Max possible with your dataset:  ",string(MaxDaysToCumulate)," days")]}, ...
+                                               '', 1, {num2str(MaxDaysToCumulate)}));
+
+        if (MaxDaysToCumulate-DaysToCumulate) <= 0
+            error('You have to select fewer days than the maximum possible (or you have to change matrix of daily rainfalls)')
+        end
+
+        AnalysisInformation.DaysCumulated = DaysToCumulate;
+
+        ConditioningFactorToAdd  = {['RainfallCumulated',num2str(DaysToCumulate),'d']};
         ConditioningFactorsNames = [ConditioningFactorsNames, ConditioningFactorToAdd];
     
         RainCumulated = cell(1, size(RainDailyInterpStudy, 2));
         for i1 = 1:size(RainDailyInterpStudy, 2)
-            RainCumulated{i1} = sum([RainDailyInterpStudy{end:-1:(end-DayToCumulate+1), i1}], 2);
+            RainCumulated{i1} = sum([RainDailyInterpStudy{end:-1:(end-DaysToCumulate+1), i1}], 2);
         end
 
         ColumnToAdd = cat(1,RainCumulated{:});
 
-        RangesForNorm = [ RangesForNorm ;     % Pre-existing
-                          0      ,  1000 ];   % Cumulative 30 days rainfall
+        MaxDailyRain  = 30; % To discuss this value (max in Emilia was 134 mm in a day)
+        MaxRangeRain  = MaxDailyRain*DaysToCumulate;
+        RangesForNorm = [ RangesForNorm  ;     % Pre-existing
+                          0, MaxRangeRain ];   % Cumulative 30 days rainfall
 
         DatasetTableStudy.(ConditioningFactorToAdd{:})     = ColumnToAdd;
         DatasetTableStudyNorm.(ConditioningFactorToAdd{:}) = rescale(ColumnToAdd, ...
@@ -579,7 +699,7 @@ switch RainfallMethod
             RowOfRainfallAtDiffTime = size(RainDailyInterpStudy,1)-DaysBeforeEventWhenStable;
             RainCumulatedAtDiffTime = cell(1, size(RainDailyInterpStudy, 2));
             for i1 = 1:size(RainDailyInterpStudy, 2)
-                RainCumulatedAtDiffTime{i1} = sum([RainDailyInterpStudy{RowOfRainfallAtDiffTime:-1:(RowOfRainfallAtDiffTime-DayToCumulate+1), i1}], 2);
+                RainCumulatedAtDiffTime{i1} = sum([RainDailyInterpStudy{RowOfRainfallAtDiffTime:-1:(RowOfRainfallAtDiffTime-DaysToCumulate+1), i1}], 2);
             end
             ColumnToAddAtDiffTime = cat(1,RainCumulatedAtDiffTime{:});
             ColumnToAddAtDiffTime(IndToRemove1) = [];
@@ -643,23 +763,47 @@ switch RainfallMethod
         Options = {'With Validation Data', 'Cross Validation (K-Fold)', 'Normal'};
         ANNMode  = uiconfirm(Fig, 'How do you want to built your neural network?', ...
                                   'Neural network choice', 'Options',Options, 'DefaultOption',1);
-        LayerActivation = 'sigmoid';
+
+        LayerActivation = 'sigmoid'; % CHOICE TO USER!
+        Standardize     = true;      % CHOICE TO USER!
+
+        AnalysisInformation.ANNMode           = ANNMode;
+        AnalysisInformation.ActivationFunUsed = LayerActivation;
+        AnalysisInformation.StandardizedInput = Standardize;
         
-        MaxNumOfHiddens   = 2; % CHOICE TO USER!! (Max 4 hiddens)
-        MaxNumOfNeurons   = [100, 50, 20, 10]; % CHOICE TO USER!!
-        NeurToAddEachStep = 10; % CHOICE TO USER!!
-        NumberOfANNs      = MaxNumOfHiddens + sum(fix(MaxNumOfNeurons(1:MaxNumOfHiddens)/NeurToAddEachStep));
-        if NeurToAddEachStep == 1; NumberOfANNs = NumberOfANNs-MaxNumOfHiddens; end
-        ANNModels         = cell(12, NumberOfANNs);
+        StructureInput = inputdlg(["Max number of hiddens: "
+                                   "Max number of nuerons in each hidden: "
+                                   "Increase of neurons for each model: "], ...
+                                   '', 1, {'6', '[100, 200, 100, 50, 20, 10]', '10'});
+
+        MaxNumOfHiddens   = str2double(StructureInput{1});
+        MaxNumOfNeurons   = str2num(StructureInput{2});
+        NeurToAddEachStep = str2double(StructureInput{3});
+
+        if MaxNumOfHiddens > numel(MaxNumOfNeurons)
+            error('You have to select the max number of neurons for each hidden layers (Format: [NumNeuronsHid1, NumNeuronsHid2, ...])')
+        end
+
+        AnalysisInformation.MaxNumOfHiddens   = {MaxNumOfHiddens};
+        AnalysisInformation.MaxNumOfNeurons   = {MaxNumOfNeurons};
+        AnalysisInformation.NeurToAddEachStep = {NeurToAddEachStep};
+
+        [NumOfNeuronToTrainEachHidden, ModelNeurCombs] = deal(cell(1, MaxNumOfHiddens));
+        for i1 = 1:MaxNumOfHiddens
+            NumOfNeuronToTrainEachHidden{i1} = [1, NeurToAddEachStep:NeurToAddEachStep:MaxNumOfNeurons(i1)];
+            if NeurToAddEachStep == 1; NumOfNeuronToTrainEachHidden{i1}(1) = []; end
+            ModelNeurCombs{i1} = combvec(NumOfNeuronToTrainEachHidden{1:i1});
+        end
+
+        NumberOfANNs = sum(cellfun(@(x) size(x, 2), ModelNeurCombs));
+        ANNModels = cell(12, NumberOfANNs);
         i3 = 0;
         for i1 = 1:MaxNumOfHiddens
-            NUmOfNeuronToTrain = [1, NeurToAddEachStep:NeurToAddEachStep:MaxNumOfNeurons(i1)];
-            if NeurToAddEachStep == 1; NUmOfNeuronToTrain(1) = []; end
-            for i2 = NUmOfNeuronToTrain
+            for i2 = 1:size(ModelNeurCombs{i1}, 2)
                 i3 = i3+1;
-                ProgressBar.Value = i2/MaxNumOfNeurons(i1);
-                ProgressBar.Message = strcat("Training model n. ", string(fix(i2/NeurToAddEachStep))," of ", ...
-                                             string(fix(MaxNumOfNeurons(i1)/NeurToAddEachStep)), ". Num of Hiddens: ", string(i1));
+                ProgressBar.Value = i2/size(ModelNeurCombs{i1}, 2);
+                ProgressBar.Message = strcat("Training model n. ", string(i2)," of ", ...
+                                             string(size(ModelNeurCombs{i1}, 2)), ". Num of Hiddens: ", string(i1));
                 
                 %% Model creation and prediction
                 rng(7) % For reproducibility of the model
@@ -677,15 +821,14 @@ switch RainfallMethod
                 OutputTrain = OutputCatToUse(IndTrainLogical);
                 OutputTest  = OutputCatToUse(IndTestLogical);
 
-                LayerSize = MaxNumOfNeurons(1:i1);
-                LayerSize(end) = i2;
+                LayerSize = ModelNeurCombs{i1}(:,i2)';
 
                 switch ANNMode
                     case 'With Validation Data'
                         Model = fitcnet(DatasetTrain, OutputTrain, 'ValidationData',{DatasetTest, OutputTest}, ...
                                                                    'ValidationFrequency',5, 'ValidationPatience',20, ...
                                                                    'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
-                                                                   'Standardize',true, 'Lambda',1e-9, 'IterationLimit',5e4);
+                                                                   'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',5e4);
 
                         FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
                         if FailedConvergence
@@ -694,7 +837,7 @@ switch RainfallMethod
 
                     case 'Cross Validation (K-Fold)'
                         ModelCV = fitcnet(DatasetTrain, OutputTrain, 'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
-                                                                     'Standardize',true, 'Lambda',1e-9, 'IterationLimit',5e4, ...
+                                                                     'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',5e4, ...
                                                                      'LossTolerance',1e-6, 'StepTolerance',1e-6, ...
                                                                      'Crossval','on', 'KFold',10); % Remember that instead of 'KFold' you can use for example: 'Holdout',0.1
 
@@ -706,8 +849,13 @@ switch RainfallMethod
                         Model = ModelCV.Trained{IndBestModel};
                     case 'Normal'
                         Model = fitcnet(DatasetTrain, OutputTrain, 'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
-                                                                   'Standardize',true, 'Lambda',1e-9, 'IterationLimit',5e4, ...
+                                                                   'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',5e4, ...
                                                                    'LossTolerance',1e-5, 'StepTolerance',1e-6);
+
+                        FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
+                        if FailedConvergence
+                            warning(strcat("ATTENTION! Model n. ", string(i3), " failed to converge! Please analyze it."))
+                        end
                 end
                 
                 [PredictionTrain, ProbabilityTrain] = predict(Model, DatasetTrain);
@@ -730,6 +878,9 @@ ProgressBar.Message       = "Analyzing quality of models...";
 Options = {'MATLAB', 'MaximizeRatio-TPR-FPR', 'MaximizeArea-TPR-TNR'};
 MethodBestThreshold = uiconfirm(Fig, 'How do you want to find the optimal threshold for ROC curves?', ...
                                      'Optimal ratio ROC', 'Options',Options, 'DefaultOption',1);
+
+AnalysisInformation.MethodForSelectingOptimalThresholdInROCs = MethodBestThreshold;
+
 NumberOfANNs        = size(ANNModels, 2);
 ANNModelsROCTest    = cell(5, NumberOfANNs);
 ANNModelsROCTrain   = cell(5, NumberOfANNs);
@@ -854,13 +1005,13 @@ switch PlotOption
         DatasetForPlot = DatasetTableNorm;
         OutputForPlot  = OutputCat;
         [~, ProbabilityForPlot] = predict(ModelSelected, DatasetForPlot);
-        PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= 0.9*BestThresholdTrain; % Please keep attention to 0.9 of the Best Threshold
+        PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= 0.95*BestThresholdTrain; % Please keep attention to 0.9 of the Best Threshold
 
     case 3
         DatasetForPlot = DatasetTableNormToAdd;
         OutputForPlot  = OutputCatToAdd;
         [~, ProbabilityForPlot] = predict(ModelSelected, DatasetForPlot);
-        PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= 0.9*BestThresholdTrain; % Please keep attention to 0.9 of the Best Threshold
+        PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= 0.95*BestThresholdTrain; % Please keep attention to 0.9 of the Best Threshold
 end
 
 plot(StudyAreaPolygon, 'FaceColor','none', 'EdgeColor','k', 'LineWidth',1.5)
@@ -934,16 +1085,20 @@ switch PlotOption
         error('Plot option not defined')
 end
 
-RatioLatLong = dLatUnstPoints/dLongUnstPoints;
+dLat1Meter  = rad2deg(1/earthRadius); % 1 m in lat
+dLong1Meter = rad2deg(acos( (cos(1/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % 1 m in long
+
+RatioLatLong = dLat1Meter/dLong1Meter;
 daspect([1, RatioLatLong, 1])
 
-%% Saving
+%% Saving...
 ProgressBar.Message = "Saving files...";
 cd(fold_var)
 VariablesML = {'ANNModels', 'ANNModelsROCTrain', 'ANNModelsROCTest', ...
-               'DatasetTableStudy', 'DatasetTableStudyNorm', 'ANNMode', ...
+               'DatasetTableStudy', 'DatasetTableStudyNorm', 'DatasetCoordinates', ...
                'PolUnstabPoints', 'PolMaxExtAroundDet', 'PolIndecisionAroundDetGross', ...
                'TotPolUnstabPoints', 'TotPolIndecision', 'TotPolUncStable', ...
-               'RangesForNorm', 'CategoricalClasses'};
+               'RangesForNorm', 'CategoricalClasses', 'AnalysisInformation'};
 save('TrainedANNs.mat', VariablesML{:});
 cd(fold0)
+close(ProgressBar) % Fig instead of ProgressBar if in standalone version
