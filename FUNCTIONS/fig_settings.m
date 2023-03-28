@@ -157,9 +157,14 @@ end
 
 xlim([MinExtremes(1)-dExtremes(1)/15, MaxExtremes(1)+dExtremes(1)/15])
 ylim([MinExtremes(2)-dExtremes(2)/15, MaxExtremes(2)+dExtremes(2)/15])
+
+yLatMean     = mean([MinExtremes(2), MaxExtremes(2)]);
+dLat1Meter   = rad2deg(1/earthRadius); % 1 m in lat
+dLong1Meter  = rad2deg(acos( (cos(1/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % 1 m in long
+RatioLatLong = dLat1Meter/dLong1Meter;
+
 xtickformat('degrees')
 ytickformat('degrees')
 
-daspect([1 1 1])
-
+daspect([1, RatioLatLong, 1])
 end
