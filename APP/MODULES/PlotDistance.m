@@ -1,11 +1,9 @@
 cd(fold_var)
-
 load('GridCoordinates.mat');
-load('RoadPolygon.mat');
 load('LandUsesVariables.mat');
 load('StudyAreaVariables.mat');
-
-load('Distance.mat');
+load('Distances.mat');
+load('PolygonsDistances.mat');
 
 
 cd(fold_user)
