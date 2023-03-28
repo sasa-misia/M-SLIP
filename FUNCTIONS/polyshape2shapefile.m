@@ -10,28 +10,28 @@ function polyshape2shapefile(PolyshapeToConvert, varargin)
 curr_path = pwd;
 if isempty(varargin)
     save_path = curr_path;
-    % IDs = ; % Continue
+    % IDs = ; % TO CONTINUE!
     FileName = 'PolyshapeConverted';
 else
     convert = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
     vararginlow = varargin;
     vararginlow(convert) = cellfun(@(x) lower(string(x)), vararginlow(convert), 'Uniform',false); % In this vector even paths are in lower and you don't want this.
 
-    InputSavePath = find(cellfun(@(x) strcmpi(x, "savepath"), vararginlow));
+    InputSavePath = find(cellfun(@(x) all(strcmpi(x, "savepath")), vararginlow));
     if InputSavePath
         save_path = varargin{InputSavePath+1}; 
     else
         save_path = curr_path;
     end
 
-    InputIDs = find(cellfun(@(x) strcmpi(x, "ids"), vararginlow));
+    InputIDs = find(cellfun(@(x) all(strcmpi(x, "ids")), vararginlow));
     if InputIDs
         IDs = varargin{InputIDs+1};
     else
-        % IDs = ; % Continue
+        % IDs = ; % TO CONTINUE!
     end
 
-    InputFileName = find(cellfun(@(x) strcmpi(x, "filename"), vararginlow));
+    InputFileName = find(cellfun(@(x) all(strcmpi(x, "filename")), vararginlow));
     if InputFileName
         FileName = varargin{InputFileName+1};
     else
