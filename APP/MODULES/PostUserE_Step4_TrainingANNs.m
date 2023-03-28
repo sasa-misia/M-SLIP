@@ -22,7 +22,7 @@ cd(fold0)
 AnalysisType = "ANN Trained in TrainingANNs script";
 AnalysisInformation = table(AnalysisType);
 
-%% Defining curvature
+%% Defining curvature (TO MODIFY!!! FOLLOW A SINGLE OPERATION FOR CURVATURE!)
 ProgressBar.Message = "Defining curvature...";
 EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate curvature)"
                              "For Example:"
@@ -37,22 +37,38 @@ for i1 = 1:length(xLongAll)
     [GaussCurvatureAll{i1}, MeanCurvatureAll{i1}, P1CurvatureAll{i1}, P2CurvatureAll{i1}] = surfature(xPlanAll{i1}, yPlanAll{i1}, ElevationAll{i1});
 end
 
+[xPlanAll, yPlanAll, ProfileCurvatureAll, PlanformCurvatureAll] = deal(cell(size(xLongAll)));
+for i1 = 1:length(xLongAll)
+    [xPlanAll{i1}, yPlanAll{i1}] = projfwd(ProjCRS, yLatAll{i1}, xLongAll{i1});
+
+    dx = abs(xPlanAll{i1}(ceil(end/2),2)-xPlanAll{i1}(ceil(end/2),1));
+    dy = abs(yPlanAll{i1}(1,ceil(end/2))-yPlanAll{i1}(2,ceil(end/2)));
+
+    if int64(dx) ~= int64(dy)
+        error("You have a DEM of different sizes for cells in X and Y, provide another one")
+    end
+
+    [ProfileCurvatureAll{i1}, PlanformCurvatureAll{i1}] = curvature(ElevationAll{i1}, dx);
+end
+
 cd(fold_var)
 VariablesMorphology = {'MeanCurvatureAll'};
 save('MorphologyParameters.mat', VariablesMorphology{:}, '-append');
 cd(fold0)
 
-%% Defining contributing area (upslope area)
+%% Defining contributing area (upslope area) and TWI (REMEMBER THAT IT WOULD BE BETTER TO CALCULATE IN THE MERGED ONE! SEE POSTUSERC DISTANCES FOR EXAMPLES)
 ProgressBar.Message = "Defining contributing area...";
 ElevationAllFilled = cellfun(@(x) imfill(x, 8, 'holes'), ElevationAll, 'UniformOutput',false); % Necessary to avoid stopping flow in unwanted points. If 2nd term is 8 it means that it look in the other 8 neighbors
-[FlowDirAll, FlowMagnitAll, ContributingAreaAll, ContributingAreaLogAll] = deal(cell(size(xLongAll)));
+[FlowDirAll, FlowMagnitAll, ContributingAreaAll, ContributingAreaLogAll, TwiAll] = deal(cell(size(xLongAll)));
 for i1 = 1:length(xLongAll)
     dx = abs(xPlanAll{i1}(ceil(end/2),2)-xPlanAll{i1}(ceil(end/2),1));
     dy = abs(yPlanAll{i1}(1,ceil(end/2))-yPlanAll{i1}(2,ceil(end/2)));
+    CellsArea = dx*dy;
 
     [FlowDirAll{i1}, FlowMagnitAll{i1}] = dem_flow(ElevationAllFilled{i1}, dx, dy, 0);
-    ContributingAreaAll{i1}    = upslope_area( ElevationAllFilled{1}, flow_matrix(ElevationAllFilled{1},FlowDirAll{i1},dx,dy) );
+    ContributingAreaAll{i1}    = upslope_area( ElevationAllFilled{i1}, flow_matrix(ElevationAllFilled{i1},FlowDirAll{i1},dx,dy) )*CellsArea;
     ContributingAreaLogAll{i1} = log(ContributingAreaAll{i1}); % It is not necessary but for plot is more representative than ContributingArea
+    TwiAll{i1}                 = log(ContributingAreaAll{i1}./(tand(SlopeAll{i1})+1e-9)); % 1e-9 to avoid having num/0
 end
 
 cd(fold_var)
