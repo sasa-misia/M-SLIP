@@ -312,7 +312,7 @@ ProjCRS = projcrs(EPSG);
 [xPlanCoord, yPlanCoord] = projfwd(ProjCRS, ...
                                    DatasetCoordinates{:,2}, DatasetCoordinates{:,1});
 
-IndPointsUnstablePredicted = find(PredictionProbabilities(:,2) >= BestThresholdForQuality); % Indices referred to the database!
+IndPointsUnstablePredicted = find(round(PredictionProbabilities(:,2),4) >= BestThresholdForQuality); % Indices referred to the database!
 
 dLat  = abs(yLatAll{1}(1)-yLatAll{1}(2));
 dYmin = deg2rad(dLat)*earthRadius + 1; % This will be the radius constructed around every point to create clusters. +1 for an extra boundary
@@ -428,7 +428,7 @@ switch AreaMode
                                       'Threshold choice', 'Options',Options, 'DefaultOption',1);
         switch ModeUnstable
             case 'BestThreshold'
-                ClassesThreshold = Probabilities >= ResultsInPolygons.BestThreshold;
+                ClassesThreshold = round(Probabilities,4) >= ResultsInPolygons.BestThreshold;
             case 'Manual'
                 ThresholdChosed  = str2double(inputdlg({["Which threshold do you want?"
                                                          "If you overpass it, then you will have a landslide. [from 0 to 100 %]"]}, '', 1, {'50'}))/100;
