@@ -7,22 +7,55 @@ rng(10) % For reproducibility of the model
 
 %% Loading data and initialization of AnalysisInformation
 cd(fold_var)
+load('InfoDetectedSoilSlips.mat',    'InfoDetectedSoilSlips')
+load('GridCoordinates.mat',          'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
+load('StudyAreaVariables.mat',       'StudyAreaPolygon')
 load('MorphologyParameters.mat',     'AspectAngleAll','ElevationAll','SlopeAll')
+load('SoilGrids.mat',                'ClayContentAll','SandContentAll','NdviAll')
 load('LithoPolygonsStudyArea.mat',   'LithoAllUnique','LithoPolygonsStudyArea')
 load('TopSoilPolygonsStudyArea.mat', 'TopSoilAllUnique','TopSoilPolygonsStudyArea')
 load('LandUsesVariables.mat',        'AllLandUnique','LandUsePolygonsStudyArea')
 load('VegPolygonsStudyArea.mat',     'VegetationAllUnique','VegPolygonsStudyArea')
-load('GridCoordinates.mat',          'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
-load('RainInterpolated.mat',         'RainInterpolated')
-load('InfoDetectedSoilSlips.mat',    'InfoDetectedSoilSlips')
-load('StudyAreaVariables.mat',       'StudyAreaPolygon')
 load('Distances.mat',                'MinDistToRoadAll')
+load('RainInterpolated.mat',         'RainInterpolated','RainDateInterpolationStarts')
+load('TempInterpolated.mat',         'TempInterpolated','TempDateInterpolationStarts')
 cd(fold0)
 
 AnalysisType = "ANN Trained in TrainingANNs script";
 AnalysisInformation = table(AnalysisType);
 
-%% Defining curvature (TO MODIFY!!! FOLLOW A SINGLE OPERATION FOR CURVATURE!)
+%% Date check and uniformization for time sensitive part (rain rules the others) MANUAL!
+TimeSensitiveParam = {'Rainfall', 'Temperature'}; % First must be always Rainfall!
+CumulableParam     = [true      , false        ];
+TimeSensitiveDate  = {RainDateInterpolationStarts, TempDateInterpolationStarts};
+TimeSensitiveData  = {RainInterpolated, TempInterpolated};
+clear('RainInterpolated', 'TempInterpolated')
+
+IndEvent  = listdlg('PromptString',{'Select the date of the instability event:',''}, ...
+                    'ListString',RainDateInterpolationStarts, 'SelectionMode','single');
+EventDate = RainDateInterpolationStarts(IndEvent);
+
+StartDateCommon = max(cellfun(@min, TimeSensitiveDate));
+
+if length(TimeSensitiveParam) > 1
+    for i1 = 1 : length(TimeSensitiveParam)
+        IndStartTemp = find(StartDateCommon == TimeSensitiveDate{i1}); % You should put an equal related to days and not exact timing
+        IndEventTemp = find(EventDate == TimeSensitiveDate{i1}); % You should put an equal related to days and not exact timing
+        TimeSensitiveData{i1} = TimeSensitiveData{i1}(IndStartTemp:IndEventTemp,:);
+        TimeSensitiveDate{i1} = TimeSensitiveDate{i1}(IndStartTemp:IndEventTemp);
+    end
+    if length(TimeSensitiveDate)>1 && ~isequal(TimeSensitiveDate{:})
+        error('After uniformization dates of time sensitive data do not match, please check it in the script')
+    end
+end
+
+TimeSensitiveDate = TimeSensitiveDate{1};
+
+AnalysisInformation.TimeSensitiveParameters = TimeSensitiveParam;
+AnalysisInformation.TimeSensitiveCumulableParameters = CumulableParam;
+AnalysisInformation.TimeSensitiveDates = TimeSensitiveDate;
+
+%% Defining different types of curvature
 ProgressBar.Message = "Defining curvature...";
 EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate curvature)"
                              "For Example:"
@@ -37,10 +70,8 @@ for i1 = 1:length(xLongAll)
     [GaussCurvatureAll{i1}, MeanCurvatureAll{i1}, P1CurvatureAll{i1}, P2CurvatureAll{i1}] = surfature(xPlanAll{i1}, yPlanAll{i1}, ElevationAll{i1});
 end
 
-[xPlanAll, yPlanAll, ProfileCurvatureAll, PlanformCurvatureAll] = deal(cell(size(xLongAll)));
+[ProfileCurvatureAll, PlanformCurvatureAll] = deal(cell(size(xLongAll)));
 for i1 = 1:length(xLongAll)
-    [xPlanAll{i1}, yPlanAll{i1}] = projfwd(ProjCRS, yLatAll{i1}, xLongAll{i1});
-
     dx = abs(xPlanAll{i1}(ceil(end/2),2)-xPlanAll{i1}(ceil(end/2),1));
     dy = abs(yPlanAll{i1}(1,ceil(end/2))-yPlanAll{i1}(2,ceil(end/2)));
 
@@ -51,10 +82,31 @@ for i1 = 1:length(xLongAll)
     [ProfileCurvatureAll{i1}, PlanformCurvatureAll{i1}] = curvature(ElevationAll{i1}, dx);
 end
 
-cd(fold_var)
-VariablesMorphology = {'MeanCurvatureAll'};
-save('MorphologyParameters.mat', VariablesMorphology{:}, '-append');
-cd(fold0)
+StoreNewVars = 1;
+VariablesInMorph = who('-file', 'MorphologyParameters.mat');
+if all(ismember({'MeanCurvatureAll', 'ProfileCurvatureAll', 'PlanformCurvatureAll'}, VariablesInMorph))
+    OldData = importdata('MorphologyParameters.mat');
+
+    Check1 = all(size(MeanCurvatureAll{1}) == size(OldData.MeanCurvatureAll{1})) && ...
+             all(cellfun(@(x,y) all(all(x == y)), MeanCurvatureAll, OldData.MeanCurvatureAll));
+    Check2 = all(size(ProfileCurvatureAll{1}) == size(OldData.ProfileCurvatureAll{1})) && ...
+             all(cellfun(@(x,y) all(all(x == y)), ProfileCurvatureAll, OldData.ProfileCurvatureAll));
+    Check3 = all(size(PlanformCurvatureAll{1}) == size(OldData.PlanformCurvatureAll{1})) && ...
+             all(cellfun(@(x,y) all(all(x == y)), PlanformCurvatureAll, OldData.PlanformCurvatureAll));
+
+    if Check1 && Check2 && Check3
+        StoreNewVars = 0;
+    end
+
+    clear('OldData')
+end
+
+if StoreNewVars
+    cd(fold_var)
+    VariablesMorphology = {'MeanCurvatureAll', 'ProfileCurvatureAll', 'PlanformCurvatureAll'};
+    save('MorphologyParameters.mat', VariablesMorphology{:}, '-append');
+    cd(fold0)
+end
 
 %% Defining contributing area (upslope area) and TWI (REMEMBER THAT IT WOULD BE BETTER TO CALCULATE IN THE MERGED ONE! SEE POSTUSERC DISTANCES FOR EXAMPLES)
 ProgressBar.Message = "Defining contributing area...";
@@ -71,28 +123,61 @@ for i1 = 1:length(xLongAll)
     TwiAll{i1}                 = log(ContributingAreaAll{i1}./(tand(SlopeAll{i1})+1e-9)); % 1e-9 to avoid having num/0
 end
 
-cd(fold_var)
-VariablesMorphology = {'ContributingArea'};
-save('MorphologyParameters.mat', VariablesMorphology{:}, '-append');
-cd(fold0)
+StoreNewVars = 1;
+if all(ismember({'ContributingAreaAll', 'TwiAll'}, VariablesInMorph))
+    OldData = importdata('MorphologyParameters.mat');
+
+    Check1 = all(size(ContributingAreaAll{1}) == size(OldData.ContributingAreaAll{1})) && ...
+             all(cellfun(@(x,y) all(all(x == y)), ContributingAreaAll, OldData.ContributingAreaAll));
+    Check2 = all(size(TwiAll{1}) == size(OldData.TwiAll{1})) && ...
+             all(cellfun(@(x,y) all(all(x == y)), TwiAll, OldData.TwiAll));
+
+    if Check1 && Check2
+        StoreNewVars = 0;
+    end
+
+    clear('OldData')
+end
+
+if StoreNewVars
+    cd(fold_var)
+    VariablesMorphology = {'ContributingAreaAll', 'TwiAll'};
+    save('MorphologyParameters.mat', VariablesMorphology{:}, '-append');
+    cd(fold0)
+end
 
 %% Extraction of data in study area
 ProgressBar.Message      = "Data extraction in study area...";
-xLongStudy               = cellfun(@(x,y) x(y), xLongAll              , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-yLatStudy                = cellfun(@(x,y) x(y), yLatAll               , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-ElevationStudy           = cellfun(@(x,y) x(y), ElevationAll          , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-SlopeStudy               = cellfun(@(x,y) x(y), SlopeAll              , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-AspectStudy              = cellfun(@(x,y) x(y), AspectAngleAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-MeanCurvatureStudy       = cellfun(@(x,y) x(y), MeanCurvatureAll      , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-ContributingAreaLogStudy = cellfun(@(x,y) x(y), ContributingAreaLogAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-MinDistToRoadStudy       = cellfun(@(x,y) x(y), MinDistToRoadAll      , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+xLongStudy               = cellfun(@(x,y) x(y), xLongAll                , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+yLatStudy                = cellfun(@(x,y) x(y), yLatAll                 , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+ElevationStudy           = cellfun(@(x,y) x(y), ElevationAll            , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+SlopeStudy               = cellfun(@(x,y) x(y), SlopeAll                , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+AspectStudy              = cellfun(@(x,y) x(y), AspectAngleAll          , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+MeanCurvatureStudy       = cellfun(@(x,y) x(y), MeanCurvatureAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+ProfileCurvatureStudy    = cellfun(@(x,y) x(y), ProfileCurvatureAll     , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+PlanformCurvatureStudy   = cellfun(@(x,y) x(y), PlanformCurvatureAll    , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+ContributingAreaLogStudy = cellfun(@(x,y) x(y), ContributingAreaLogAll  , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+TwiStudy                 = cellfun(@(x,y) x(y), TwiAll                  , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+MinDistToRoadStudy       = cellfun(@(x,y) x(y), MinDistToRoadAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+ClayContentStudy         = cellfun(@(x,y) x(y), ClayContentAll          , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+SandContentStudy         = cellfun(@(x,y) x(y), SandContentAll          , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+NdviStudy                = cellfun(@(x,y) x(y), NdviAll                 , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('ElevationAll', 'SlopeAll', 'AspectAngleAll', 'MeanCurvatureAll', ...
+      'ProfileCurvatureAll', 'PlanformCurvatureAll', 'ContributingAreaLogAll', ...
+      'TwiAll', 'MinDistToRoadAll', 'ClayContentAll', 'SandContentAll', 'NdviAll')
 
+% Time sensitive part (remember to check index of TimeSensitiveData if you made changes)
+TimeSensitiveDataInterpStudy = cell(1, length(TimeSensitiveParam));
+for i1 = 1:length(TimeSensitiveParam)
+    TimeSensitiveDataInterpStudy{i1} = cellfun(@full, TimeSensitiveData{i1}, 'UniformOutput',false);
+end
+clear('TimeSensitiveData')
+
+% Concatenation of coordinates
 xLongTotCat = cat(1, xLongStudy{:});
 yLatTotCat  = cat(1, yLatStudy{:});
 
-yLatMean    = mean(yLatTotCat);
-
-RainDailyInterpStudy = cellfun(@full, RainInterpolated, 'UniformOutput',false);
+yLatMean = mean(yLatTotCat);
 
 %% Creation of classes
 Options = {'Categorical classes', 'Numbered classes'};
@@ -133,7 +218,7 @@ end
 
 % Top-soil classes association
 ProgressBar.Message = "Associating topsoil classes...";
-TopSoilClasses = readcell('ClassesML.xlsx', 'Sheet','Top Soil');
+TopSoilClasses = readcell('ClassesML.xlsx', 'Sheet','Top soil');
 for i1 = 1:size(TopSoilAllUnique,2)
     IndClassTopSoil = find(strcmp(TopSoilAllUnique{i1}, string(TopSoilClasses(:,1))));
     if CategoricalClasses
@@ -189,64 +274,148 @@ AnalysisInformation.CategoricalClasses = CategoricalClasses;
 
 %% Table soil creation
 ProgressBar.Message = "Creating table normalized...";
-DatasetTable = table( cat(1,SlopeStudy{:}), ...
-                      cat(1,AspectStudy{:}), ...
-                      cat(1,ElevationStudy{:}), ...
-                      cat(1,MeanCurvatureStudy{:}), ...
-                      cat(1,ContributingAreaLogStudy{:}), ...
-                      cat(1,MinDistToRoadStudy{:}), ...
-                      cat(1,LithoStudy{:}), ...
-                      cat(1,TopSoilStudy{:}), ...
-                      cat(1,LandUseStudy{:}), ...
-                      cat(1,VegStudy{:})                 );
+ConditioningFactorsNames = {'Slope', 'Aspect', 'Elevation', 'MeanCurvature', 'ProfileCurvature', 'PlanformCurvature', ...
+                            'ContributingAreaLog', 'Twi', 'MinDistanceRoads', 'ClayContent', 'SandContent', 'NDVI', ...
+                            'Lithology', 'TopSoil', 'LandUse', 'Vegetation'};
 
-RangesForNorm = [ 0      ,   80  ;      % Slope
-                  0      ,   360 ;      % Aspect
-                  0      ,   2000;      % Elevation
-                  -.05   ,   .05 ;      % Mean Curvature
-                  1      ,   10  ;      % Contributing Area % PLEASE KEEP ATTENTION! IT DEPEND ON SIZE OF DTM!
-                  0      ,   7000 ];    % Min Distance to road
+NonCategorizablePart = 12; % TO CHANGE MANUALLY!
 
-if CategoricalClasses   
-    RangesForNorm = [ RangesForNorm  ;
-                      nan    ,   nan ;    % Litho (Subsoil) classes
-                      nan    ,   nan ;    % Topsoil classes
-                      nan    ,   nan ;    % Land Use classes
-                      nan    ,   nan  ];  % Vegetation classes
+DatasetTable = table( cat(1,SlopeStudy{:})               , ...
+                      cat(1,AspectStudy{:})              , ...
+                      cat(1,ElevationStudy{:})           , ...
+                      cat(1,MeanCurvatureStudy{:})       , ...
+                      cat(1,ProfileCurvatureStudy{:})    , ...
+                      cat(1,PlanformCurvatureStudy{:})   , ...
+                      cat(1,ContributingAreaLogStudy{:}) , ...
+                      cat(1,TwiStudy{:})                 , ...
+                      cat(1,MinDistToRoadStudy{:})       , ...
+                      cat(1,ClayContentStudy{:})         , ...
+                      cat(1,SandContentStudy{:})         , ...
+                      cat(1,NdviStudy{:})                , ...
+                      cat(1,LithoStudy{:})               , ...
+                      cat(1,TopSoilStudy{:})             , ...
+                      cat(1,LandUseStudy{:})             , ...
+                      cat(1,VegStudy{:})                 , ...
+                      'VariableNames',ConditioningFactorsNames );
 
-    DatasetTableNorm = table( rescale(cat(1,SlopeStudy{:})              , 'InputMin',RangesForNorm(1,1),    'InputMax',RangesForNorm(1,2)), ...
-                              rescale(cat(1,AspectStudy{:})             , 'InputMin',RangesForNorm(2,1),    'InputMax',RangesForNorm(2,2)), ...
-                              rescale(cat(1,ElevationStudy{:})          , 'InputMin',RangesForNorm(3,1),    'InputMax',RangesForNorm(3,2)), ...
-                              rescale(cat(1,MeanCurvatureStudy{:})      , 'InputMin',RangesForNorm(4,1),    'InputMax',RangesForNorm(4,2)), ...
-                              rescale(cat(1,ContributingAreaLogStudy{:}), 'InputMin',RangesForNorm(5,1),    'InputMax',RangesForNorm(5,2)), ...
-                              rescale(cat(1,MinDistToRoadStudy{:})      , 'InputMin',RangesForNorm(6,1),    'InputMax',RangesForNorm(6,2)), ...
-                              cat(1,LithoStudy{:})                      , ...
-                              cat(1,TopSoilStudy{:})                    , ...
-                              cat(1,LandUseStudy{:})                    , ...
-                              cat(1,VegStudy{:})                                                                                                 );
-else
-    RangesForNorm = [ RangesForNorm  ;
-                      0      ,   12  ;    % Litho (Subsoil) classes
-                      0      ,   120 ;    % Topsoil classes
-                      0      ,   70  ;    % Land Use classes
-                      0      ,   80   ];  % Vegetation classes
-
-    DatasetTableNorm = table( rescale(cat(1,SlopeStudy{:})              , 'InputMin',RangesForNorm(1 ,1),    'InputMax',RangesForNorm(1 ,2)), ...
-                              rescale(cat(1,AspectStudy{:})             , 'InputMin',RangesForNorm(2 ,1),    'InputMax',RangesForNorm(2 ,2)), ...
-                              rescale(cat(1,ElevationStudy{:})          , 'InputMin',RangesForNorm(3 ,1),    'InputMax',RangesForNorm(3 ,2)), ...
-                              rescale(cat(1,MeanCurvatureStudy{:})      , 'InputMin',RangesForNorm(4 ,1),    'InputMax',RangesForNorm(4 ,2)), ...
-                              rescale(cat(1,ContributingAreaLogStudy{:}), 'InputMin',RangesForNorm(5 ,1),    'InputMax',RangesForNorm(5 ,2)), ...
-                              rescale(cat(1,MinDistToRoadStudy{:})      , 'InputMin',RangesForNorm(6 ,1),    'InputMax',RangesForNorm(6 ,2)), ...
-                              rescale(cat(1,LithoStudy{:})              , 'InputMin',RangesForNorm(7 ,1),    'InputMax',RangesForNorm(7 ,2)), ...
-                              rescale(cat(1,TopSoilStudy{:})            , 'InputMin',RangesForNorm(8 ,1),    'InputMax',RangesForNorm(8 ,2)), ...
-                              rescale(cat(1,LandUseStudy{:})            , 'InputMin',RangesForNorm(9 ,1),    'InputMax',RangesForNorm(9 ,2)), ...
-                              rescale(cat(1,VegStudy{:})                , 'InputMin',RangesForNorm(10,1),    'InputMax',RangesForNorm(10,2))       );
+DatasetQuants   = cell(1, size(DatasetTable, 2));
+DatasetExtremes = cell(2, size(DatasetTable, 2));
+for i1 = 1:size(DatasetTable, 2)
+    DatasetQuants{i1}       = quantile(DatasetTable{:,i1},[0.25, 0.75]);
+    DatasetExtremes(:,i1)   = {min(DatasetTable{:,i1}); max(DatasetTable{:,i1})};
 end
 
-ConditioningFactorsNames = {'Slope', 'Aspect', 'Elevation', 'Curvature', 'ContributingAreaLog', ...
-                            'MinDistanceRoads', 'Lithology', 'TopSoil', 'LandUse', 'Vegetation'};
-DatasetTable.Properties.VariableNames     = ConditioningFactorsNames;
-DatasetTableNorm.Properties.VariableNames = ConditioningFactorsNames;
+ShowSummaryFig = false;
+BoxsForPlot = [4, 3]; % TO CHANGE MANUALLY!
+if ShowSummaryFig
+    fig_boxplot = figure(1);
+    for i1 = 1:NonCategorizablePart
+        ax_boxplot = subplot(BoxsForPlot(1),BoxsForPlot(2),i1);
+        boxplot(ax_boxplot, DatasetTable{:,i1}, ConditioningFactorsNames(i1), ...
+                                'Notch','on', 'OutlierSize',4, 'Symbol',['.'; 'm']);
+    end
+    
+    fig_cdf = figure(2);
+    for i1 = 1:NonCategorizablePart
+        subplot(BoxsForPlot(1),BoxsForPlot(2),i1);
+        cdfplot(DatasetTable{:,i1});
+        xline(DatasetQuants{i1}(1), '--r', num2str(round(DatasetQuants{i1}(1), 3)), ...
+                            'LabelVerticalAlignment','bottom', 'LabelHorizontalAlignment','left');
+        xline(DatasetQuants{i1}(2), '--r', num2str(round(DatasetQuants{i1}(2), 3)), ...
+                            'LabelVerticalAlignment','top', 'LabelHorizontalAlignment','right');
+        xlabel('Values')
+        ylabel('Cum. freq.')
+        title(ConditioningFactorsNames(i1))
+    end
+end
+
+%% Normalized Table soil creation
+RangesInput = inputdlg( ["Ranges for slope:                 "
+                         "Ranges for aspect:                "
+                         "Ranges for elevation:             "
+                         "Ranges for mean curvature:        "
+                         "Ranges for profile curvature:     "
+                         "Ranges for planform curvature:    "
+                         "Ranges for contributing area log: "
+                         "Ranges for twi:                   "
+                         "Ranges for min distance to roads: "
+                         "Ranges for clay content:          "
+                         "Ranges for sand content:          "
+                         "Ranges for NDVI:                  "], '', 1, ...
+                        {'[0, 80]'
+                         '[0, 360]'
+                         '[0, 2000]'
+                         '[-0.03, 0.03]'
+                         '[-0.03, 0.03]'
+                         '[-0.03, 0.03]'
+                         '[4, 20]'
+                         '[3, 28]'
+                         '[0, 5000]'
+                         '[0, 1000]'
+                         '[0, 1000]'
+                         '[-10000, 10000]'} );
+
+RangesForNorm = [ str2num(RangesInput{1})       % Slope
+                  str2num(RangesInput{2})       % Aspect
+                  str2num(RangesInput{3})       % Elevation
+                  str2num(RangesInput{4})       % Mean Curvature
+                  str2num(RangesInput{5})       % Profile Curvature
+                  str2num(RangesInput{6})       % Planform Curvature
+                  str2num(RangesInput{7})       % Contributing Area Log
+                  str2num(RangesInput{8})       % Twi
+                  str2num(RangesInput{9})       % Min Distance to road
+                  str2num(RangesInput{10})      % Clay content
+                  str2num(RangesInput{11})      % Sand content
+                  str2num(RangesInput{12}) ];   % NDVI
+
+DatasetTableNorm = table( rescale(cat(1,SlopeStudy{:})               , 'InputMin',RangesForNorm(1 ,1),    'InputMax',RangesForNorm(1 ,2)), ...
+                          rescale(cat(1,AspectStudy{:})              , 'InputMin',RangesForNorm(2 ,1),    'InputMax',RangesForNorm(2 ,2)), ...
+                          rescale(cat(1,ElevationStudy{:})           , 'InputMin',RangesForNorm(3 ,1),    'InputMax',RangesForNorm(3 ,2)), ...
+                          rescale(cat(1,MeanCurvatureStudy{:})       , 'InputMin',RangesForNorm(4 ,1),    'InputMax',RangesForNorm(4 ,2)), ...
+                          rescale(cat(1,ProfileCurvatureStudy{:})    , 'InputMin',RangesForNorm(5 ,1),    'InputMax',RangesForNorm(5 ,2)), ...
+                          rescale(cat(1,PlanformCurvatureStudy{:})   , 'InputMin',RangesForNorm(6 ,1),    'InputMax',RangesForNorm(6 ,2)), ...
+                          rescale(cat(1,ContributingAreaLogStudy{:}) , 'InputMin',RangesForNorm(7 ,1),    'InputMax',RangesForNorm(7 ,2)), ...
+                          rescale(cat(1,TwiStudy{:})                 , 'InputMin',RangesForNorm(8 ,1),    'InputMax',RangesForNorm(8 ,2)), ...
+                          rescale(cat(1,MinDistToRoadStudy{:})       , 'InputMin',RangesForNorm(9 ,1),    'InputMax',RangesForNorm(9 ,2)), ...
+                          rescale(cat(1,ClayContentStudy{:})         , 'InputMin',RangesForNorm(10,1),    'InputMax',RangesForNorm(10,2)), ...
+                          rescale(cat(1,SandContentStudy{:})         , 'InputMin',RangesForNorm(11,1),    'InputMax',RangesForNorm(11,2)), ...
+                          rescale(cat(1,NdviStudy{:})                , 'InputMin',RangesForNorm(12,1),    'InputMax',RangesForNorm(12,2)), ...
+                          'VariableNames',ConditioningFactorsNames(1:NonCategorizablePart) );
+
+if size(RangesForNorm, 1) ~= NonCategorizablePart || size(DatasetTableNorm, 2) ~= NonCategorizablePart
+    error('Sizes of RangesForNorm or DatasetTableNorm do not match with the non categorizable part')
+end
+
+if CategoricalClasses   
+    RangesForNorm = [ RangesForNorm  ;      % Pre-existing
+                      nan    ,   nan ;      % Litho (Subsoil) classes
+                      nan    ,   nan ;      % Topsoil classes
+                      nan    ,   nan ;      % Land Use classes
+                      nan    ,   nan  ];    % Vegetation classes
+
+    DatasetTableNorm = [ DatasetTableNorm, ...
+                         table( cat(1,LithoStudy{:})   , ...
+                                cat(1,TopSoilStudy{:}) , ...
+                                cat(1,LandUseStudy{:}) , ...
+                                cat(1,VegStudy{:})     , ...
+                                'VariableNames',ConditioningFactorsNames(NonCategorizablePart+1 : end) ) ]; % Horizontal concatenation
+else
+    RangesForNorm = [ RangesForNorm  ;      % Pre-existing
+                      0      ,   12  ;      % Litho (Subsoil) classes
+                      0      ,   120 ;      % Topsoil classes
+                      0      ,   70  ;      % Land Use classes
+                      0      ,   80   ];    % Vegetation classes
+
+    DatasetTableNorm = [ DatasetTableNorm, ...
+                         table( rescale(cat(1,LithoStudy{:})   , 'InputMin',RangesForNorm(13,1), 'InputMax',RangesForNorm(13,2)), ...
+                                rescale(cat(1,TopSoilStudy{:}) , 'InputMin',RangesForNorm(14,1), 'InputMax',RangesForNorm(14,2)), ...
+                                rescale(cat(1,LandUseStudy{:}) , 'InputMin',RangesForNorm(15,1), 'InputMax',RangesForNorm(15,2)), ...
+                                rescale(cat(1,VegStudy{:})     , 'InputMin',RangesForNorm(16,1), 'InputMax',RangesForNorm(16,2)), ...
+                                'VariableNames',ConditioningFactorsNames(NonCategorizablePart+1 : end) ) ]; % Horizontal concatenation
+end
+
+% DatasetTable.Properties.VariableNames     = ConditioningFactorsNames;
+% DatasetTableNorm.Properties.VariableNames = ConditioningFactorsNames;
 
 %% Categorical vector if you mantain string classes
 if CategoricalClasses
@@ -277,6 +446,8 @@ if strcmp(MultipleDayChoice,'Yes'); MultipleDayAnalysis = true; else; MultipleDa
 AnalysisInformation.MultipleDayAnalysis = MultipleDayAnalysis;
 
 if MultipleDayAnalysis
+    xLongTotCatToAdd      = xLongTotCat;
+    yLatTotCatToAdd       = yLatTotCat;
     DatasetTableToAdd     = DatasetTable;
     DatasetTableNormToAdd = DatasetTableNorm;
 end
@@ -451,7 +622,7 @@ if ModifyRatioPosNeg
     IndOutNeg   = find(OutputCat==0);
     RatioPosNeg = length(IndOutPos)/length(IndOutNeg);
 
-    RatioInputs = str2double(inputdlg(["Choose part of positive: ", "Choose part of negative: "], '', 1, {'1', '2'}));
+    RatioInputs  = str2double(inputdlg(["Choose part of positive: ", "Choose part of negative: "], '', 1, {'1', '2'}));
     OptimalRatio = RatioInputs(1)/RatioInputs(2);
     PercToRemove = 1-RatioPosNeg/OptimalRatio;
 
@@ -497,10 +668,10 @@ if MultipleDayAnalysis
     ProgressBar.Message = "Starting ANNs creation...";
     DaysBeforeEventWhenStable = str2double(inputdlg({["Please specify how many days before the event you want "
                                                       "to consider all points as stable."
-                                                      strcat("(You have ",string(size(RainDailyInterpStudy, 1))," days of cumulate rainfalls)")]}, ...
+                                                      strcat("(You have ",string(length(TimeSensitiveDate))," days of cumulate rainfalls)")]}, ...
                                                       '', 1, {'10'}));
 
-    if (size(RainDailyInterpStudy, 1)-DaysBeforeEventWhenStable) <= 0
+    if (length(TimeSensitiveDate)-DaysBeforeEventWhenStable) <= 0
         error('You have to select another day for stable points, more forward in time than the start of your dataset')
     end
 
@@ -525,54 +696,74 @@ RainfallMethod  = uiconfirm(Fig, 'How do you want to built the topology of your 
 AnalysisInformation.RainfallMethod = RainfallMethod;
 switch RainfallMethod
     case 'SeparateDailyCumulate'
-        Options = {'Auto', 'Manual'};
+        Options = {'With Validation Data', 'Auto', 'Normal'};
         ANNMode  = uiconfirm(Fig, 'How do you want to built your neural network?', ...
                                   'Neural network choice', 'Options',Options, 'DefaultOption',2);
-        ANNModels = cell(12, size(RainDailyInterpStudy, 1));
-        NumOfDayToConsider = 15; % size(RainDailyInterpStudy, 1);
+
+        LayerActivation = 'sigmoid'; % CHOICE TO USER!
+        Standardize     = true;      % CHOICE TO USER!
+
+        StructureInput  = inputdlg("Number of nuerons in each hidden: ", '', 1, {'[60, 20]'});
+        LayerSize       = str2num(StructureInput{1});
+
+        NumOfDayToConsider = 15; % CHOICE TO USER!!!
+        ANNModels = cell(12, NumOfDayToConsider);
         AnalysisInformation.MaxDaysConsidered = NumOfDayToConsider;
         AnalysisInformation.ANNMode           = ANNMode;
         for i1 = 1:NumOfDayToConsider
-            ProgressBar.Value = i1/size(RainDailyInterpStudy, 1);
-            ProgressBar.Message = strcat("Training model n. ", string(i1)," of ", string(size(RainDailyInterpStudy, 1)));
+            ProgressBar.Value = i1/NumOfDayToConsider;
+            ProgressBar.Message = strcat("Training model n. ", string(i1)," of ", string(NumOfDayToConsider));
         
-            %% Table rainfall addition
-            ConditioningFactorToAdd  = {strcat('RainFall','-',string(i1))};
+            %% Addition in table of time sensitive parameters
+            ConditioningFactorToAdd  = cellfun(@(x) [x,'-',num2str(i1)], TimeSensitiveParam, 'UniformOutput',false);
             ConditioningFactorsNames = [ConditioningFactorsNames, ConditioningFactorToAdd];
 
-            RowOfRainfall = size(RainDailyInterpStudy,1)-i1+1;
-            ColumnToAdd = cat(1,RainDailyInterpStudy{RowOfRainfall,:});
+            RowToTake   = length(TimeSensitiveDate)-i1+1;
+            ColumnToAdd = cellfun(@(x) cat(1,x{RowToTake,:}), TimeSensitiveDataInterpStudy, 'UniformOutput',false);
 
-            MaxDailyRain  = 150; % To discuss this value (max in Emilia was 134 mm in a day)
             RangesForNorm = [ RangesForNorm  ;      % Pre-existing
-                              0, MaxDailyRain ];    % Cumulative daily rainfall
+                               0    ,   120  ;      % Cumulative daily rainfall (to discuss this value, max was 134 mm in a day for Emilia Romagna)
+                              -10   ,   40    ];    % Mean daily temperature (to discuss this value)
 
-            DatasetTableStudy.(ConditioningFactorToAdd{:})     = ColumnToAdd;
-            DatasetTableStudyNorm.(ConditioningFactorToAdd{:}) = rescale(ColumnToAdd, ...
-                                                                         'InputMin',RangesForNorm(end,1), ...
-                                                                         'InputMax',RangesForNorm(end,2));
+            ColumnToAddTable     = table( ColumnToAdd{:}, 'VariableNames',ConditioningFactorsNames(end-length(TimeSensitiveParam)+1 : end) );
+            ColumnToAddTableNorm = array2table(rescale([ColumnToAdd{:}], ...
+                                                        'InputMin',RangesForNorm(end-length(TimeSensitiveParam)+1 : end,1)', ...  % Must be a row
+                                                        'InputMax',RangesForNorm(end-length(TimeSensitiveParam)+1 : end,2)'), ... % Must be a row
+                                                    'VariableNames',ConditioningFactorsNames(end-length(TimeSensitiveParam)+1 : end));
 
-            ColumnToAdd(IndToRemove1) = [];
-            if ModifyRatioPosNeg; ColumnToAdd(IndToRemove2) = []; end
-            DatasetTable.(ConditioningFactorToAdd{:}) = ColumnToAdd;
-        
-            ColumnToAddNorm = rescale(ColumnToAdd, ...
-                                      'InputMin',RangesForNorm(end,1), ...
-                                      'InputMax',RangesForNorm(end,2));
-            DatasetTableNorm.(ConditioningFactorToAdd{:}) = ColumnToAddNorm;
+            DatasetTableStudy     = [DatasetTableStudy    , ColumnToAddTable    ]; % Horizontal concatenation
+            DatasetTableStudyNorm = [DatasetTableStudyNorm, ColumnToAddTableNorm]; % Horizontal concatenation
 
-            %% Addition of point at different time
+            ColumnToAddTable(IndToRemove1,:)     = [];
+            ColumnToAddTableNorm(IndToRemove1,:) = [];
+            if ModifyRatioPosNeg
+                ColumnToAddTable(IndToRemove2,:)     = []; 
+                ColumnToAddTableNorm(IndToRemove2,:) = []; 
+            end
+
+            DatasetTable     = [DatasetTable    , ColumnToAddTable    ];
+            DatasetTableNorm = [DatasetTableNorm, ColumnToAddTableNorm];
+
+            %% Addition of points at different time
             if MultipleDayAnalysis
-                RowOfRainfallAtDiffTime = size(RainDailyInterpStudy,1)-DaysBeforeEventWhenStable-i1+1;
-                ColumnToAddAtDiffTime = cat(1,RainDailyInterpStudy{RowOfRainfallAtDiffTime,:});
-                ColumnToAddAtDiffTime(IndToRemove1) = [];
-                if ModifyRatioPosNeg; ColumnToAddAtDiffTime(IndToRemove2) = []; end
-                DatasetTableToAdd.(ConditioningFactorToAdd{:}) = ColumnToAddAtDiffTime;
-    
-                ColumnToAddAtDiffTimeNorm = rescale(ColumnToAddAtDiffTime, ...
-                                                    'InputMin',RangesForNorm(end,1), ...
-                                                    'InputMax',RangesForNorm(end,2));
-                DatasetTableNormToAdd.(ConditioningFactorToAdd{:}) = ColumnToAddAtDiffTimeNorm;
+                RowToTakeAtDiffTime = RowToTake-DaysBeforeEventWhenStable;
+                ColumnToAddAtDiffTime = cellfun(@(x) cat(1,x{RowToTakeAtDiffTime,:}), TimeSensitiveDataInterpStudy, 'UniformOutput',false);
+                
+                ColumnToAddTableAtDiffTime     = table( ColumnToAddAtDiffTime{:}, 'VariableNames',ConditioningFactorsNames(end-length(TimeSensitiveParam)+1 : end) );
+                ColumnToAddTableAtDiffTimeNorm = array2table(rescale([ColumnToAddAtDiffTime{:}], ...
+                                                                      'InputMin',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 1)', ...  % Must be a row
+                                                                      'InputMax',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 2)'), ... % Must be a row
+                                                                  'VariableNames',ConditioningFactorsNames(end-length(TimeSensitiveParam)+1 : end));
+
+                ColumnToAddTableAtDiffTime(IndToRemove1,:)     = [];
+                ColumnToAddTableAtDiffTimeNorm(IndToRemove1,:) = [];
+                if ModifyRatioPosNeg
+                    ColumnToAddTableAtDiffTime(IndToRemove2,:)     = []; 
+                    ColumnToAddTableAtDiffTimeNorm(IndToRemove2,:) = []; 
+                end
+
+                DatasetTableToAdd     = [DatasetTableToAdd    , ColumnToAddTableAtDiffTime    ];
+                DatasetTableNormToAdd = [DatasetTableNormToAdd, ColumnToAddTableAtDiffTimeNorm];
 
                 DatasetTableToUse     = [DatasetTable;     DatasetTableToAdd];
                 DatasetTableNormToUse = [DatasetTableNorm; DatasetTableNormToAdd];
@@ -637,17 +828,28 @@ switch RainfallMethod
             OutputTest  = OutputCatToUse(IndTestLogical);
             
             switch ANNMode
+                case 'With Validation Data'
+                    Model = fitcnet(DatasetTrain, OutputTrain, 'ValidationData',{DatasetTest, OutputTest}, ...
+                                                               'ValidationFrequency',5, 'ValidationPatience',20, ...
+                                                               'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
+                                                               'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',5e4);
+
+                    FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
+                    if FailedConvergence
+                        warning(strcat("ATTENTION! Model n. ", string(i1), " failed to converge! Please analyze it."))
+                    end
+
                 case 'Auto'
                     Model = fitcnet(DatasetTrain, OutputTrain, 'OptimizeHyperparameters','all', ...
                                                                'MaxObjectiveEvaluations',20);
-                case 'Manual'
-                    Model = fitcnet(DatasetTrain, OutputTrain, 'LayerSizes',[60 20], 'Activations','tanh', ...
-                                                               'Standardize',true, 'Lambda',1.2441e-09);
+                case 'Normal'
+                    Model = fitcnet(DatasetTrain, OutputTrain, 'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
+                                                               'Standardize',Standardize, 'Lambda',1.2441e-09);
             end
 
             FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
             if FailedConvergence
-                warning(strcat("ATTENTION! Model n. ", string(i3), " failed to converge! Please analyze it."))
+                warning(strcat("ATTENTION! Model n. ", string(i1), " failed to converge! Please analyze it."))
             end
             
             [PredictionTrain, ProbabilityTrain] = predict(Model, DatasetTrain);
@@ -658,7 +860,7 @@ switch RainfallMethod
             R2 = corrcoef(table2array(DatasetTableNormToUse));
         
             % General matrix creation 
-            ANNModels(:, i3) = {Model; DatasetTrain; DatasetTest; OutputTrain; OutputTest; ...
+            ANNModels(:, i1) = {Model; DatasetTrain; DatasetTest; OutputTrain; OutputTest; ...
                                 PredictionTrain; ProbabilityTrain; PredictionTest; ...
                                 ProbabilityTest; DatasetTestMSE; R2; ConditioningFactorsNames};
         end
@@ -666,9 +868,9 @@ switch RainfallMethod
     case 'SingleCumulate'
         %% Table rainfall addition
         if MultipleDayAnalysis
-            MaxDaysToCumulate = size(RainDailyInterpStudy, 1)-DaysBeforeEventWhenStable;
+            MaxDaysToCumulate = length(TimeSensitiveDate)-DaysBeforeEventWhenStable;
         else
-            MaxDaysToCumulate = size(RainDailyInterpStudy, 1);
+            MaxDaysToCumulate = length(TimeSensitiveDate);
         end
 
         DaysToCumulate = str2double(inputdlg({["Please specify how many days you want to cumulate: "
@@ -681,51 +883,83 @@ switch RainfallMethod
 
         AnalysisInformation.DaysCumulated = DaysToCumulate;
 
-        ConditioningFactorToAdd  = {['RainfallCumulated',num2str(DaysToCumulate),'d']};
+        ConditioningFactorOper = repmat({'Averaged'}, 1, length(TimeSensitiveParam));
+        ConditioningFactorOper(CumulableParam) = {'Cumulated'};
+
+        ConditioningFactorToAdd  = cellfun(@(x, y) [x,y,num2str(DaysToCumulate),'d'], TimeSensitiveParam, ConditioningFactorOper, 'UniformOutput',false);
         ConditioningFactorsNames = [ConditioningFactorsNames, ConditioningFactorToAdd];
     
-        RainCumulated = cell(1, size(RainDailyInterpStudy, 2));
-        for i1 = 1:size(RainDailyInterpStudy, 2)
-            RainCumulated{i1} = sum([RainDailyInterpStudy{end:-1:(end-DaysToCumulate+1), i1}], 2);
+        RowToTake   = length(TimeSensitiveDate);
+        ColumnToAdd = cell(1, length(TimeSensitiveParam));
+        for i1 = 1:length(TimeSensitiveParam)
+            ColumnToAddTemp = cell(1, size(TimeSensitiveDataInterpStudy{i1}, 2));
+            for i2 = 1:size(TimeSensitiveDataInterpStudy{i1}, 2)
+                if CumulableParam(i1)
+                    ColumnToAddTemp{i2} = sum([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysToCumulate+1), i2}], 2);
+                else
+                    ColumnToAddTemp{i2} = mean([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysToCumulate+1), i2}], 2);
+                end
+            end
+            ColumnToAdd{i1} = cat(1,ColumnToAddTemp{:});
         end
-
-        ColumnToAdd = cat(1,RainCumulated{:});
 
         MaxDailyRain  = 30; % To discuss this value (max in Emilia was 134 mm in a day)
         MaxRangeRain  = MaxDailyRain*DaysToCumulate;
-        RangesForNorm = [ RangesForNorm  ;     % Pre-existing
-                          0, MaxRangeRain ];   % Cumulative 30 days rainfall
 
-        DatasetTableStudy.(ConditioningFactorToAdd{:})     = ColumnToAdd;
-        DatasetTableStudyNorm.(ConditioningFactorToAdd{:}) = rescale(ColumnToAdd, ...
-                                                                     'InputMin',RangesForNorm(end,1), ...
-                                                                     'InputMax',RangesForNorm(end,2));
+        RangesForNorm = [ RangesForNorm         ;      % Pre-existing
+                           0    ,   MaxRangeRain;      % Cumulative daily rainfall (to discuss this value, max was 134 mm in a day for Emilia Romagna)
+                          -10   ,   40           ];    % Mean daily temperature (to discuss this value)
 
-        ColumnToAdd(IndToRemove1) = [];
-        if ModifyRatioPosNeg; ColumnToAdd(IndToRemove2) = []; end
-        DatasetTable.(ConditioningFactorToAdd{:}) = ColumnToAdd;
+        ColumnToAddTable     = table( ColumnToAdd{:}, 'VariableNames',ConditioningFactorsNames(end-length(TimeSensitiveParam)+1 : end) );
+        ColumnToAddTableNorm = array2table(rescale([ColumnToAdd{:}], ...
+                                                    'InputMin',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 1)', ...  % Must be a row
+                                                    'InputMax',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 2)'), ... % Must be a row
+                                                'VariableNames',ConditioningFactorsNames(end-length(TimeSensitiveParam)+1 : end));
 
-        ColumnToAddNorm = rescale(ColumnToAdd, ...
-                                  'InputMin',RangesForNorm(end,1), ...
-                                  'InputMax',RangesForNorm(end,2));
-        DatasetTableNorm.(ConditioningFactorToAdd{:}) = ColumnToAddNorm;
+        DatasetTableStudy     = [DatasetTableStudy    , ColumnToAddTable    ]; % Horizontal concatenation
+        DatasetTableStudyNorm = [DatasetTableStudyNorm, ColumnToAddTableNorm]; % Horizontal concatenation
+
+        ColumnToAddTable(IndToRemove1,:)     = [];
+        ColumnToAddTableNorm(IndToRemove1,:) = [];
+        if ModifyRatioPosNeg
+            ColumnToAddTable(IndToRemove2,:)     = []; 
+            ColumnToAddTableNorm(IndToRemove2,:) = []; 
+        end
+
+        DatasetTable     = [DatasetTable    , ColumnToAddTable    ];
+        DatasetTableNorm = [DatasetTableNorm, ColumnToAddTableNorm];
 
         %% Addition of point at different time
         if MultipleDayAnalysis
-            RowOfRainfallAtDiffTime = size(RainDailyInterpStudy,1)-DaysBeforeEventWhenStable;
-            RainCumulatedAtDiffTime = cell(1, size(RainDailyInterpStudy, 2));
-            for i1 = 1:size(RainDailyInterpStudy, 2)
-                RainCumulatedAtDiffTime{i1} = sum([RainDailyInterpStudy{RowOfRainfallAtDiffTime:-1:(RowOfRainfallAtDiffTime-DaysToCumulate+1), i1}], 2);
+            RowToTakeAtDiffTime = RowToTake-DaysBeforeEventWhenStable;
+            ColumnToAddAtDiffTime = cell(1, length(TimeSensitiveParam));
+            for i1 = 1:length(TimeSensitiveParam)
+                ColumnToAddAtDiffTimeTemp = cell(1, size(TimeSensitiveDataInterpStudy{i1}, 2));
+                for i2 = 1:size(TimeSensitiveDataInterpStudy{i1}, 2)
+                    if CumulableParam(i1)
+                        ColumnToAddAtDiffTimeTemp{i2} = sum([TimeSensitiveDataInterpStudy{i1}{RowToTakeAtDiffTime : -1 : (RowToTakeAtDiffTime-DaysToCumulate+1), i2}], 2);
+                    else
+                        ColumnToAddAtDiffTimeTemp{i2} = mean([TimeSensitiveDataInterpStudy{i1}{RowToTakeAtDiffTime : -1 : (RowToTakeAtDiffTime-DaysToCumulate+1), i2}], 2);
+                    end
+                end
+                ColumnToAddAtDiffTime{i1} = cat(1,ColumnToAddAtDiffTimeTemp{:});
             end
-            ColumnToAddAtDiffTime = cat(1,RainCumulatedAtDiffTime{:});
-            ColumnToAddAtDiffTime(IndToRemove1) = [];
-            if ModifyRatioPosNeg; ColumnToAddAtDiffTime(IndToRemove2) = []; end
-            DatasetTableToAdd.(ConditioningFactorToAdd{:}) = ColumnToAddAtDiffTime;
+            
+            ColumnToAddTableAtDiffTime     = table( ColumnToAddAtDiffTime{:}, 'VariableNames',ConditioningFactorsNames(end-length(TimeSensitiveParam)+1 : end) );
+            ColumnToAddTableAtDiffTimeNorm = array2table(rescale([ColumnToAddAtDiffTime{:}], ...
+                                                                  'InputMin',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 1)', ...  % Must be a row
+                                                                  'InputMax',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 2)'), ... % Must be a row
+                                                              'VariableNames',ConditioningFactorsNames(end-length(TimeSensitiveParam)+1 : end));
 
-            ColumnToAddAtDiffTimeNorm = rescale(ColumnToAddAtDiffTime, ...
-                                                'InputMin',RangesForNorm(end,1), ...
-                                                'InputMax',RangesForNorm(end,2));
-            DatasetTableNormToAdd.(ConditioningFactorToAdd{:}) = ColumnToAddAtDiffTimeNorm;
+            ColumnToAddTableAtDiffTime(IndToRemove1,:)     = [];
+            ColumnToAddTableAtDiffTimeNorm(IndToRemove1,:) = [];
+            if ModifyRatioPosNeg
+                ColumnToAddTableAtDiffTime(IndToRemove2,:)     = []; 
+                ColumnToAddTableAtDiffTimeNorm(IndToRemove2,:) = []; 
+            end
+
+            DatasetTableToAdd     = [DatasetTableToAdd    , ColumnToAddTableAtDiffTime    ];
+            DatasetTableNormToAdd = [DatasetTableNormToAdd, ColumnToAddTableAtDiffTimeNorm];
 
             DatasetTableToUse     = [DatasetTable;     DatasetTableToAdd];
             DatasetTableNormToUse = [DatasetTableNorm; DatasetTableNormToAdd];
@@ -968,6 +1202,26 @@ ANNModelsROCTrain.Properties.RowNames = {'FPR-Train', 'TPR-Train', 'AUC-Train', 
 RangesForNorm = table(RangesForNorm(:,1), RangesForNorm(:,2), 'VariableNames',["Min value", "Max value"]);
 RangesForNorm.Properties.RowNames = ConditioningFactorsNames;
 
+%% Feature importance (TO MODIFY!)
+ComputeFeatureImportance = false;
+if ComputeFeatureImportance
+    W1 = net.IW{1,1}; % Weights between input and hidden layers
+    W2 = net.LW{2,1}'; % Weights between hidden and output layers
+    k  = size(W1,2); % number of input varables
+    g  = 1; % Select which output you are going to evaluate the relative importance of 
+    % input variables on (No need to change if you have only one output)
+    for n = 1:k
+    for i = 1:k
+        a(:,i) = (abs(W1(:,n))./sum(abs(W1(:,1:i)),2)).*abs(W2(:,g));
+    end
+    b = sum(sum(a,2));
+    I(n,1) = sum(abs(W1(:,n))./sum(abs(W1),2))/b;
+    end
+    for i = 1:k
+        R(i,1) = (I(i)/sum(I))*100; % Percentage
+    end
+end
+
 %% Plot for check (the last one, that is the one with 30 days of rainfall)
 ProgressBar.Message = "Plotting results...";
 
@@ -991,7 +1245,7 @@ if MultipleDayAnalysis
     end
 end
 
-fig_check = figure(1);
+fig_check = figure(3);
 ax_check = axes(fig_check);
 hold(ax_check,'on')
 
@@ -1021,13 +1275,13 @@ switch PlotOption
         DatasetForPlot = DatasetTableNorm;
         OutputForPlot  = OutputCat;
         [~, ProbabilityForPlot] = predict(ModelSelected, DatasetForPlot);
-        PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= 0.95*BestThresholdTrain; % Please keep attention to 0.9 of the Best Threshold
+        PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= BestThresholdTrain; % Please keep attention to 0.9 of the Best Threshold
 
     case 3
         DatasetForPlot = DatasetTableNormToAdd;
         OutputForPlot  = OutputCatToAdd;
         [~, ProbabilityForPlot] = predict(ModelSelected, DatasetForPlot);
-        PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= 0.95*BestThresholdTrain; % Please keep attention to 0.9 of the Best Threshold
+        PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= BestThresholdTrain; % Please keep attention to 0.9 of the Best Threshold
 end
 
 plot(StudyAreaPolygon, 'FaceColor','none', 'EdgeColor','k', 'LineWidth',1.5)
