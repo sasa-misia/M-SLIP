@@ -39,6 +39,10 @@ if AnswerRainfallRec == 1
 
     drawnow % Remember to remove if in Standalone version
     figure(Fig) % Remember to remove if in Standalone version
+
+    Ans = uiconfirm(Fig, ['Have you put stations in the correct order ' ...
+                          'in <Stations table> sheet? (see guidelines)'], ...
+                         'Reminder', 'Options','Yes, I have done it!');
     
     Sheet_Sta = readcell(FileName_Rainfall, 'Sheet','Stations table');
     Sheet_Rain = readcell(FileName_Rainfall, 'Sheet','Data table');
@@ -60,41 +64,27 @@ if AnswerRainfallRec == 1
     
     HoursNum = 0; 
     for i1 = HeaderLine:length(Sheet_Rain)
-        if ~ismissing(Sheet_Rain{i1,3}); HoursNum = HoursNum+1; else; break; end
+        if ~ismissing(Sheet_Rain{i1,2}); HoursNum = HoursNum+1; else; break; end
     end
     
     RainNumeric = [Sheet_Rain{cellfun(@isnumeric, Sheet_Rain)}]';
+
+    if numel(RainNumeric) ~= HoursNum*StationsNumber
+        error("Your excel is inconsistent in the 3rd column, please check it!")
+    end
+
     GeneralRainData = zeros(HoursNum,StationsNumber);
     
     for i1 = 1:StationsNumber
         GeneralRainData(:,i1) = RainNumeric((i1-1)*(HoursNum)+1:(i1-1)*(HoursNum)+(HoursNum));
     end
     
-    GeneralRainData(isnan(GeneralRainData)) = 0;
+    GeneralRainData(isnan(GeneralRainData))  = 0;
     GeneralRainData(GeneralRainData == -999) = 0;
     GeneralRainData = GeneralRainData';
     
-    GeneralDatesStart = dateshift([Sheet_Rain{HeaderLine:HoursNum+HeaderLine-1,1}]', ...
-                                  'start','hours','nearest');
-    GeneralDatesEnd = dateshift([Sheet_Rain{HeaderLine:HoursNum+HeaderLine-1,2}]', ...
-                                'start','hours','nearest');
-
-    %% Building of datetime format (maybe not necessary)
-    for i1 = 1:size(GeneralDatesStart,1)
-        if isnat(GeneralDatesStart(i1)) == 1 && i1 == 1
-            GeneralDatesStart(i1,:) = GeneralDatesStart(i1+1,:)-hours(1);
-        elseif isnat(GeneralDatesStart(i1)) == 1 && i1 > 1
-            GeneralDatesStart(i1,:) = GeneralDatesStart(i1-1,:)+hours(1);
-        end
-    end
-    
-    for i1 = 1:size(GeneralDatesEnd,1)
-        if isnat(GeneralDatesEnd(i1)) == 1 && i1 == 1
-            GeneralDatesEnd(i1,:) = GeneralDatesEnd(i1+1,:)-hours(1);
-        elseif isnat(GeneralDatesEnd(i1)) == 1 && i1 > 1
-            GeneralDatesEnd(i1,:) = GeneralDatesEnd(i1-1,:)+hours(1);
-        end
-    end
+    GeneralDatesStart = dateshift([Sheet_Rain{HeaderLine:HoursNum+HeaderLine-1,1}]', 'start','hours', 'nearest');
+    GeneralDatesEnd   = dateshift([Sheet_Rain{HeaderLine:HoursNum+HeaderLine-1,2}]', 'start','hours', 'nearest');
 
     VariablesRainfall = {'GeneralRainData', 'RainGauges', 'RainfallDates'};
 
@@ -177,16 +167,16 @@ switch AnalysisCase
                             find(abs(minutes(GeneralDatesEnd-RainfallSetInterval{2})) <= 1)];
 
         StabilityEventsAnalysed = length(AnalysisEvents); % Number of stability analysis
+        
         StabilityAnalysis = {StabilityEventsAnalysed, AnalysisEvents, RainfallSetIndex};
 
-        if ( StatusPrevAnalysis == 1 & ...
-             StabilityAnalysis{1} ~= StabilityAnalysisOld{1} )
-            StatusPrevAnalysis = 0;
-        elseif ( StatusPrevAnalysis == 1 & ...
-                 StabilityAnalysis{1} == StabilityAnalysisOld{1} & ...
-                 all(StabilityAnalysis{2} ~= StabilityAnalysisOld{2}) & ...
-                 all(StabilityAnalysis{3}~=StabilityAnalysisOld{3}) )
-            StatusPrevAnalysis = 0;
+        if StatusPrevAnalysis == 1
+            DiffNumOfEvents = StabilityAnalysis{1} ~= StabilityAnalysisOld{1};
+            DiffDates       = any(StabilityAnalysis{2} ~= StabilityAnalysisOld{2});
+            DiffIndices     = any(StabilityAnalysis{3} ~= StabilityAnalysisOld{3});
+            if DiffNumOfEvents || DiffDates || DiffIndices
+                StatusPrevAnalysis = 0;
+            end
         end
            
         IndexInterpolation = RainfallSetIndex(1):RainfallSetIndex(end);
