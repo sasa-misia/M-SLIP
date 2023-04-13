@@ -1202,26 +1202,6 @@ ANNModelsROCTrain.Properties.RowNames = {'FPR-Train', 'TPR-Train', 'AUC-Train', 
 RangesForNorm = table(RangesForNorm(:,1), RangesForNorm(:,2), 'VariableNames',["Min value", "Max value"]);
 RangesForNorm.Properties.RowNames = ConditioningFactorsNames;
 
-%% Feature importance (TO MODIFY!)
-ComputeFeatureImportance = false;
-if ComputeFeatureImportance
-    W1 = net.IW{1,1}; % Weights between input and hidden layers
-    W2 = net.LW{2,1}'; % Weights between hidden and output layers
-    k  = size(W1,2); % number of input varables
-    g  = 1; % Select which output you are going to evaluate the relative importance of 
-    % input variables on (No need to change if you have only one output)
-    for n = 1:k
-    for i = 1:k
-        a(:,i) = (abs(W1(:,n))./sum(abs(W1(:,1:i)),2)).*abs(W2(:,g));
-    end
-    b = sum(sum(a,2));
-    I(n,1) = sum(abs(W1(:,n))./sum(abs(W1),2))/b;
-    end
-    for i = 1:k
-        R(i,1) = (I(i)/sum(I))*100; % Percentage
-    end
-end
-
 %% Plot for check (the last one, that is the one with 30 days of rainfall)
 ProgressBar.Message = "Plotting results...";
 
@@ -1293,8 +1273,8 @@ if strcmp(UncondStablePointsApproach,'VisibleWindow')
         case 3
             plot(TotPolUnstabPoints, 'FaceAlpha',.5, 'FaceColor',"#5aa06b");
     end
-    plot(TotPolIndecision,   'FaceAlpha',.5, 'FaceColor',"#fff2cc");
-    plot(TotPolUncStable,    'FaceAlpha',.5, 'FaceColor',"#5aa06b");
+    plot(TotPolIndecision, 'FaceAlpha',.5, 'FaceColor',"#fff2cc");
+    plot(TotPolUncStable,  'FaceAlpha',.5, 'FaceColor',"#5aa06b");
 end
 
 hdetected = cellfun(@(x,y) scatter(x, y, '^k', 'Filled'), InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
@@ -1310,9 +1290,9 @@ switch PlotOption
                                  30, 'Marker','d', 'MarkerFaceColor',"#33E6FF", 'MarkerEdgeColor','none');
 
     case {2, 3}
-        hUnstableForPlot  = scatter(xLongTotCat(PredictionWithBTForPlot), ...
-                                    yLatTotCat(PredictionWithBTForPlot), ...
-                                    30, 'Marker','s', 'MarkerFaceColor',"#318ce7", 'MarkerEdgeColor','none');
+        hUnstableForPlot = scatter(xLongTotCat(PredictionWithBTForPlot), ...
+                                   yLatTotCat(PredictionWithBTForPlot), ...
+                                   30, 'Marker','s', 'MarkerFaceColor',"#318ce7", 'MarkerEdgeColor','none');
 end
 
 switch PlotOption
