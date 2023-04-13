@@ -24,10 +24,11 @@ NewDatasetChoice = uiconfirm(Fig, ['Do you want to use the dataset of the entire
                                    'study area created while training the ANNs?'], ...
                                   'New dataset creation', 'Options',Options, 'DefaultOption',1);
 if strcmp(NewDatasetChoice,'Yes'); CreateNewDataset = false; else; CreateNewDataset = true; end
+
 %% Creation of dataset
 if CreateNewDataset
     %% Extraction of data in study area
-    ProgressBar.Message = "Data extraction in study area...";
+    ProgressBar.Message = "Data extraction in study area..."; 
     xLongStudy          = cellfun(@(x,y) x(y), xLongAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
     yLatStudy           = cellfun(@(x,y) x(y), yLatAll         , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
     ElevationStudy      = cellfun(@(x,y) x(y), ElevationAll    , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
