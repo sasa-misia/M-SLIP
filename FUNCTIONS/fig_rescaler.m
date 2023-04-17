@@ -1,4 +1,5 @@
 function [] = fig_rescaler(fig_object, leg_object, leg_position)
+
 % RESCALER DI FIGURE
 %   Quando hai una legenda che va fuori dai bordi dell'immagine fa un
 %   rescale per mantenere il plot delle stesse dimensioni e aggiungere la
@@ -22,4 +23,5 @@ elseif lower(string(leg_position)) == "westoutside"
 end
 
 set(fig_object, 'position',FigSize)
+
 end
