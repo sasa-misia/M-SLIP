@@ -446,7 +446,7 @@ for i1 = 1:length(PlotOpts)
         
         daspect(ax_ele, [1, RatioLatLong, 1])
         
-        SplitLegEleMap = split_newline(LegEleMap, MaxLengthText);
+        SplitLegEleMap = split_text_newline(LegEleMap, MaxLengthText);
         LegendObjects  = helevation(1:end,1);
         
         [leg_ele, leg_ico, leg_plots] = legend([LegendObjects{:}], ...
@@ -458,7 +458,7 @@ for i1 = 1:length(PlotOpts)
                                                'Box','off');
         
         title(leg_ele, 'Elevation [m]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize)
-        title_leg_scatter(leg_ele, leg_ico, leg_plots, DimItemScatLeg, LegendPosition)
+        fix_leg_scatter(leg_ele, leg_ico, leg_plots, DimItemScatLeg, LegendPosition)
         
         % fig_rescaler(ax_ele, leg_ele, LegendPosition)
         
@@ -491,7 +491,7 @@ for i1 = 1:length(PlotOpts)
         
         daspect(ax_slo, [1, RatioLatLong, 1])
         
-        SplitLegSlopeMap = split_newline(LegSlopeMap, MaxLengthText);
+        SplitLegSlopeMap = split_text_newline(LegSlopeMap, MaxLengthText);
         LegendObjects  = hslope(1:end,1);
         
         [leg_slo, leg_ico, leg_plots] = legend([LegendObjects{:}], ...
@@ -503,7 +503,7 @@ for i1 = 1:length(PlotOpts)
                                                'Box','off');
         
         title(leg_slo, 'Slope [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize)
-        title_leg_scatter(leg_slo, leg_ico, leg_plots, DimItemScatLeg, LegendPosition)
+        fix_leg_scatter(leg_slo, leg_ico, leg_plots, DimItemScatLeg, LegendPosition)
         
         % fig_rescaler(ax_slo, leg_slo, LegendPosition)
         
@@ -536,7 +536,7 @@ for i1 = 1:length(PlotOpts)
         
         daspect(ax_asp, [1, RatioLatLong, 1])
         
-        SplitLegAspectMap = split_newline(LegAspectMap, MaxLengthText);
+        SplitLegAspectMap = split_text_newline(LegAspectMap, MaxLengthText);
         LegendObjects  = haspect(1:end,1);
         
         [leg_asp, leg_ico, leg_plots] = legend([LegendObjects{:}], ...
@@ -548,7 +548,7 @@ for i1 = 1:length(PlotOpts)
                                                'Box','off');
         
         title(leg_asp, 'Aspect [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize)
-        title_leg_scatter(leg_asp, leg_ico, leg_plots, DimItemScatLeg, LegendPosition)
+        fix_leg_scatter(leg_asp, leg_ico, leg_plots, DimItemScatLeg, LegendPosition)
         
         % fig_rescaler(ax_asp, leg_asp, LegendPosition)
         
@@ -581,7 +581,7 @@ for i1 = 1:length(PlotOpts)
         
         daspect(ax_mc, [1, RatioLatLong, 1])
         
-        SplitLegMeanCurvMap = split_newline(LegMeanCurvMap, MaxLengthText);
+        SplitLegMeanCurvMap = split_text_newline(LegMeanCurvMap, MaxLengthText);
         LegendObjects  = hmeancurv(1:end,1);
         
         [leg_mc, leg_ico, leg_plots] = legend([LegendObjects{:}], ...
@@ -593,7 +593,7 @@ for i1 = 1:length(PlotOpts)
                                                'Box','off');
         
         title(leg_mc, 'Mean curvature [1/m]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize)
-        title_leg_scatter(leg_mc, leg_ico, leg_plots, DimItemScatLeg, LegendPosition)
+        fix_leg_scatter(leg_mc, leg_ico, leg_plots, DimItemScatLeg, LegendPosition)
         
         % fig_rescaler(ax_mc, leg_mc, LegendPosition)
         
@@ -619,7 +619,7 @@ for i1 = 1:length(PlotOpts)
         
         daspect(ax_lit, [1, RatioLatLong, 1])
         
-        SplitLegLithoMap = split_newline(LegLithoMap, MaxLengthText);
+        SplitLegLithoMap = split_text_newline(LegLithoMap, MaxLengthText);
         
         leg_lit = legend(SplitLegLithoMap, ...
                          'NumColumns',1, ...
@@ -655,7 +655,7 @@ for i1 = 1:length(PlotOpts)
         
         daspect(ax_ts, [1, RatioLatLong, 1])
         
-        SplitLegTopSoilMap = split_newline(LegTopSoilMap, MaxLengthText);
+        SplitLegTopSoilMap = split_text_newline(LegTopSoilMap, MaxLengthText);
         
         leg_ts = legend(SplitLegTopSoilMap, ...
                         'NumColumns',1, ...
@@ -691,7 +691,7 @@ for i1 = 1:length(PlotOpts)
         
         daspect(ax_lu, [1, RatioLatLong, 1])
         
-        SplitLegLandUseMap = split_newline(LegLandUseMap, MaxLengthText);
+        SplitLegLandUseMap = split_text_newline(LegLandUseMap, MaxLengthText);
         
         leg_lu = legend(SplitLegLandUseMap, ...
                         'NumColumns',1, ...
@@ -728,7 +728,7 @@ for i1 = 1:length(PlotOpts)
         
         daspect(ax_veg, [1, RatioLatLong, 1])
         
-        SplitLegVegMap = split_newline(LegVegMap, MaxLengthText);
+        SplitLegVegMap = split_text_newline(LegVegMap, MaxLengthText);
         
         leg_veg = legend(SplitLegVegMap, ...
                          'NumColumns',1, ...
@@ -807,7 +807,7 @@ for i1 = 1:length(PlotOpts)
                 
                 daspect(ax_rain{IndFig}, [1, RatioLatLong, 1])
                 
-                SplitLegTimeSensMap = split_newline(LegTimeSensMap{i3,i2}, MaxLengthText);
+                SplitLegTimeSensMap = split_text_newline(LegTimeSensMap{i3,i2}, MaxLengthText);
                 LegendObjects = hrain(1:end,1);
             
                 [leg_rain{IndFig}, leg_ico, leg_plots] = legend([LegendObjects{:}], ...
@@ -820,7 +820,7 @@ for i1 = 1:length(PlotOpts)
         
                 title(leg_rain{IndFig}, [TimeSensOperType{i2},' ',TimeSensitiveParam{i2},' [mm]'], ...
                                         'FontName',SelectedFont, 'FontSize',SelectedFontSize)
-                title_leg_scatter(leg_rain{IndFig}, leg_ico, leg_plots, DimItemScatLeg, LegendPositionTS)
+                fix_leg_scatter(leg_rain{IndFig}, leg_ico, leg_plots, DimItemScatLeg, LegendPositionTS)
                 text(ax_rain{IndFig}, 0.1, 0.9, [num2str(DaysToCumTimeSens(i3)),'d'], 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'Units','normalized')
                 
                 % fig_rescaler(ax_rain{IndFig}, leg_rain{IndFig}, LegendPosition)

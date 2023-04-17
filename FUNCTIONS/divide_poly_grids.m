@@ -14,7 +14,6 @@ Extremes = [ min(poly.Vertices, [], 1)
 dX = (Extremes(2,1) - Extremes(1,1))/gridX;
 dY = (Extremes(2,2) - Extremes(1,2))/gridY;
 
-NumOfPolyGrids = gridX*gridY;
 PolyGrids    = repmat(polyshape, gridY, gridX); % Initialize polyshape array
 SplittedPoly = repmat(polyshape, gridY, gridX); % Initialize polyshape array
 for i1 = 1:gridX

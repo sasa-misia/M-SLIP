@@ -1,4 +1,4 @@
-function title_leg_scatter(leg_obj, leg_ico, leg_plots, DimItems, Location)
+function fix_leg_scatter(leg_obj, leg_ico, leg_plots, DimItems, Location)
 
 leg_obj.Title.Visible = 'on';
 

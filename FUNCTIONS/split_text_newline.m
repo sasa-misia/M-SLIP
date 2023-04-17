@@ -1,4 +1,4 @@
-function NewCellArrayText = split_newline(CellArrayText, MaxDim)
+function NewCellArrayText = split_text_newline(CellArrayText, MaxDim)
 
 if ~iscell(CellArrayText)
     error('First input must be a cell array containing char')
