@@ -7,8 +7,7 @@ drawnow
 %% Import and elaboration of data
 tic
 cd(fold_var)
-load('StudyAreaVariables.mat')
-% load('UserA_Answers.mat', 'SpecificWindow') % It could be deleted
+load('StudyAreaVariables.mat', 'StudyAreaPolygon','StudyAreaPolygonExcluded')
 
 cd(fold_raw_dtm)
 % Import tif and tfw file names
@@ -23,8 +22,8 @@ switch DTMType
 end
 
 % Initializing of cells in for loop to increase speed
-[xLongAll, yLatAll, ElevationAll, RAll, AspectAngleAll, SlopeAll,...
-            GradNAll,GradEAll] = deal(cell(1,length(NameFile1)));
+[xLongAll, yLatAll, ElevationAll, RasterInfoGeoAll, ...
+    AspectAngleAll, SlopeAll, GradNAll, GradEAll, OriginalProjCRS] = deal(cell(1,length(NameFile1)));
 
 ProgressBar.Indeterminate = 'off';
 for i1 = 1:length(NameFile1)
@@ -33,33 +32,39 @@ for i1 = 1:length(NameFile1)
 
     switch DTMType
         case 0
-            A = imread(NameFile1(i1));
-            R = worldfileread(NameFile2(i1), 'planar', size(A));
+            RasterData = imread(NameFile1(i1));
+            RasterInfo = worldfileread(NameFile2(i1), 'planar', size(RasterData));
         case 1
             % [A,R] = readgeoraster(NameFile1(i1), 'OutputType','double');
-            [A,R] = readgeoraster(NameFile1(i1), 'OutputType','native');
+            [RasterData,RasterInfo] = readgeoraster(NameFile1(i1), 'OutputType','native');
         case 2
-            [A,R] = readgeoraster(NameFile1(i1), 'OutputType','double');
-    end
-
-    if isempty(R.ProjectedCRS) && i1==1
-        EPSG = str2double(inputdlg({["Set DTM EPSG"
-                                     "For Example:"
-                                     "Sicily -> 32633"
-                                     "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
-        R.ProjectedCRS = projcrs(EPSG);
-    elseif isempty(R.ProjectedCRS) && i1>1
-        R.ProjectedCRS = projcrs(EPSG);
+            [RasterData,RasterInfo] = readgeoraster(NameFile1(i1), 'OutputType','double');
     end
         
-    if R.CoordinateSystemType == "planar"
-        [XTBS,YTBS] = worldGrid(R);
-        dX = R.CellExtentInWorldX;
-        dY = R.CellExtentInWorldY;
-    elseif R.CoordinateSystemType == "geographic"
-        [YTBS, XTBS] = geographicGrid(R);
-        dX = acos(sind(YTBS(1,1))*sind(YTBS(1,2))+cosd(YTBS(1,1))*cosd(YTBS(1,2))*cosd(XTBS(1,2)-XTBS(1,1)))*earthRadius;
-        dY = acos(sind(YTBS(1,1))*sind(YTBS(2,1))+cosd(YTBS(1,1))*cosd(YTBS(2,1))*cosd(XTBS(2,1)-XTBS(1,1)))*earthRadius;
+    if strcmp(RasterInfo.CoordinateSystemType,"planar")
+        if isempty(RasterInfo.ProjectedCRS) && i1==1
+            EPSG = str2double(inputdlg({["Set DTM EPSG"
+                                         "For Example:"
+                                         "Sicily -> 32633"
+                                         "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
+            RasterInfo.ProjectedCRS = projcrs(EPSG);
+        elseif isempty(RasterInfo.ProjectedCRS) && i1>1
+            RasterInfo.ProjectedCRS = projcrs(EPSG);
+        end
+
+        OriginalProjCRS{i1} = RasterInfo.ProjectedCRS;
+        [xTBS,yTBS] = worldGrid(RasterInfo);
+        dX = RasterInfo.CellExtentInWorldX;
+        dY = RasterInfo.CellExtentInWorldY;
+
+    elseif strcmp(RasterInfo.CoordinateSystemType,"geographic")
+        if isempty(RasterInfo.GeographicCRS)
+            RasterInfo.GeographicCRS = geocrs(4326); % It will be applied the standard
+        end
+
+        [yTBS, xTBS] = geographicGrid(RasterInfo);
+        dX = acos(sind(yTBS(1,1))*sind(yTBS(1,2))+cosd(yTBS(1,1))*cosd(yTBS(1,2))*cosd(xTBS(1,2)-xTBS(1,1)))*earthRadius;
+        dY = acos(sind(yTBS(1,1))*sind(yTBS(2,1))+cosd(yTBS(1,1))*cosd(yTBS(2,1))*cosd(xTBS(2,1)-xTBS(1,1)))*earthRadius;
     end
 
     if AnswerChangeDTMResolution == 1
@@ -70,44 +75,74 @@ for i1 = 1:length(NameFile1)
         ScaleFactorY = 1;
     end
 
-    X = XTBS(1:ScaleFactorX:end, 1:ScaleFactorY:end);
-    Y = YTBS(1:ScaleFactorX:end, 1:ScaleFactorY:end);
+    xScaled = xTBS(1:ScaleFactorX:end, 1:ScaleFactorY:end);
+    yScaled = yTBS(1:ScaleFactorX:end, 1:ScaleFactorY:end);
 
-    Elevation = max(A(1:ScaleFactorX:end, 1:ScaleFactorY:end), 0); % Sometimes raster have big negative elevation values for sea
+    Elevation = max(RasterData(1:ScaleFactorX:end, 1:ScaleFactorY:end), 0); % Sometimes raster have big negative elevation values for sea
+    clear('RasterData')
     
-    if string(R.CoordinateSystemType)=="planar"
-        [yLat,xLong] = projinv(R.ProjectedCRS, X, Y);
-        [yLatExt, xLongExt] = projinv(R.ProjectedCRS, R.XWorldLimits, R.YWorldLimits);
-        RGeo = georefcells(yLatExt, xLongExt, size(Elevation), 'ColumnsStartFrom','north'); % Remember to automatize this parameter (ColumnsStartFrom) depending on emisphere!
-        RGeo.GeographicCRS = R.ProjectedCRS.GeographicCRS;
-    else
-        xLong = X;
-        yLat  = Y;
-        RGeo  = R;
+    if strcmp(RasterInfo.CoordinateSystemType,"planar")
+        [yLat,xLong] = projinv(RasterInfo.ProjectedCRS, xScaled, yScaled);
+        [yLatExt, xLongExt] = projinv(RasterInfo.ProjectedCRS, RasterInfo.XWorldLimits, RasterInfo.YWorldLimits);
+        RastInfoGeo = georefcells(yLatExt, xLongExt, size(Elevation), 'ColumnsStartFrom','north'); % Remember to automatize this parameter (ColumnsStartFrom) depending on emisphere!
+        RastInfoGeo.GeographicCRS = RasterInfo.ProjectedCRS.GeographicCRS;
+
+    elseif strcmp(RasterInfo.CoordinateSystemType,"geographic")
+
+        xLong = xScaled;
+        yLat  = yScaled;
+        RastInfoGeo  = RasterInfo;
     end
 
-    clear('X', 'Y')
+    clear('xScaled', 'yScaled', 'RasterInfo')
 
     xLongAll{i1} = xLong;
     clear('xLong')
+
     yLatAll{i1} = yLat;
     clear('yLat')
-    [AspectDTM, SlopeDTM, GradNDTM, GradEDTM] = gradientm(Elevation, RGeo);
+
+    [AspectDTM, SlopeDTM, GradNDTM, GradEDTM] = gradientm(Elevation, RastInfoGeo);
+    
     ElevationAll{i1} = Elevation;
     clear('Elevation')
-    RAll{i1} = RGeo;
+
+    RasterInfoGeoAll{i1} = RastInfoGeo;
+    clear('RastInfoGeo')
+
     AspectAngleAll{i1} = AspectDTM;
     clear('AspectDTM')
+
     SlopeAll{i1} = SlopeDTM;
     clear('SlopeDTM')
+
     GradNAll{i1} = GradNDTM;
     clear('GradNDTM')
+
     GradEAll{i1} = GradEDTM;
     clear('GradEDTM')
 end
+cd(fold0)
+
+OriginallyProjected = false;
+SameCRSForAll       = true;
+if exist('OriginalProjCRS', 'var')
+    OriginallyProjected = true;
+    NamesOriginalProjCRS = strings(1, length(OriginalProjCRS));
+    for i1 = 1:length(OriginalProjCRS)
+        NamesOriginalProjCRS(i1) = OriginalProjCRS{i1}.Name;
+    end
+
+    if numel(unique(NamesOriginalProjCRS)) == 1
+        OriginalProjCRS = OriginalProjCRS{1};
+    else
+        SameCRSForAll = false;
+        clear('OriginalProjCRS');
+    end
+end
 
 ProgressBar.Indeterminate = 'on';
-ProgressBar.Message = 'Cleaning of DTMs...';
+ProgressBar.Message = 'Indexing of points inside Study Area...';
 
 [IndexDTMPointsInsideStudyArea, IndexDTMPointsExcludedInStudyArea] = deal(cell(1,length(xLongAll)));
 for i2 = 1:length(xLongAll)
@@ -121,15 +156,16 @@ for i2 = 1:length(xLongAll)
 end
 
 %% Cleaning of DTM with no intersection (or only a single point)
-% EmptyIndexDTMPointsInsideStudyArea = cellfun(@isempty,IndexDTMPointsInsideStudyArea);
+ProgressBar.Message = 'Cleaning of DTMs...';
 EmptyIndexDTMPointsInsideStudyArea = cellfun(@(x) numel(x)<=1,IndexDTMPointsInsideStudyArea);
 NameFileIntersecated = NameFile1(~EmptyIndexDTMPointsInsideStudyArea);
+
 IndexDTMPointsInsideStudyArea(EmptyIndexDTMPointsInsideStudyArea)      = [];
 IndexDTMPointsExcludedInStudyArea(EmptyIndexDTMPointsInsideStudyArea)  = [];
 xLongAll(EmptyIndexDTMPointsInsideStudyArea)                           = [];
 yLatAll(EmptyIndexDTMPointsInsideStudyArea)                            = [];
 ElevationAll(EmptyIndexDTMPointsInsideStudyArea)                       = [];
-RAll(EmptyIndexDTMPointsInsideStudyArea)                               = [];
+RasterInfoGeoAll(EmptyIndexDTMPointsInsideStudyArea)                   = [];
 AspectAngleAll(EmptyIndexDTMPointsInsideStudyArea)                     = [];
 SlopeAll(EmptyIndexDTMPointsInsideStudyArea)                           = [];
 GradNAll(EmptyIndexDTMPointsInsideStudyArea)                           = [];
@@ -154,7 +190,7 @@ if OrthophotoAnswer
     Info       = wmsinfo(UrlMap);
     OrthoLayer = Info.Layer(1);
     
-    LimMap    = cellfun(@(x) [x.LongitudeLimits; x.LatitudeLimits], RAll, 'UniformOutput',false);
+    LimMap    = cellfun(@(x) [x.LongitudeLimits; x.LatitudeLimits], RasterInfoGeoAll, 'UniformOutput',false);
     LimLatMap = cellfun(@(x) x(2,:), LimMap, 'UniformOutput',false);
     LimLonMap = cellfun(@(x) x(1,:), LimMap, 'UniformOutput',false);
     
@@ -204,7 +240,7 @@ if OrthophotoAnswer
 end
 
 %% Plot to check the Study Area
-ProgressBar.Message = 'Printing to check...';
+ProgressBar.Message = 'Plotting to check...';
 
 fig_check = figure(2);
 ax_check  = axes(fig_check);
@@ -240,7 +276,9 @@ RootCohesionAll = cellfun(@zeros, SizeGridInCell, 'UniformOutput',false); % If V
 
 
 % Creatings string names of variables in cell arrays to save at the end
-VariablesMorph       = {'ElevationAll', 'RAll', 'AspectAngleAll', 'SlopeAll', 'GradNAll', 'GradEAll'};
+VariablesMorph       = {'ElevationAll', 'RasterInfoGeoAll', 'AspectAngleAll', 'SlopeAll', 'GradNAll', 'GradEAll', ...
+                        'OriginallyProjected', 'SameCRSForAll'};
+if OriginallyProjected && SameCRSForAll; VariablesMorph = [VariablesMorph, {'OriginalProjCRS'}]; end
 VariablesGridCoord   = {'xLongAll', 'yLatAll', 'IndexDTMPointsInsideStudyArea', 'IndexDTMPointsExcludedInStudyArea'};
 VariablesSoilPar     = {'CohesionAll', 'PhiAll', 'KtAll', 'AAll', 'nAll'};
 VariablesVegPar      = {'RootCohesionAll', 'BetaStarAll'};
@@ -253,17 +291,16 @@ if OrthophotoAnswer; VariablesOrtho = {'ZOrtho', 'ROrtho', 'xLongOrtho', 'yLatOr
 VegAttribution = false;
 VariablesAnswerVeg = {'VegAttribution'};
 
-ProgressBar.Message = 'Finising...';
-
 %% Saving...
+ProgressBar.Message = 'Saving...';
 cd(fold_var)
 if OrthophotoAnswer; save('Orthophoto.mat', VariablesOrtho{:}); end
-save('UserMorph_Answers.mat', VariablesAnswerMorph{:});
-save('UserVeg_Answers.mat', VariablesAnswerVeg{:});
-save('MorphologyParameters.mat', VariablesMorph{:});
-save('GridCoordinates', VariablesGridCoord{:});
-save('SoilParameters.mat', VariablesSoilPar{:});
-save('VegetationParameters.mat', VariablesVegPar{:});
+save('UserMorph_Answers.mat', VariablesAnswerMorph{:})
+save('UserVeg_Answers.mat', VariablesAnswerVeg{:})
+save('MorphologyParameters.mat', VariablesMorph{:})
+save('GridCoordinates', VariablesGridCoord{:})
+save('SoilParameters.mat', VariablesSoilPar{:})
+save('VegetationParameters.mat', VariablesVegPar{:})
 cd(fold0)
 
 close(ProgressBar) % Fig instead of ProgressBar if in Standalone version

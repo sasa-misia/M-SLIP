@@ -5,7 +5,8 @@ drawnow
 
 %% Loading data
 cd(fold_var)
-load('MorphologyParameters.mat',     'AspectAngleAll','ElevationAll','SlopeAll','MeanCurvatureAll')
+load('MorphologyParameters.mat',     'AspectAngleAll','ElevationAll','SlopeAll', ...
+                                     'MeanCurvatureAll','OriginallyProjected','SameCRSForAll')
 load('LithoPolygonsStudyArea.mat',   'LithoAllUnique','LithoPolygonsStudyArea')
 load('TopSoilPolygonsStudyArea.mat', 'TopSoilAllUnique','TopSoilPolygonsStudyArea')
 load('LandUsesVariables.mat',        'AllLandUnique','LandUsePolygonsStudyArea')
@@ -237,11 +238,11 @@ end
 [~, BestModelAUCForTrain]    = max(cell2mat(ANNModelsROCTrain{3,:}));
 [~, BestModelAUCForTest]     = max(cell2mat(ANNModelsROCTest{3,:}));
 
-IndModelSelected = str2double(inputdlg({["Which model do you want to use?"
-                                    strcat("From 1 to ", string(size(ANNModels,2)))
-                                    strcat("Best in terms of loss is: ", string(BestModelLossForQuality))
-                                    strcat("Best in terms of AUC is: ", string(BestModelAUCForQuality))]}, ...
-                                    '', 1, {num2str(BestModelLossForQuality)}));
+IndModelSelected = str2double(inputdlg({[ "Which model do you want to use?"
+                                          strcat("From 1 to ", string(size(ANNModels,2)))
+                                          strcat("Best in terms of loss is: ", string(BestModelLossForQuality))
+                                          strcat("Best in terms of AUC is: ", string(BestModelAUCForQuality))   ]}, ...
+                                        '', 1, {num2str(BestModelLossForQuality)}));
 
 %% Property extraction of model selected
 MethodBestThreshold = AnalysisInformation.MethodForSelectingOptimalThresholdInROCs;
@@ -304,11 +305,19 @@ ModelSelected = ANNModels{1,IndModelSelected}{:};
 
 %% Clusterization
 ProgressBar.Message = "Defining clusters for unstab points...";
-EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate clusters)"
-                             "For Example:"
-                             "Sicily -> 32633"
-                             "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
-ProjCRS = projcrs(EPSG);
+if OriginallyProjected && SameCRSForAll
+    cd(fold_var)
+    load('MorphologyParameters.mat', 'OriginalProjCRS')
+    cd(fold0)
+
+    ProjCRS = OriginalProjCRS;
+else
+    EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate clusters)"
+                                 "For Example:"
+                                 "Sicily -> 32633"
+                                 "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
+    ProjCRS = projcrs(EPSG);
+end
 
 [xPlanCoord, yPlanCoord] = projfwd(ProjCRS, ...
                                    DatasetCoordinates{:,2}, DatasetCoordinates{:,1});

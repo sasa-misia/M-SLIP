@@ -46,7 +46,8 @@ end
 
 InfoDetectedExist = false;
 if exist('InfoDetectedSoilSlips.mat', 'file')
-    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips')
+    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','IndDefInfoDet')
+    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
     InfoDetectedExist = true;
 end
 
@@ -166,7 +167,7 @@ switch NumFigPlot
 
             if InfoDetectedExist
                 hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), ...
-                                        InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
+                                        InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
                 uistack(hdetected,'top')
             end
 
@@ -224,7 +225,7 @@ switch NumFigPlot
 
         if InfoDetectedExist
             hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), ...
-                                    InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
+                                    InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
             uistack(hdetected,'top')
         end
 
@@ -312,7 +313,7 @@ switch NumFigPlot
 
         if InfoDetectedExist
             hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), ...
-                                    InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
+                                    InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
             uistack(hdetected,'top')
         end
 
@@ -404,7 +405,7 @@ switch NumFigPlot
         
         if InfoDetectedExist
             hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), ...
-                                    InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
+                                    InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
             uistack(hdetected,'top')
         end
         

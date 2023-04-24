@@ -1,5 +1,5 @@
 % Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing', 'Indeterminate','on');
 drawnow
 
 %% File loading
@@ -29,7 +29,7 @@ end
 Options = {'Top Soil', 'Sub Soil'};
 TypeOfSoil = uiconfirm(Fig, 'What type of information contains your file?', ...
                             'Soil info type', 'Options',Options);
-if strcmp(TypeOfSoil,'Top Soil'); TopSoil = true; end
+if strcmp(TypeOfSoil,'Top Soil'); TopSoil = true; else; TopSoil = false; end
 
 %% Extract litho name abbreviations
 LithoAll = extractfield(ReadShape_Lithology,LitFieldName);
@@ -41,18 +41,20 @@ for i1 = 1:length(LithoAllUnique)
 end
 
 % Poligon creation
+ProgressBar.Indeterminate = 'off';
 LithoPolygon = repmat(polyshape, 1, length(IndexLitho));
-for i2 = 1:length(IndexLitho)
+for i1 = 1:length(IndexLitho)
     [LithoVertexLat, LithoVertexLon] = projinv(ShapeInfo_Lithology.CoordinateReferenceSystem,...
-                                               [ReadShape_Lithology(IndexLitho{i2}).X],...
-                                               [ReadShape_Lithology(IndexLitho{i2}).Y]);
-    LithoPolygon(i2) = polyshape([LithoVertexLon',LithoVertexLat'],'Simplify',false);
+                                               [ReadShape_Lithology(IndexLitho{i1}).X],...
+                                               [ReadShape_Lithology(IndexLitho{i1}).Y]);
+    LithoPolygon(i1) = polyshape([LithoVertexLon',LithoVertexLat'],'Simplify',false);
 
     Steps = length(IndexLitho);
     ProgressBar.Value = i1/Steps;
     ProgressBar.Message = strcat("Polygon n. ", string(i1)," of ", string(Steps));
     drawnow
 end
+ProgressBar.Indeterminate = 'on';
 
 % Find intersection among Litho polygon and the study area
 LithoPolygonsStudyArea = intersect(LithoPolygon, StudyAreaPolygon);

@@ -5,20 +5,29 @@ drawnow
 
 %% Loading data
 cd(fold_var)
-load('GridCoordinates.mat',    'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea');
-load('StudyAreaVariables.mat', 'MaxExtremes','MinExtremes','StudyAreaPolygon');
+load('GridCoordinates.mat',      'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load('StudyAreaVariables.mat',   'MaxExtremes','MinExtremes','StudyAreaPolygon')
+load('MorphologyParameters.mat', 'OriginallyProjected','SameCRSForAll')
 cd(fold0)
 
 %% Conversion in planar coordinates
 ProgressBar.Message = "Conversion in planar coordinates...";
-EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate distances)"
-                             "For Example:"
-                             "Sicily -> 32633"
-                             "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
-ProjCRS = projcrs(EPSG);
 
-[xPlanAll, yPlanAll, GaussCurvatureAll, ...
-    MeanCurvatureAll, P1CurvatureAll, P2CurvatureAll] = deal(cell(size(xLongAll)));
+if OriginallyProjected && SameCRSForAll
+    cd(fold_var)
+    load('MorphologyParameters.mat', 'OriginalProjCRS')
+    cd(fold0)
+
+    ProjCRS = OriginalProjCRS;
+else
+    EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate distances)"
+                                 "For Example:"
+                                 "Sicily -> 32633"
+                                 "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
+    ProjCRS = projcrs(EPSG);
+end
+
+[xPlanAll, yPlanAll] = deal(cell(size(xLongAll)));
 for i1 = 1:length(xLongAll)
     [xPlanAll{i1}, yPlanAll{i1}] = projfwd(ProjCRS, yLatAll{i1}, xLongAll{i1});
 end
@@ -67,7 +76,7 @@ if FileRoadSelected
     RoadPoly     = cellfun(@(x,y) polyshape(x,y, 'Simplify',false), RoadCellLon, RoadCellLat, 'UniformOutput',false);
     RoadPolyPlan = cellfun(@(x,y) polyshape(x,y, 'Simplify',false), RoadCellX,   RoadCellY,   'UniformOutput',false);
     
-    RoadPolyStudyArea     = cellfun(@(x) intersect(x,StudyAreaPolygon), RoadPoly, 'UniformOutput',false);
+    RoadPolyStudyArea = cellfun(@(x) intersect(x,StudyAreaPolygon), RoadPoly, 'UniformOutput',false);
 
     RoadPolyStudyAreaPlan = RoadPolyStudyArea;
     for i1 = 1:length(RoadPolyStudyAreaPlan)

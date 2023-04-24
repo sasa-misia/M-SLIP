@@ -7,10 +7,12 @@ rng(10) % For reproducibility of the model
 
 %% Loading data and initialization of AnalysisInformation
 cd(fold_var)
-load('InfoDetectedSoilSlips.mat',    'InfoDetectedSoilSlips')
+load('InfoDetectedSoilSlips.mat',    'InfoDetectedSoilSlips','SubArea','FilesDetectedSoilSlip')
 load('GridCoordinates.mat',          'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
 load('StudyAreaVariables.mat',       'StudyAreaPolygon')
-load('MorphologyParameters.mat',     'AspectAngleAll','ElevationAll','SlopeAll')
+load('MorphologyParameters.mat',     'AspectAngleAll','ElevationAll','SlopeAll', ...
+                                     'MeanCurvatureAll','ProfileCurvatureAll','PlanformCurvatureAll')
+load('FlowRouting.mat',              'ContributingAreaAll','TwiAll')
 load('SoilGrids.mat',                'ClayContentAll','SandContentAll','NdviAll')
 load('LithoPolygonsStudyArea.mat',   'LithoAllUnique','LithoPolygonsStudyArea')
 load('TopSoilPolygonsStudyArea.mat', 'TopSoilAllUnique','TopSoilPolygonsStudyArea')
@@ -19,16 +21,26 @@ load('VegPolygonsStudyArea.mat',     'VegetationAllUnique','VegPolygonsStudyArea
 load('Distances.mat',                'MinDistToRoadAll')
 load('RainInterpolated.mat',         'RainInterpolated','RainDateInterpolationStarts')
 load('TempInterpolated.mat',         'TempInterpolated','TempDateInterpolationStarts')
+
+if length(FileDetectedSoilSlip) == 1
+    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{1};
+else
+    IndDetToUse = listdlg('PromptString',{'Choose dataset you want to use: ',''}, ...
+                          'ListString',FilesDetectedSoilSlip, 'SelectionMode','single');
+    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDetToUse};
+end
 cd(fold0)
 
 AnalysisType = "ANN Trained in TrainingANNs script";
 AnalysisInformation = table(AnalysisType);
 
+ContributingAreaLogAll = cellfun(@(x) log(x), ContributingAreaAll, 'UniformOutput',false);
+
 %% Date check and uniformization for time sensitive part (rain rules the others) MANUAL!
 TimeSensitiveParam = {'Rainfall', 'Temperature'}; % First must be always Rainfall!
 CumulableParam     = [true      , false        ];
-TimeSensitiveDate  = {RainDateInterpolationStarts, TempDateInterpolationStarts};
 TimeSensitiveData  = {RainInterpolated, TempInterpolated};
+TimeSensitiveDate  = {RainDateInterpolationStarts, TempDateInterpolationStarts};
 clear('RainInterpolated', 'TempInterpolated')
 
 IndEvent  = listdlg('PromptString',{'Select the date of the instability event:',''}, ...
@@ -54,97 +66,6 @@ TimeSensitiveDate = TimeSensitiveDate{1};
 AnalysisInformation.TimeSensitiveParameters = TimeSensitiveParam;
 AnalysisInformation.TimeSensitiveCumulableParameters = CumulableParam;
 AnalysisInformation.TimeSensitiveDates = TimeSensitiveDate;
-
-%% Defining different types of curvature
-ProgressBar.Message = "Defining curvature...";
-EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate curvature)"
-                             "For Example:"
-                             "Sicily -> 32633"
-                             "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
-ProjCRS = projcrs(EPSG);
-
-[xPlanAll, yPlanAll, GaussCurvatureAll, ...
-    MeanCurvatureAll, P1CurvatureAll, P2CurvatureAll] = deal(cell(size(xLongAll)));
-for i1 = 1:length(xLongAll)
-    [xPlanAll{i1}, yPlanAll{i1}] = projfwd(ProjCRS, yLatAll{i1}, xLongAll{i1});
-    [GaussCurvatureAll{i1}, MeanCurvatureAll{i1}, P1CurvatureAll{i1}, P2CurvatureAll{i1}] = surfature(xPlanAll{i1}, yPlanAll{i1}, ElevationAll{i1});
-end
-
-[ProfileCurvatureAll, PlanformCurvatureAll] = deal(cell(size(xLongAll)));
-for i1 = 1:length(xLongAll)
-    dx = abs(xPlanAll{i1}(ceil(end/2),2)-xPlanAll{i1}(ceil(end/2),1));
-    dy = abs(yPlanAll{i1}(1,ceil(end/2))-yPlanAll{i1}(2,ceil(end/2)));
-
-    if int64(dx) ~= int64(dy)
-        error("You have a DEM of different sizes for cells in X and Y, provide another one")
-    end
-
-    [ProfileCurvatureAll{i1}, PlanformCurvatureAll{i1}] = curvature(ElevationAll{i1}, dx);
-end
-
-StoreNewVars = 1;
-VariablesInMorph = who('-file', 'MorphologyParameters.mat');
-if all(ismember({'MeanCurvatureAll', 'ProfileCurvatureAll', 'PlanformCurvatureAll'}, VariablesInMorph))
-    OldData = importdata('MorphologyParameters.mat');
-
-    Check1 = all(size(MeanCurvatureAll{1}) == size(OldData.MeanCurvatureAll{1})) && ...
-             all(cellfun(@(x,y) all(all(x == y)), MeanCurvatureAll, OldData.MeanCurvatureAll));
-    Check2 = all(size(ProfileCurvatureAll{1}) == size(OldData.ProfileCurvatureAll{1})) && ...
-             all(cellfun(@(x,y) all(all(x == y)), ProfileCurvatureAll, OldData.ProfileCurvatureAll));
-    Check3 = all(size(PlanformCurvatureAll{1}) == size(OldData.PlanformCurvatureAll{1})) && ...
-             all(cellfun(@(x,y) all(all(x == y)), PlanformCurvatureAll, OldData.PlanformCurvatureAll));
-
-    if Check1 && Check2 && Check3
-        StoreNewVars = 0;
-    end
-
-    clear('OldData')
-end
-
-if StoreNewVars
-    cd(fold_var)
-    VariablesMorphology = {'MeanCurvatureAll', 'ProfileCurvatureAll', 'PlanformCurvatureAll'};
-    save('MorphologyParameters.mat', VariablesMorphology{:}, '-append');
-    cd(fold0)
-end
-
-%% Defining contributing area (upslope area) and TWI (REMEMBER THAT IT WOULD BE BETTER TO CALCULATE IN THE MERGED ONE! SEE POSTUSERC DISTANCES FOR EXAMPLES)
-ProgressBar.Message = "Defining contributing area...";
-ElevationAllFilled = cellfun(@(x) imfill(x, 8, 'holes'), ElevationAll, 'UniformOutput',false); % Necessary to avoid stopping flow in unwanted points. If 2nd term is 8 it means that it look in the other 8 neighbors
-[FlowDirAll, FlowMagnitAll, ContributingAreaAll, ContributingAreaLogAll, TwiAll] = deal(cell(size(xLongAll)));
-for i1 = 1:length(xLongAll)
-    dx = abs(xPlanAll{i1}(ceil(end/2),2)-xPlanAll{i1}(ceil(end/2),1));
-    dy = abs(yPlanAll{i1}(1,ceil(end/2))-yPlanAll{i1}(2,ceil(end/2)));
-    CellsArea = dx*dy;
-
-    [FlowDirAll{i1}, FlowMagnitAll{i1}] = dem_flow(ElevationAllFilled{i1}, dx, dy, 0);
-    ContributingAreaAll{i1}    = upslope_area( ElevationAllFilled{i1}, flow_matrix(ElevationAllFilled{i1},FlowDirAll{i1},dx,dy) )*CellsArea;
-    ContributingAreaLogAll{i1} = log(ContributingAreaAll{i1}); % It is not necessary but for plot is more representative than ContributingArea
-    TwiAll{i1}                 = log(ContributingAreaAll{i1}./(tand(SlopeAll{i1})+1e-9)); % 1e-9 to avoid having num/0
-end
-
-StoreNewVars = 1;
-if all(ismember({'ContributingAreaAll', 'TwiAll'}, VariablesInMorph))
-    OldData = importdata('MorphologyParameters.mat');
-
-    Check1 = all(size(ContributingAreaAll{1}) == size(OldData.ContributingAreaAll{1})) && ...
-             all(cellfun(@(x,y) all(all(x == y)), ContributingAreaAll, OldData.ContributingAreaAll));
-    Check2 = all(size(TwiAll{1}) == size(OldData.TwiAll{1})) && ...
-             all(cellfun(@(x,y) all(all(x == y)), TwiAll, OldData.TwiAll));
-
-    if Check1 && Check2
-        StoreNewVars = 0;
-    end
-
-    clear('OldData')
-end
-
-if StoreNewVars
-    cd(fold_var)
-    VariablesMorphology = {'ContributingAreaAll', 'TwiAll'};
-    save('MorphologyParameters.mat', VariablesMorphology{:}, '-append');
-    cd(fold0)
-end
 
 %% Extraction of data in study area
 ProgressBar.Message      = "Data extraction in study area...";
@@ -414,9 +335,6 @@ else
                                 'VariableNames',ConditioningFactorsNames(NonCategorizablePart+1 : end) ) ]; % Horizontal concatenation
 end
 
-% DatasetTable.Properties.VariableNames     = ConditioningFactorsNames;
-% DatasetTableNorm.Properties.VariableNames = ConditioningFactorsNames;
-
 %% Categorical vector if you mantain string classes
 if CategoricalClasses
     DatasetTableNorm.Lithology  = categorical(DatasetTableNorm.Lithology, ...
@@ -453,112 +371,154 @@ if MultipleDayAnalysis
 end
 
 %% Creation of positive points (landslide occurred)
-ProgressBar.Message = "Defining polygon sizes for stable and unstable areas...";
-InputsSizeWindows = str2double(inputdlg(["Size of the window side where are located unstable points"
-                                         "Size of the window side to define indecision area"
-                                         "Size of the window side to define stable area"            ], ...
-                                         '', 1, {'45', '200', '300'}));
-
-PolyCreationMode = 'Planar'; % CHOICE TO USER!!!
-switch PolyCreationMode
-    case 'Geographic'
-        % Polygons around detected soil slips (you will attribute certain event)
-        SizeForUnstPoints = InputsSizeWindows(1); % This is the size in meters around the detected soil slip
-        dLatUnstPoints    = rad2deg(SizeForUnstPoints/2/earthRadius); % /2 to have half of the size from the centre
-        dLongUnstPoints   = rad2deg(acos( (cos(SizeForUnstPoints/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
-        BoundUnstabPoints = [cellfun(@(x) x-dLongUnstPoints, InfoDetectedSoilSlips(:,5)), ...
-                             cellfun(@(x) x-dLatUnstPoints,  InfoDetectedSoilSlips(:,6)), ...
-                             cellfun(@(x) x+dLongUnstPoints, InfoDetectedSoilSlips(:,5)), ...
-                             cellfun(@(x) x+dLatUnstPoints,  InfoDetectedSoilSlips(:,6))];
-        
-        % Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 45x45)
-        SizeForIndecisionAroundDet  = InputsSizeWindows(2); % This is the size in meters around the detected soil slip
-        dLatIndecisionAround        = rad2deg(SizeForIndecisionAroundDet/2/earthRadius); % /2 to have half of the size from the centre
-        dLongIndecisionAround       = rad2deg(acos( (cos(SizeForIndecisionAroundDet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
-        BoundIndecisionAroundDet    = [cellfun(@(x) x-dLongIndecisionAround, InfoDetectedSoilSlips(:,5)), ...
-                                       cellfun(@(x) x-dLatIndecisionAround,  InfoDetectedSoilSlips(:,6)), ...
-                                       cellfun(@(x) x+dLongIndecisionAround, InfoDetectedSoilSlips(:,5)), ...
-                                       cellfun(@(x) x+dLatIndecisionAround,  InfoDetectedSoilSlips(:,6))];
-        
-        % Polygons around detected soil slips (max polygon visible by human)
-        SizeForMaxExtAroundDet = InputsSizeWindows(3); % This is the size in meters around the detected soil slip
-        dLatMaxAround          = rad2deg(SizeForMaxExtAroundDet/2/earthRadius); % /2 to have half of the size from the centre
-        dLongMaxAround         = rad2deg(acos( (cos(SizeForMaxExtAroundDet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
-        BoundMaxExtAroundDet   = [cellfun(@(x) x-dLongMaxAround, InfoDetectedSoilSlips(:,5)), ...
-                                  cellfun(@(x) x-dLatMaxAround,  InfoDetectedSoilSlips(:,6)), ...
-                                  cellfun(@(x) x+dLongMaxAround, InfoDetectedSoilSlips(:,5)), ...
-                                  cellfun(@(x) x+dLatMaxAround,  InfoDetectedSoilSlips(:,6))];
-
-    case 'Planar'
-        InfoDetectedSoilSlipsPlan = zeros(size(InfoDetectedSoilSlips,1), 2);    
-        [InfoDetectedSoilSlipsPlan(:,1), InfoDetectedSoilSlipsPlan(:,2)] = ...
-                        projfwd(ProjCRS, [InfoDetectedSoilSlips{:,6}]', [InfoDetectedSoilSlips{:,5}]');
-        InfoDetectedSoilSlipsPlan = num2cell(InfoDetectedSoilSlipsPlan);
-
-        % Polygons around detected soil slips (you will attribute certain event)
-        SizeForUnstPoints     = InputsSizeWindows(1); % This is the size in meters around the detected soil slip
-        dXUnstPoints          = SizeForUnstPoints/2; % /2 to have half of the size from the centre
-        dYUnstPoints          = dXUnstPoints;
-        BoundUnstabPointsPlan = [cellfun(@(x) x-dXUnstPoints, InfoDetectedSoilSlipsPlan(:,1)), ...
-                                 cellfun(@(x) x-dYUnstPoints, InfoDetectedSoilSlipsPlan(:,2)), ...
-                                 cellfun(@(x) x+dXUnstPoints, InfoDetectedSoilSlipsPlan(:,1)), ...
-                                 cellfun(@(x) x+dYUnstPoints, InfoDetectedSoilSlipsPlan(:,2))];
-        [BoundUnstabPoints(:,2), BoundUnstabPoints(:,1)] = projinv(ProjCRS, BoundUnstabPointsPlan(:,1), BoundUnstabPointsPlan(:,2));
-        [BoundUnstabPoints(:,4), BoundUnstabPoints(:,3)] = projinv(ProjCRS, BoundUnstabPointsPlan(:,3), BoundUnstabPointsPlan(:,4));
-        
-        % Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 45x45)
-        SizeForIndecisionAroundDet   = InputsSizeWindows(2); % This is the size in meters around the detected soil slip
-        dXIndecisionAround           = SizeForIndecisionAroundDet/2; % /2 to have half of the size from the centre
-        dYIndecisionAround           = dXIndecisionAround;
-        BoundIndecisionAroundDetPlan = [cellfun(@(x) x-dXIndecisionAround, InfoDetectedSoilSlipsPlan(:,1)), ...
-                                        cellfun(@(x) x-dYIndecisionAround, InfoDetectedSoilSlipsPlan(:,2)), ...
-                                        cellfun(@(x) x+dXIndecisionAround, InfoDetectedSoilSlipsPlan(:,1)), ...
-                                        cellfun(@(x) x+dYIndecisionAround, InfoDetectedSoilSlipsPlan(:,2))];
-        [BoundIndecisionAroundDet(:,2), BoundIndecisionAroundDet(:,1)] = projinv(ProjCRS, BoundIndecisionAroundDetPlan(:,1), BoundIndecisionAroundDetPlan(:,2));
-        [BoundIndecisionAroundDet(:,4), BoundIndecisionAroundDet(:,3)] = projinv(ProjCRS, BoundIndecisionAroundDetPlan(:,3), BoundIndecisionAroundDetPlan(:,4));
-        
-        % Polygons around detected soil slips (max polygon visible by human)
-        SizeForMaxExtAroundDet   = InputsSizeWindows(3); % This is the size in meters around the detected soil slip
-        dXMaxAround              = SizeForMaxExtAroundDet/2; % /2 to have half of the size from the centre
-        dYMaxAround              = dXMaxAround;
-        BoundMaxExtAroundDetPlan = [cellfun(@(x) x-dXMaxAround, InfoDetectedSoilSlipsPlan(:,1)), ...
-                                    cellfun(@(x) x-dYMaxAround, InfoDetectedSoilSlipsPlan(:,2)), ...
-                                    cellfun(@(x) x+dXMaxAround, InfoDetectedSoilSlipsPlan(:,1)), ...
-                                    cellfun(@(x) x+dYMaxAround, InfoDetectedSoilSlipsPlan(:,2))];
-        [BoundMaxExtAroundDet(:,2), BoundMaxExtAroundDet(:,1)] = projinv(ProjCRS, BoundMaxExtAroundDetPlan(:,1), BoundMaxExtAroundDetPlan(:,2));
-        [BoundMaxExtAroundDet(:,4), BoundMaxExtAroundDet(:,3)] = projinv(ProjCRS, BoundMaxExtAroundDetPlan(:,3), BoundMaxExtAroundDetPlan(:,4));
+if SubArea
+    Options = {'PolygonsDetSS', 'Manual'};
+    PolyCreationMode = uiconfirm(Fig, 'How do you want to define polygons where a landslide is detected?', ...
+                                      'Soil Slip Polygons', 'Options',Options, 'DefaultOption',1);
+else
+    PolyCreationMode = 'Manual';
 end
 
-% Polygons around detected soil slips (you will attribute certain event)
-PolUnstabPoints             = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
-                                                         BoundUnstabPoints(:,1), ...
-                                                         BoundUnstabPoints(:,3), ...
-                                                         BoundUnstabPoints(:,2), ...
-                                                         BoundUnstabPoints(:,4));
-
-% Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 45x45)
-PolIndecisionAroundDetGross = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
-                                                         BoundIndecisionAroundDet(:,1), ...
-                                                         BoundIndecisionAroundDet(:,3), ...
-                                                         BoundIndecisionAroundDet(:,2), ...
-                                                         BoundIndecisionAroundDet(:,4));
-
-% Polygons around detected soil slips (max polygon visible by human)
-PolMaxExtAroundDet          = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
-                                                         BoundMaxExtAroundDet(:,1), ...
-                                                         BoundMaxExtAroundDet(:,3), ...
-                                                         BoundMaxExtAroundDet(:,2), ...
-                                                         BoundMaxExtAroundDet(:,4));
-
 AnalysisInformation.PolygonCreationMode   = PolyCreationMode;
-AnalysisInformation.SizeForUnstablePoints = SizeForUnstPoints;
-AnalysisInformation.SizeForIndecisionArea = SizeForIndecisionAroundDet;
-AnalysisInformation.SizeForMaxAreaVisible = SizeForMaxExtAroundDet;
+
+switch PolyCreationMode
+    case 'PolygonDetSS'
+        load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlipsAverage')
+
+        InputsSizeWindows = str2double(inputdlg(["Size of the buffer to define indecision area [m]"
+                                                 "Size of the buffer to define stable area [m]"    ], ...
+                                                 '', 1, {'50', '250'}));
+
+        BufferIndecision = InputsSizeWindows(1);
+        BufferMaxExt     = InputsSizeWindows(2);
+
+        PolUnstabPoints = InfoDetectedSoilSlipsAverage{IndDetToUse}{1};
+        clear('InfoDetectedSoilSlipsAverage')
+
+        [PolUnstabCoordPlanX, PolUnstabCoordPlanY] = arrayfun(@(x) projfwd(ProjCRS,x.Vertices(:,2),x.Vertices(:,1)), PolUnstabPoints, 'UniformOutput',false);
+        PolUnstabPointsPlan = cellfun(@(x,y) polyshape(x,y, 'Simplify',false), PolUnstabCoordPlanX, PolUnstabCoordPlanY); % This conversion is necessary because otherwise buffer is not correct (Long is different from Lat)
+        PolIndecisionAroundDetGrossPlan = polybuffer(PolUnstabPointsPlan, BufferIndecision);
+        PolMaxExtAroundDetPlan          = polybuffer(PolUnstabPointsPlan, BufferMaxExt);
+
+        [PolIndecisionGrossLat, PolIndecisionGrossLong] = arrayfun(@(x) projinv(ProjCRS,x.Vertices(:,1),x.Vertices(:,2)), ...
+                                                                        PolIndecisionAroundDetGrossPlan, 'UniformOutput',false);
+        [PolMaxExtLat,          PolMaxExtLong         ] = arrayfun(@(x) projinv(ProjCRS,x.Vertices(:,1),x.Vertices(:,2)), ...
+                                                                        PolMaxExtAroundDetPlan, 'UniformOutput',false);
+
+        PolIndecisionAroundDetGross = cellfun(@(x,y) polyshape(x,y, 'Simplify',false), PolIndecisionGrossLong, PolIndecisionGrossLat);
+        PolMaxExtAroundDet          = cellfun(@(x,y) polyshape(x,y, 'Simplify',false), PolMaxExtLong,          PolMaxExtLat);
+
+        AnalysisInformation.BufferForIndecisionArea = BufferIndecision;
+        AnalysisInformation.BufferForMaxAreaVisible = BufferMaxExt;
+
+    case 'Manual'
+        ProgressBar.Message = "Defining polygon sizes for stable and unstable areas...";
+        InputsSizeWindows = str2double(inputdlg(["Size of the window side where are located unstable points"
+                                                 "Size of the window side to define indecision area"
+                                                 "Size of the window side to define stable area"            ], ...
+                                                 '', 1, {'45', '200', '300'}));
+
+        PolyCreationCoordType = 'Planar'; % CHOICE TO USER!!!       
+        switch PolyCreationCoordType
+            case 'Geographic'
+                % Polygons around detected soil slips (you will attribute certain event)
+                SizeForUnstPoints = InputsSizeWindows(1); % This is the size in meters around the detected soil slip
+                dLatUnstPoints    = rad2deg(SizeForUnstPoints/2/earthRadius); % /2 to have half of the size from the centre
+                dLongUnstPoints   = rad2deg(acos( (cos(SizeForUnstPoints/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
+                BoundUnstabPoints = [cellfun(@(x) x-dLongUnstPoints, InfoDetectedSoilSlipsToUse(:,5)), ...
+                                     cellfun(@(x) x-dLatUnstPoints,  InfoDetectedSoilSlipsToUse(:,6)), ...
+                                     cellfun(@(x) x+dLongUnstPoints, InfoDetectedSoilSlipsToUse(:,5)), ...
+                                     cellfun(@(x) x+dLatUnstPoints,  InfoDetectedSoilSlipsToUse(:,6))];
+                
+                % Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 45x45)
+                SizeForIndecisionAroundDet  = InputsSizeWindows(2); % This is the size in meters around the detected soil slip
+                dLatIndecisionAround        = rad2deg(SizeForIndecisionAroundDet/2/earthRadius); % /2 to have half of the size from the centre
+                dLongIndecisionAround       = rad2deg(acos( (cos(SizeForIndecisionAroundDet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
+                BoundIndecisionAroundDet    = [cellfun(@(x) x-dLongIndecisionAround, InfoDetectedSoilSlipsToUse(:,5)), ...
+                                               cellfun(@(x) x-dLatIndecisionAround,  InfoDetectedSoilSlipsToUse(:,6)), ...
+                                               cellfun(@(x) x+dLongIndecisionAround, InfoDetectedSoilSlipsToUse(:,5)), ...
+                                               cellfun(@(x) x+dLatIndecisionAround,  InfoDetectedSoilSlipsToUse(:,6))];
+                
+                % Polygons around detected soil slips (max polygon visible by human)
+                SizeForMaxExtAroundDet = InputsSizeWindows(3); % This is the size in meters around the detected soil slip
+                dLatMaxAround          = rad2deg(SizeForMaxExtAroundDet/2/earthRadius); % /2 to have half of the size from the centre
+                dLongMaxAround         = rad2deg(acos( (cos(SizeForMaxExtAroundDet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
+                BoundMaxExtAroundDet   = [cellfun(@(x) x-dLongMaxAround, InfoDetectedSoilSlipsToUse(:,5)), ...
+                                          cellfun(@(x) x-dLatMaxAround,  InfoDetectedSoilSlipsToUse(:,6)), ...
+                                          cellfun(@(x) x+dLongMaxAround, InfoDetectedSoilSlipsToUse(:,5)), ...
+                                          cellfun(@(x) x+dLatMaxAround,  InfoDetectedSoilSlipsToUse(:,6))];
+        
+            case 'Planar'
+                InfoDetectedSoilSlipsToUsePlan = zeros(size(InfoDetectedSoilSlipsToUse,1), 2);    
+                [InfoDetectedSoilSlipsToUsePlan(:,1), InfoDetectedSoilSlipsToUsePlan(:,2)] = ...
+                                projfwd(ProjCRS, [InfoDetectedSoilSlipsToUse{:,6}]', [InfoDetectedSoilSlipsToUse{:,5}]');
+                InfoDetectedSoilSlipsToUsePlan = num2cell(InfoDetectedSoilSlipsToUsePlan);
+        
+                % Polygons around detected soil slips (you will attribute certain event)
+                SizeForUnstPoints     = InputsSizeWindows(1); % This is the size in meters around the detected soil slip
+                dXUnstPoints          = SizeForUnstPoints/2; % /2 to have half of the size from the centre
+                dYUnstPoints          = dXUnstPoints;
+                BoundUnstabPointsPlan = [cellfun(@(x) x-dXUnstPoints, InfoDetectedSoilSlipsToUsePlan(:,1)), ...
+                                         cellfun(@(x) x-dYUnstPoints, InfoDetectedSoilSlipsToUsePlan(:,2)), ...
+                                         cellfun(@(x) x+dXUnstPoints, InfoDetectedSoilSlipsToUsePlan(:,1)), ...
+                                         cellfun(@(x) x+dYUnstPoints, InfoDetectedSoilSlipsToUsePlan(:,2))];
+                [BoundUnstabPoints(:,2), BoundUnstabPoints(:,1)] = projinv(ProjCRS, BoundUnstabPointsPlan(:,1), BoundUnstabPointsPlan(:,2));
+                [BoundUnstabPoints(:,4), BoundUnstabPoints(:,3)] = projinv(ProjCRS, BoundUnstabPointsPlan(:,3), BoundUnstabPointsPlan(:,4));
+                
+                % Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 45x45)
+                SizeForIndecisionAroundDet   = InputsSizeWindows(2); % This is the size in meters around the detected soil slip
+                dXIndecisionAround           = SizeForIndecisionAroundDet/2; % /2 to have half of the size from the centre
+                dYIndecisionAround           = dXIndecisionAround;
+                BoundIndecisionAroundDetPlan = [cellfun(@(x) x-dXIndecisionAround, InfoDetectedSoilSlipsToUsePlan(:,1)), ...
+                                                cellfun(@(x) x-dYIndecisionAround, InfoDetectedSoilSlipsToUsePlan(:,2)), ...
+                                                cellfun(@(x) x+dXIndecisionAround, InfoDetectedSoilSlipsToUsePlan(:,1)), ...
+                                                cellfun(@(x) x+dYIndecisionAround, InfoDetectedSoilSlipsToUsePlan(:,2))];
+                [BoundIndecisionAroundDet(:,2), BoundIndecisionAroundDet(:,1)] = projinv(ProjCRS, BoundIndecisionAroundDetPlan(:,1), BoundIndecisionAroundDetPlan(:,2));
+                [BoundIndecisionAroundDet(:,4), BoundIndecisionAroundDet(:,3)] = projinv(ProjCRS, BoundIndecisionAroundDetPlan(:,3), BoundIndecisionAroundDetPlan(:,4));
+                
+                % Polygons around detected soil slips (max polygon visible by human)
+                SizeForMaxExtAroundDet   = InputsSizeWindows(3); % This is the size in meters around the detected soil slip
+                dXMaxAround              = SizeForMaxExtAroundDet/2; % /2 to have half of the size from the centre
+                dYMaxAround              = dXMaxAround;
+                BoundMaxExtAroundDetPlan = [cellfun(@(x) x-dXMaxAround, InfoDetectedSoilSlipsToUsePlan(:,1)), ...
+                                            cellfun(@(x) x-dYMaxAround, InfoDetectedSoilSlipsToUsePlan(:,2)), ...
+                                            cellfun(@(x) x+dXMaxAround, InfoDetectedSoilSlipsToUsePlan(:,1)), ...
+                                            cellfun(@(x) x+dYMaxAround, InfoDetectedSoilSlipsToUsePlan(:,2))];
+                [BoundMaxExtAroundDet(:,2), BoundMaxExtAroundDet(:,1)] = projinv(ProjCRS, BoundMaxExtAroundDetPlan(:,1), BoundMaxExtAroundDetPlan(:,2));
+                [BoundMaxExtAroundDet(:,4), BoundMaxExtAroundDet(:,3)] = projinv(ProjCRS, BoundMaxExtAroundDetPlan(:,3), BoundMaxExtAroundDetPlan(:,4));
+        end
+        
+        % Polygons around detected soil slips (you will attribute certain event)
+        PolUnstabPoints             = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
+                                                                 BoundUnstabPoints(:,1), ...
+                                                                 BoundUnstabPoints(:,3), ...
+                                                                 BoundUnstabPoints(:,2), ...
+                                                                 BoundUnstabPoints(:,4));
+        
+        % Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 45x45)
+        PolIndecisionAroundDetGross = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
+                                                                 BoundIndecisionAroundDet(:,1), ...
+                                                                 BoundIndecisionAroundDet(:,3), ...
+                                                                 BoundIndecisionAroundDet(:,2), ...
+                                                                 BoundIndecisionAroundDet(:,4));
+        
+        % Polygons around detected soil slips (max polygon visible by human)
+        PolMaxExtAroundDet          = arrayfun(@(x1,x2,y1,y2) polyshape([x1 x2 x2 x1],[y1 y1 y2 y2]), ...
+                                                                 BoundMaxExtAroundDet(:,1), ...
+                                                                 BoundMaxExtAroundDet(:,3), ...
+                                                                 BoundMaxExtAroundDet(:,2), ...
+                                                                 BoundMaxExtAroundDet(:,4));
+        
+        AnalysisInformation.PolyCreationCoordType = PolyCreationCoordType;
+        AnalysisInformation.SizeForUnstablePoints = SizeForUnstPoints;
+        AnalysisInformation.SizeForIndecisionArea = SizeForIndecisionAroundDet;
+        AnalysisInformation.SizeForMaxAreaVisible = SizeForMaxExtAroundDet;
+end
 
 %% Union and subtraction of polygons
 TotPolUnstabPoints             = union(PolUnstabPoints);
-TotPolMaxExtAroundDet          = union(PolMaxExtAroundDet);
 TotPolIndecisionAroundDetGross = union(PolIndecisionAroundDetGross);
+TotPolMaxExtAroundDet          = union(PolMaxExtAroundDet);
 TotPolIndecision               = subtract(TotPolIndecisionAroundDetGross, TotPolUnstabPoints);
 TotPolUncStable                = subtract(TotPolMaxExtAroundDet, TotPolIndecisionAroundDetGross);
 
@@ -1277,7 +1237,7 @@ if strcmp(UncondStablePointsApproach,'VisibleWindow')
     plot(TotPolUncStable,  'FaceAlpha',.5, 'FaceColor',"#5aa06b");
 end
 
-hdetected = cellfun(@(x,y) scatter(x, y, '^k', 'Filled'), InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
+hdetected = cellfun(@(x,y) scatter(x, y, '^k', 'Filled'), InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
 
 switch PlotOption
     case 1
@@ -1349,6 +1309,7 @@ VariablesML = {'ANNModels', 'ANNModelsROCTrain', 'ANNModelsROCTest', ...
                'PolUnstabPoints', 'PolMaxExtAroundDet', 'PolIndecisionAroundDetGross', ...
                'TotPolUnstabPoints', 'TotPolIndecision', 'TotPolUncStable', ...
                'RangesForNorm', 'CategoricalClasses', 'AnalysisInformation'};
-save('TrainedANNs.mat', VariablesML{:});
+save('TrainedANNs.mat', VariablesML{:})
 cd(fold0)
+
 close(ProgressBar) % Fig instead of ProgressBar if in standalone version

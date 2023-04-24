@@ -9,7 +9,7 @@ cd(fold_var)
 load('GridCoordinates.mat');
 load('SoilParameters.mat');
 load('LithoPolygonsStudyArea.mat');
-load('UserA_Answers.mat','SpecificWindow')
+load('UserStudyArea_Answers.mat','SpecificWindow')
 
 %% Excel reading and coefficient matrix writing
 ProgressBar.Message = 'Reading excel...';

@@ -1,0 +1,14 @@
+Core Modules:
+
+A_Bbbb_Cccc
+
+A     = letter assigned, based on when you can run that script (F can be run only after E for example)
+Bbbb = summarized title of the operation performed
+Cccc = extras entries, e.g. Step1, etc...
+
+
+Figure Modules:
+
+xyz_Plot_Aaaa
+
+Aaaa = summarized title of what type of graph you will plot

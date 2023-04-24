@@ -17,7 +17,8 @@ end
 
 InfoDetectedExist = false;
 if exist('InfoDetectedSoilSlips.mat', 'file')
-    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips')
+    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','IndDefInfoDet')
+    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
     InfoDetectedExist = true;
 end
 
@@ -189,9 +190,9 @@ hSlipHigh = cellfun(@(x,y) scatter(x, y, PixelSize, 'Marker','o', ...
 
 if InfoDetectedExist
     hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), ...
-                                InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6));
+                                InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
     % cellfun(@(x,y,z) text(x, y+0.001, z, 'FontName',SelectedFont, 'FontSize',4), ...
-    %                   InfoDetectedSoilSlips(:,5), InfoDetectedSoilSlips(:,6), InfoDetectedSoilSlips(:,2));
+    %                   InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6), InfoDetectedSoilSlipsToUse(:,2));
 end
 
 switch StabilityAnalysis{4}(1)
