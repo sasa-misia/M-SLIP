@@ -16,7 +16,7 @@ end
 
 Options = {'Rainfall', 'Temperature'};
 DataRead = uiconfirm(Fig, 'What type of data do you want to read?', ...
-                          'Reading Data', 'Options',Options, 'DefaultOption',2);
+                          'Reading Data', 'Options',Options, 'DefaultOption',1);
 
 switch DataRead
     case 'Rainfall'
@@ -30,11 +30,13 @@ switch DataRead
             fold_raw_data     = fold_raw_temp;
             fold_raw_data_for = fold_raw_temp_for;
         else
-            fold_raw_temp     = [fold_raw,sl,DataRead];
-            fold_raw_temp_for = [fold_raw,sl,DataRead,' Forecast'];
+            fold_raw_data     = [fold_raw,sl,DataRead];
+            fold_raw_data_for = [fold_raw,sl,DataRead,' Forecast'];
 
-            mkdir(fold_raw_temp)
-            mkdir(fold_raw_temp_for)
+            if ~exist(fold_raw_data, 'dir')
+                mkdir(fold_raw_data)
+                mkdir(fold_raw_data_for)
+            end
         end
 end
 
@@ -53,9 +55,10 @@ if AnswerTypeRec == 1
     end
 
     Files         = {dir('*.xlsx').name};
-    ChoiceRec     = listdlg('PromptString',{'Choose a file:',''}, 'ListString',Files);
+    ChoiceRec     = listdlg('PromptString',{'Choose a file:',''}, ...
+                            'ListString',Files, 'SelectionMode','single');
     FileName_DataRec = string(Files(ChoiceRec)); 
-    FileNames      = {'FileName_DataRec'};
+    FileNames        = {'FileName_DataRec'};
 
     drawnow % Remember to remove if in Standalone version
     figure(Fig) % Remember to remove if in Standalone version
@@ -76,34 +79,112 @@ if AnswerTypeRec == 1
     CoordinatesGauges = [xLongSta, yLatSta];
     Gauges            = {Stations, CoordinatesGauges};
 
-    RecDates        = [Sheet_DataRec{cellfun(@isdatetime,Sheet_DataRec)}];
-    RecDates        = unique(dateshift(RecDates, 'start','hours', 'nearest')); % Minutes if analysis time range < 1 hour
-    RecDates(1)     = []; % You only want end dates
-    RecDates.Format = 'dd/MM/yyyy HH:mm'; % HH:mm:ss if analysis time range < 1 hour
-
-    HeaderLine = find(cellfun(@isdatetime, Sheet_DataRec), 1); % Automatically recognize excel file header line 
-    ObsNum     = find(cellfun(@(x) all(ismissing(x)), Sheet_DataRec(HeaderLine:end,2)), 1) - 1; % -1 to remove the last row, that is missing
+    %% Check for consistency in excel
+    HeaderLine   = find(cellfun(@isdatetime, Sheet_DataRec), 1); % Automatically recognize excel file header line
+    MissIn2ndCol = find(cellfun(@(x) all(ismissing(x)), Sheet_DataRec(:,2)));
+    DiffInMiss   = diff(MissIn2ndCol);
+    IndOfStarts  = find(DiffInMiss > 15); % We suppose to have at least 15 records and less than 15 rows blank
+    RowsOfStarts = MissIn2ndCol(IndOfStarts) + 1; % + 1 because you have to start from the next row after the last blank
+    RowsOfEnds   = MissIn2ndCol(IndOfStarts+1) - 1; % - 1 because you have to end in the previous row before the first blank
+    if not(ismissing(Sheet_DataRec{end,2})) % If your last element is a datetime, then you have to add even the last station (not picked up automatically)
+        RowsOfStarts(end+1) = MissIn2ndCol(end) + 1;
+        RowsOfEnds(end+1)   = length(Sheet_DataRec(:,2));
+    end
     
-    DataNumeric = [Sheet_DataRec{cellfun(@isnumeric, Sheet_DataRec)}]';
+    RowsRecsPerSta = arrayfun(@(x,y) x:y, RowsOfStarts, RowsOfEnds, 'UniformOutput',false);
 
-    if numel(DataNumeric) ~= ObsNum*StationsNumber
-        error("Your excel is inconsistent in the 3rd column, please check it!")
+    RecDatesStartsPerSta = cellfun(@(x) Sheet_DataRec(x,1), RowsRecsPerSta, 'UniformOutput',false);
+    RecDatesEndsPerSta   = cellfun(@(x) Sheet_DataRec(x,2), RowsRecsPerSta, 'UniformOutput',false);
+    RecNumDataPerSta     = cellfun(@(x) Sheet_DataRec(x,3), RowsRecsPerSta, 'UniformOutput',false);
+
+    IsDatetimeStarts = cellfun(@(x) cellfun(@isdatetime, x), RecDatesStartsPerSta, 'UniformOutput',false);
+    IsDatetimeEnds   = cellfun(@(x) cellfun(@isdatetime, x), RecDatesEndsPerSta  , 'UniformOutput',false);
+    IsDataNumeric    = cellfun(@(x) cellfun(@isnumeric, x) , RecNumDataPerSta    , 'UniformOutput',false);
+
+    AreAllDatetimeStartsPerSta = cellfun(@all, IsDatetimeStarts);
+    AreAllDatetimeEndsPerSta   = cellfun(@all, IsDatetimeEnds);
+    AreAllDataNumericPerSta    = cellfun(@all, IsDataNumeric);
+
+    DataIsConsistent = all([AreAllDatetimeStartsPerSta; AreAllDatetimeEndsPerSta; AreAllDataNumericPerSta]);
+
+    if not(DataIsConsistent)
+        if any(not(AreAllDatetimeStartsPerSta))
+            ProblematicStations = find(not(AreAllDatetimeStartsPerSta));
+            for i1 = ProblematicStations' % ATTENTION, this should be always horizontal!
+                ProblematicRowsInExcel = RowsRecsPerSta{i1}(not(IsDatetimeStarts{i1}));
+                warning(strcat("Station ", Stations(i1), " have a problem in column n. 1, rows: ", ...
+                               strjoin(string(ProblematicRowsInExcel), ', ')))
+            end
+        elseif any(not(AreAllDatetimeEndsPerSta))
+            ProblematicStations = find(not(AreAllDatetimeEndsPerSta));
+            for i1 = ProblematicStations' % ATTENTION, this should be always horizontal!
+                ProblematicRowsInExcel = RowsRecsPerSta{i1}(not(IsDatetimeEnds{i1}));
+                warning(strcat("Station ", Stations(i1), " have a problem in column n. 2, rows: ", ...
+                               strjoin(string(ProblematicRowsInExcel), ', ')))
+            end
+        elseif any(not(AreAllDataNumericPerSta))
+            ProblematicStations = find(not(AreAllDataNumericPerSta));
+            for i1 = ProblematicStations' % ATTENTION, this should be always horizontal!
+                ProblematicRowsInExcel = RowsRecsPerSta{i1}(not(IsDataNumeric{i1}));
+                warning(strcat("Station ", Stations(i1), " have a problem in column n. 2, rows: ", ...
+                               strjoin(string(ProblematicRowsInExcel), ', ')))
+            end
+        end
+        error(['Please, adjust your excel inconsistency problems, ' ...
+               'based on indications received above!'])
     end
 
-    GeneralData = zeros(ObsNum,StationsNumber);   
-    for i1 = 1:StationsNumber
-        GeneralData(:,i1) = DataNumeric((i1-1)*(ObsNum)+1 : i1*(ObsNum));
+    % Extraction of data in single cells and shifting of datetime
+    RecDatesStartsPerSta = cellfun(@(x) [x{:}]', RecDatesStartsPerSta, 'UniformOutput',false);
+    RecDatesEndsPerSta   = cellfun(@(x) [x{:}]', RecDatesEndsPerSta  , 'UniformOutput',false);
+    RecNumDataPerSta     = cellfun(@cell2mat  , RecNumDataPerSta     , 'UniformOutput',false);
+
+    %% Adjustment of dates
+    dTRecsRaw = RecDatesStartsPerSta{1}(2)-RecDatesStartsPerSta{1}(1);
+    if dTRecsRaw < minutes(59)
+        ShiftApprox = 'minutes';
+    else
+        ShiftApprox = 'hours';
     end
+
+    RecDatesStartsPerStaShifted = cellfun(@(x) dateshift(x, 'start',ShiftApprox, 'nearest'), RecDatesStartsPerSta, 'UniformOutput',false);
+    RecDatesEndsPerStaShifted   = cellfun(@(x) dateshift(x, 'start',ShiftApprox, 'nearest'), RecDatesEndsPerSta  , 'UniformOutput',false);
+
+    StartDateCommon = max(cellfun(@min, RecDatesEndsPerStaShifted)); % Start in end dates
+    EndDateCommon   = min(cellfun(@max, RecDatesEndsPerStaShifted)); % End in end dates
+
+    IndIntersecated = cellfun(@(x) find(x == StartDateCommon) : find(x == EndDateCommon), RecDatesEndsPerStaShifted, 'UniformOutput',false);
+
+    NumOfCommonRecs = unique(cellfun(@numel, IndIntersecated));
+
+    if length(NumOfCommonRecs) > 1
+        error('You have a different timing among stations, please check your excel!')
+    end
+
+    DataNotConsidered = cellfun(@(x) length(x) > NumOfCommonRecs, RecDatesEndsPerStaShifted);
+    if any(DataNotConsidered)
+        warning(strcat('Attention! Some stations (', strjoin(Stations(DataNotConsidered), ', '), ...
+                       ') have more recs than others. Recs outside common dates will be excluded.'))
+    end
+
+    GeneralDatesStart = RecDatesStartsPerStaShifted{1}(IndIntersecated{1}); % Taking only the firs one
+    GeneralDatesEnd   = RecDatesEndsPerStaShifted{1}(IndIntersecated{1}); % Taking only the firs one
+
+    RecDatesEndCommon = GeneralDatesEnd;
+    if strcmp(ShiftApprox, 'hours')
+        RecDatesEndCommon.Format = 'dd/MM/yyyy HH:mm';
+    elseif strcmp(ShiftApprox, 'minutes')
+        RecDatesEndCommon.Format = 'dd/MM/yyyy HH:mm:ss';
+    end
+
+    %% Numeric data writing
+    GeneralData = cell2mat(cellfun(@(x,y) x(y), RecNumDataPerSta', IndIntersecated', 'UniformOutput',false));
     
     GeneralData(isnan(GeneralData))  = 0;
     GeneralData(GeneralData == -999) = 0;
     GeneralData = GeneralData';
-    
-    GeneralDatesStart = dateshift([Sheet_DataRec{HeaderLine : ObsNum+HeaderLine-1,1}]', 'start','hours', 'nearest');
-    GeneralDatesEnd   = dateshift([Sheet_DataRec{HeaderLine : ObsNum+HeaderLine-1,2}]', 'start','hours', 'nearest');
 
-    VariablesRecorded = {'GeneralData', 'Gauges', 'RecDates'};
-
+    VariablesRecorded = {'GeneralData', 'Gauges', 'RecDatesEndCommon'};
 end
     
 %% Rainfall Forecast
@@ -151,15 +232,15 @@ end
 switch AnalysisCase
     case 'SLIP'
         %% SLIP process
-        dTRecordings         = RecDates(2)-RecDates(1);
-        AnalysisDateMaxRange = [min(RecDates)+days(30), max(RecDates)];
-        PossibleAnalysisDates        = AnalysisDateMaxRange(1):dTRecordings:AnalysisDateMaxRange(2);
+        dTRecsShifted        = RecDatesEndCommon(2)-RecDatesEndCommon(1);
+        AnalysisDateMaxRange = [min(RecDatesEndCommon)+days(30), max(RecDatesEndCommon)];
+        PossibleAnalysisDates        = AnalysisDateMaxRange(1) : dTRecsShifted : AnalysisDateMaxRange(2);
         PossibleAnalysisDates.Format = 'dd/MM/yyyy HH:mm:ss';
 
         if AnswerTypeFor == 1
             for i1 = 1:size(ChoiceForcstFile,2)
                 ForecastTime  = ForecastData{i1,2};
-                IndexForecast = find(ForecastTime-days(30) > RecDates(1));   
+                IndexForecast = find(ForecastTime-days(30) > RecDatesEndCommon(1));   
                 if ~isempty(IndexForecast)
                     ForecastData{i1,5} = ForecastTime(IndexForecast);
                 end
@@ -174,7 +255,7 @@ switch AnalysisCase
         drawnow % Remember to remove if in Standalone version
         figure(Fig) % Remember to remove if in Standalone version
 
-        AnalysisInterval = {AnalysisEvents(1)-days(30)+dTRecordings, AnalysisEvents(end)}; % +dTRecordings because these are end dates and include an hour of rec
+        AnalysisInterval = {AnalysisEvents(1)-days(30)+dTRecsShifted, AnalysisEvents(end)}; % +dTRecsShifted because these are end dates and include an hour of rec
         AnalysisIndices  = [ find(abs(minutes(GeneralDatesEnd-AnalysisInterval{1})) <= 1), ...
                              find(abs(minutes(GeneralDatesEnd-AnalysisInterval{2})) <= 1) ];
 
@@ -191,7 +272,7 @@ switch AnalysisCase
             end
         end
            
-        IndexInterpolation = AnalysisIndices(1):AnalysisIndices(end);
+        IndexInterpolation = AnalysisIndices(1) : AnalysisIndices(end);
 
         VariablesInterpolation = {'IndexInterpolation'};
 
@@ -205,18 +286,18 @@ switch AnalysisCase
     case 'Other'
         %% General process
         if AnswerTypeFor == 1
-            RecDates = unique(cat(1,ForecastData{:,2}));
+            RecDatesEndCommon = unique(cat(1,ForecastData{:,2}));
         end
         
-        ChoiceEvent    = listdlg('PromptString',{'Select event(s):',''}, 'ListString',RecDates);
-        AnalysisEvents = RecDates(ChoiceEvent);
+        ChoiceEvent    = listdlg('PromptString',{'Select event(s):',''}, 'ListString',RecDatesEndCommon);
+        AnalysisEvents = RecDatesEndCommon(ChoiceEvent);
         AnalysisEvents.Format = 'dd/MM/yyyy HH:mm';
 
         drawnow % Remember to remove if in Standalone version
         figure(Fig) % Remember to remove if in Standalone version
 
         if AnswerTypeFor == 1
-            ForecastChoice = RecDates(ChoiceEvent);
+            ForecastChoice = RecDatesEndCommon(ChoiceEvent);
         else
             AnalysisIndices = zeros(1, size(AnalysisEvents,2));
             for i1 = 1:size(AnalysisEvents,2)
@@ -264,7 +345,7 @@ ProgressBar.Message = strcat("Saving data...");
 
 NameInterp  = [ShortName, 'Interpolated.mat'];
 NameGeneral = ['General', DataRead, '.mat'];
-AnswerType  = {'AnswerTypeRec', 'AnswerTypeFor'};
+AnswerType  = {'AnswerTypeRec', 'AnswerTypeFor', 'InterpDuration'};
 
 cd(fold_var)
 save('UserTimeSens_Answers.mat', FileNames{:},'AnalysisCase',AnswerType{:});
@@ -275,4 +356,5 @@ else
 end
 save(NameGeneral, VariablesRecorded{:});
 cd(fold0)
+
 close(ProgressBar) % Remember to replace ProgressBar with Fig if you are in standalone version

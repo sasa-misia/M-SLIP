@@ -34,6 +34,7 @@ fold_var            = strcat(fold0   , sl, 'Variables');
 
 fold_res            = strcat(fold0   , sl, 'Results');
 fold_res_fs         = strcat(fold_res, sl, 'Factors of Safety');
+fold_res_ml         = strcat(fold_res, sl, 'ML Models and Predictions');
 fold_res_flow       = strcat(fold_res, sl, 'Flow Paths');
 
 fold_user           = strcat(fold0   , sl, 'User Control');

@@ -1301,9 +1301,32 @@ dLong1Meter = rad2deg(acos( (cos(1/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)
 RatioLatLong = dLat1Meter/dLong1Meter;
 daspect([1, RatioLatLong, 1])
 
+%% Creation of a folder where save model and future predictions
+cd(fold_res_ml)
+EventDate.Format = 'dd-MM-yyyy';
+MLFolderName = char(inputdlg({'Choose a folder name (inside Results->ML Models and Predictions):'}, ...
+                                '', 1, {['ML-ANNs-Event-',char(EventDate)]} ));
+
+if exist(MLFolderName, 'dir')
+    Options = {'Yes, thanks', 'No, for God!'};
+    Answer  = uiconfirm(Fig, strcat(MLFolderName, " is an existing folder. Do you want to overwrite it?"), ...
+                             'Existing ML Folder', 'Options',Options, 'DefaultOption',2);
+    switch Answer
+        case 'Yes, thanks.'
+            rmdir(MLFolderName,'s')
+            mkdir(MLFolderName)
+        case 'No, for God!'
+            return
+    end
+else
+    mkdir(MLFolderName)
+end
+
+fold_res_ml_curr = [fold_res_ml,sl,MLFolderName];
+
 %% Saving...
 ProgressBar.Message = "Saving files...";
-cd(fold_var)
+cd(fold_res_ml_curr)
 VariablesML = {'ANNModels', 'ANNModelsROCTrain', 'ANNModelsROCTest', ...
                'DatasetTableStudy', 'DatasetTableStudyNorm', 'DatasetCoordinates', ...
                'PolUnstabPoints', 'PolMaxExtAroundDet', 'PolIndecisionAroundDetGross', ...

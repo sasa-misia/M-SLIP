@@ -31,10 +31,8 @@ end
 
 RootCohesionAll = cellfun(@(x,y) ones(x,y).*cRUniform, RowNumber, ColumnNumber, 'UniformOutput',false);
 
-VegAttribution = true;
-
 VariablesVeg = {'RootCohesionAll', 'BetaStarAll'};
-VariablesAnswerVeg = {'AnswerAttributionVegetationParameter', 'VegAttribution'};
+VariablesAnswerVeg = {'AnswerAttributionVegetationParameter'};
 
 %% Saving...
 ProgressBar.Message = 'Saving...';

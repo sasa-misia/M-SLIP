@@ -103,19 +103,21 @@ if FileRoadSelected
     DistanceMethod = 1;
     if ceil(dX) ~= ceil(dY)
         DistanceChoice = uiconfirm(Fig, ['Distances in direction X are different from Y, ' ...
-                                         'if you continue the process will be extremely slow. ' ...
+                                         'if you continue the process will be EXTREMELY slow. ' ...
                                          'Do you want to continue?'], 'Different distances X Y', ...
-                                        'Options',{'Yes', 'No, I will create a new raster'}, 'DefaultOption',2);
+                                        'Options',{'Yes', 'No, I will use another DTM raster'}, 'DefaultOption',2);
         if strcmp(DistanceChoice,'Yes'); DistanceMethod = 2; else; return; end
     end
 
     ProgressBar.Indeterminate = 'off';
     if DistanceMethod == 1
         %% Distance transform of binary image
-        DistMode = 'MergedDTM'; % CHOICE TO USER!
+        Options  = {'MergedDTM', 'SeparateDTMs'};
+        DistMode = uiconfirm(Fig, 'How do you want to define distances?', ...
+                                  'Distances', 'Options',Options);
         SeparateRoadsMode = false; % CHOICE TO USER!
         switch DistMode
-            case 'SingleDTMs'
+            case 'SeparateDTMs'
                 if SeparateRoadsMode
                     RasterDistForEachRoad  = repmat(cellfun(@(x) zeros(size(x)), xPlanAll, 'UniformOutput',false), length(RoadPolyStudyArea), 1);
                     IndOfSingleRoad        = cell(length(RoadPolyStudyArea), size(xLongAll,2));
@@ -151,7 +153,7 @@ if FileRoadSelected
                 xPlanMax = max(cellfun(@(x) max(x, [], 'all'), xPlanAll));
                 yPlanMin = min(cellfun(@(x) min(x, [], 'all'), yPlanAll));
                 yPlanMax = max(cellfun(@(x) max(x, [], 'all'), yPlanAll));
-                [xPlanAllMerged, yPlanAllMerged] = meshgrid(xPlanMin:dX:xPlanMax, yPlanMin:dY:yPlanMax);
+                [xPlanAllMerged, yPlanAllMerged] = meshgrid(xPlanMin:dX:xPlanMax, yPlanMax:-dY:yPlanMin);
 
                 if SeparateRoadsMode
                     RasterDistForEachRoad  = repmat({zeros(size(xPlanAllMerged))}, length(RoadPolyStudyArea), 1);

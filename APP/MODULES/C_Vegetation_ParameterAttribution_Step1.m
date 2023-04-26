@@ -1,15 +1,15 @@
+% Fig = uifigure; % Remember to comment this line if is app version
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
+                                 'Indeterminate','on');
+drawnow
+
 %% File loading
 tic
 cd(fold_var)
-load('StudyAreaVariables.mat');
+load('StudyAreaVariables.mat', 'StudyAreaPolygon','MaxExtremes','MinExtremes');
 cd(fold_raw_veg);
 
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
-                                 'Message','Initializing');
-drawnow
-
-ShapeInfo_Vegetation=shapeinfo(FileName_Vegetation);
+ShapeInfo_Vegetation = shapeinfo(FileName_Vegetation);
 
 if ShapeInfo_Vegetation.NumFeatures == 0
     error('Shapefile is empty')
@@ -95,7 +95,7 @@ if WriteFile
 end
 
 VariablesVeg = {'VegPolygonsStudyArea', 'VegetationAllUnique', 'FileName_VegAssociation'};
-VariablesAnswerD = {'AnswerAttributionVegetationParameter', 'FileName_Vegetation', 'VegFieldName'};
+VariablesAnswerVeg = {'AnswerAttributionVegetationParameter', 'FileName_Vegetation', 'VegFieldName'};
 toc
 
 close(ProgressBar) % ProgressBar instead of Fig if on the app version
@@ -103,5 +103,5 @@ close(ProgressBar) % ProgressBar instead of Fig if on the app version
 %% Saving of polygons included in the study area
 cd(fold_var)
 save('VegPolygonsStudyArea.mat', VariablesVeg{:});
-save('UserVeg_Answers.mat', VariablesAnswerD{:}, '-append');
+save('UserVeg_Answers.mat', VariablesAnswerVeg{:}, '-append');
 cd(fold0)

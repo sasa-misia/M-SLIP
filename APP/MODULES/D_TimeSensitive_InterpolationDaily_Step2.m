@@ -7,7 +7,7 @@ drawnow
 ProgressBar.Message = "Loading data...";
 Options = {'Rainfall', 'Temperature'};
 DataRead = uiconfirm(Fig, 'What type of data do you want to read?', ...
-                          'Reading Data', 'Options',Options, 'DefaultOption',2);
+                          'Reading Data', 'Options',Options, 'DefaultOption',1);
 switch DataRead
     case 'Rainfall'
         GeneralFileName = 'GeneralRainfall.mat';
@@ -18,7 +18,7 @@ switch DataRead
 end
 
 cd(fold_var)
-load(GeneralFileName,       'GeneralData','Gauges','RecDates') % Remember that RainfallDates are referred at the end of your registration period
+load(GeneralFileName,       'GeneralData','Gauges','RecDatesEndCommon') % Remember that RainfallDates are referred at the end of your registration period
 load('GridCoordinates.mat', 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
 cd(fold0)
 
@@ -27,18 +27,24 @@ ProgressBar.Message = "Selection od dates...";
 [xLongSta, yLatSta] = deal(Gauges{2}(:,1), Gauges{2}(:,2));
 
 EndDateInd = listdlg('PromptString',{'Select the date of your event:',''}, ...
-                     'ListString',RecDates, 'SelectionMode','single');
+                     'ListString',RecDatesEndCommon, 'SelectionMode','single');
 
-MaxDaysPossible = caldays(between(RecDates(1), RecDates(EndDateInd), 'days'));
+drawnow % Remember to remove if in Standalone version
+figure(Fig) % Remember to remove if in Standalone version
+
+MaxDaysPossible = caldays(between(RecDatesEndCommon(1), RecDatesEndCommon(EndDateInd), 'days'));
 
 NumberOfDays = str2double(inputdlg({["How many days do you want to consider? "
                                      strcat("(Max possible with your dataset:  ",string(MaxDaysPossible)," days")]}, ...
                                      '', 1, {num2str(MaxDaysPossible)}));
 
-EndDate          = RecDates(EndDateInd);
-StartDate        = RecDates(EndDateInd)-days(NumberOfDays);
-StartDateInd     = find(abs(minutes(RecDates-StartDate)) <= 1);
-dTRecordings     = RecDates(2)-RecDates(1);
+drawnow % Remember to remove if in Standalone version
+figure(Fig) % Remember to remove if in Standalone version
+
+EndDate          = RecDatesEndCommon(EndDateInd);
+StartDate        = RecDatesEndCommon(EndDateInd)-days(NumberOfDays);
+StartDateInd     = find(abs(minutes(RecDatesEndCommon-StartDate)) <= 1);
+dTRecordings     = RecDatesEndCommon(2)-RecDatesEndCommon(1);
 StepForEntireDay = int64(days(1)/dTRecordings);
 
 if (NumberOfDays > MaxDaysPossible) || (NumberOfDays <= 0)
@@ -81,7 +87,7 @@ for i1 = 1:size(DataDaily,2)
 end
 ProgressBar.Indeterminate = 'on';
 
-DateInterpolationStarts = RecDates(StartDateInd):days(1):RecDates(StartDateInd)+days(NumberOfDays-1); % -1 because normally you would take 00:00 of the day after the desired, for having the complete interpolation of the past day.
+DateInterpolationStarts = RecDatesEndCommon(StartDateInd) : days(1) : RecDatesEndCommon(StartDateInd)+days(NumberOfDays-1); % -1 because normally you would take 00:00 of the day after the desired, for having the complete interpolation of the past day.
 
 %% Saving...
 ProgressBar.Message = "Saving...";
@@ -99,4 +105,5 @@ VariablesDates        = {[ShortName,'DateInterpolationStarts'], 'StartDate', 'En
 save([ShortName,'Interpolated.mat']     , VariablesInterpolated{:});
 save([ShortName,'DateInterpolation.mat'], VariablesDates{:});
 cd(fold0)
-close(Fig)
+
+close(ProgressBar)
