@@ -4,7 +4,7 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files
 drawnow
 
 %% Loading data
-load('TrainedANNs.mat',              'DatasetTableStudy','RangesForNorm')
+cd(fold_var)
 load('StudyAreaVariables.mat',       'StudyAreaPolygon','MaxExtremes','MinExtremes')
 load('GridCoordinates.mat',          'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
 load('MorphologyParameters.mat',     'ElevationAll','SlopeAll','AspectAngleAll','MeanCurvatureAll')
@@ -13,6 +13,11 @@ load('VegPolygonsStudyArea.mat',     'VegPolygonsStudyArea')
 load('LandUsesVariables.mat',        'LandUsePolygonsStudyArea')
 load('TopSoilPolygonsStudyArea.mat', 'TopSoilPolygonsStudyArea')
 load('RainInterpolated.mat',         'RainInterpolated','RainDateInterpolationStarts')
+
+fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
+cd(fold_res_ml_curr)
+load('TrainedANNs.mat',              'DatasetTableStudy','RangesForNorm')
+cd(fold0)
 
 %% Date check and uniformization for time sensitive part (rain rules the others) MANUAL!
 ProgressBar.Message = 'Defining time sensitive part...';
@@ -396,7 +401,7 @@ PlotList = [{'Elevation', 'Slope', 'Aspect', 'MeanCurvature', 'Lithology', ...
              'TopSoil', 'LandUse', 'Vegetation'}, TimeSensitiveParam]; % THEY MUST HAVE THE SAME NAME OF BELOW!
 TimeIndependent = length(PlotList)-length(TimeSensitiveParam);
 
-Titles = ['a)';'b)';'c)';'d)';'e)';'f)';'g)';'h)';'i)';'l)';'m)';'n)';'o)';'p)'];
+Titles = string(strcat(('a':'z')', ')'));
 
 if strcmp(PlotChoice, 'Separate Figures')
     PlotOpts = num2cell(listdlg('PromptString',{'Choose what do you want to plot:',''}, ...
@@ -421,7 +426,7 @@ for i1 = 1:length(PlotOpts)
     set(curr_fig, 'Name',filename_fig);
     
     %% Plot Elevation
-    if any(strcmp(PlotList{PlotOpts{i1}}, 'Elevation')) % IT MUST HAVE THE SAME NAME OF ABOVE!
+    if any(strcmp(string({PlotList{PlotOpts{i1}}}), 'Elevation')) % IT MUST HAVE THE SAME NAME OF ABOVE!
         ax_ele = subplot(GirdSubPlots(1),GirdSubPlots(2),PlotNum(1), 'Parent',curr_fig);
         hold(ax_ele,'on');
         set(ax_ele, 'visible','on')
@@ -466,7 +471,7 @@ for i1 = 1:length(PlotOpts)
     end
     
     %% Plot Slope
-    if any(strcmp(PlotList{PlotOpts{i1}}, 'Slope')) % IT MUST HAVE THE SAME NAME OF ABOVE!
+    if any(strcmp(string({PlotList{PlotOpts{i1}}}), 'Slope')) % IT MUST HAVE THE SAME NAME OF ABOVE!
         ax_slo = subplot(GirdSubPlots(1),GirdSubPlots(2),PlotNum(2), 'Parent',curr_fig);
         hold(ax_slo,'on');
         set(ax_slo, 'visible','on')
@@ -511,7 +516,7 @@ for i1 = 1:length(PlotOpts)
     end
     
     %% Plot Aspect
-    if any(strcmp(PlotList{PlotOpts{i1}}, 'Aspect')) % IT MUST HAVE THE SAME NAME OF ABOVE!
+    if any(strcmp(string({PlotList{PlotOpts{i1}}}), 'Aspect')) % IT MUST HAVE THE SAME NAME OF ABOVE!
         ax_asp = subplot(GirdSubPlots(1),GirdSubPlots(2),PlotNum(3), 'Parent',curr_fig);
         hold(ax_asp,'on');
         set(ax_asp, 'visible','on')
@@ -556,7 +561,7 @@ for i1 = 1:length(PlotOpts)
     end
     
     %% Plot Mean Curvature
-    if any(strcmp(PlotList{PlotOpts{i1}}, 'MeanCurvature')) % IT MUST HAVE THE SAME NAME OF ABOVE!
+    if any(strcmp(string({PlotList{PlotOpts{i1}}}), 'MeanCurvature')) % IT MUST HAVE THE SAME NAME OF ABOVE!
         ax_mc = subplot(GirdSubPlots(1),GirdSubPlots(2),PlotNum(4), 'Parent',curr_fig);
         hold(ax_mc,'on');
         set(ax_mc, 'visible','on')
@@ -601,7 +606,7 @@ for i1 = 1:length(PlotOpts)
     end
     
     %% Plot Lithology
-    if any(strcmp(PlotList{PlotOpts{i1}}, 'Lithology')) % IT MUST HAVE THE SAME NAME OF ABOVE!
+    if any(strcmp(string({PlotList{PlotOpts{i1}}}), 'Lithology')) % IT MUST HAVE THE SAME NAME OF ABOVE!
         ax_lit = subplot(GirdSubPlots(1),GirdSubPlots(2),PlotNum(5), 'Parent',curr_fig);
         hold(ax_lit,'on');
         set(ax_lit, 'visible','on')
@@ -637,7 +642,7 @@ for i1 = 1:length(PlotOpts)
     end
     
     %% Plot Top Soil
-    if any(strcmp(PlotList{PlotOpts{i1}}, 'TopSoil')) % IT MUST HAVE THE SAME NAME OF ABOVE!
+    if any(strcmp(string({PlotList{PlotOpts{i1}}}), 'TopSoil')) % IT MUST HAVE THE SAME NAME OF ABOVE!
         ax_ts = subplot(GirdSubPlots(1),GirdSubPlots(2),PlotNum(6), 'Parent',curr_fig);
         hold(ax_ts,'on');
         set(ax_ts, 'visible','on')
@@ -673,7 +678,7 @@ for i1 = 1:length(PlotOpts)
     end
     
     %% Plot Land Use
-    if any(strcmp(PlotList{PlotOpts{i1}}, 'LandUse')) % IT MUST HAVE THE SAME NAME OF ABOVE!
+    if any(strcmp(string({PlotList{PlotOpts{i1}}}), 'LandUse')) % IT MUST HAVE THE SAME NAME OF ABOVE!
         ax_lu = subplot(GirdSubPlots(1),GirdSubPlots(2),PlotNum(7), 'Parent',curr_fig);
         hold(ax_lu,'on');
         set(ax_lu, 'visible','on')
@@ -709,7 +714,7 @@ for i1 = 1:length(PlotOpts)
     end
     
     %% Plot Vegetation
-    if any(strcmp(PlotList{PlotOpts{i1}}, 'Vegetation')) % IT MUST HAVE THE SAME NAME OF ABOVE!
+    if any(strcmp(string({PlotList{PlotOpts{i1}}}), 'Vegetation')) % IT MUST HAVE THE SAME NAME OF ABOVE!
         ax_veg = subplot(GirdSubPlots(1),GirdSubPlots(2),PlotNum(8), 'Parent',curr_fig);
         hold(ax_veg,'on');
         set(ax_veg, 'visible','on')
@@ -869,5 +874,8 @@ for i1 = 1:length(PlotOpts)
     %% Export
     cd(fold_fig)
     exportgraphics(curr_fig, strcat(filename_fig,'.png'), 'Resolution',600);
+    close(curr_fig)
     cd(fold0)
 end
+
+close(ProgressBar)

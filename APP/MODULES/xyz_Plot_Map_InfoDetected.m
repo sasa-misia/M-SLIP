@@ -19,9 +19,9 @@ else
     SelectedFont = 'Times New Roman';
     SelectedFontSize = 8;
 end
+cd(fold0)
 
 %% Raster CTR Selection
-cd(fold0)
 fold_raw_ctr = strcat(fold_raw,sl,'CTR');
 if ~exist(fold_raw_ctr, 'dir'); mkdir(fold_raw_ctr); end
 save('os_folders.mat', 'fold_raw_ctr', '-append');

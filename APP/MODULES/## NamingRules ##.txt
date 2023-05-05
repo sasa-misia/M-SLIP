@@ -9,6 +9,7 @@ Cccc = extras entries, e.g. Step1, etc...
 
 Figure Modules:
 
-xyz_Plot_Aaaa
+xyz_Plot_Aaaa_Bbbb
 
-Aaaa = summarized title of what type of graph you will plot
+Aaaa = output plot type (ex: Map, Graph, Stats, ...)
+Bbbb = summarized title of what type of graph you will plot
