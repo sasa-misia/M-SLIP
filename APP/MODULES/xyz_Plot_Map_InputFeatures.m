@@ -291,7 +291,7 @@ for i1 = 1:length(TimeSensitiveParam)
     end
 end
 
-[TimeSensRanges, LegTimeSensMap] = deal(cell(3, length(TimeSensitiveParam)));
+[TimeSensRanges, LegTimeSensMap] = deal(cell(length(DaysInput), length(TimeSensitiveParam)));
 for i1 = 1:length(TimeSensitiveParam)
     for i2 = 1:length(DaysToCumTimeSens)
         TimeSensMinTemp = min(cellfun(@min, TimeSensDataToPlot{i2, i1}));
