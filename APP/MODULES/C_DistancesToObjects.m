@@ -119,8 +119,8 @@ if FileRoadSelected
         switch DistMode
             case 'SeparateDTMs'
                 if SeparateRoadsMode
-                    RasterDistForEachRoad  = repmat(cellfun(@(x) zeros(size(x)), xPlanAll, 'UniformOutput',false), length(RoadPolyStudyArea), 1);
-                    IndOfSingleRoad        = cell(length(RoadPolyStudyArea), size(xLongAll,2));
+                    RasterDistForEachRoad   = repmat(cellfun(@(x) zeros(size(x)), xPlanAll, 'UniformOutput',false), length(RoadPolyStudyArea), 1);
+                    IndOfSingleRoad         = cell(length(RoadPolyStudyArea), size(xLongAll,2));
                     MinDistToSingleRoadsAll = cell(length(RoadPolyStudyArea), size(xLongAll,2));
                     for i1 = 1:length(RoadPolyStudyArea)
                         ProgressBar.Value = i1/length(RoadPolyStudyArea);
