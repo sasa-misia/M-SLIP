@@ -224,7 +224,7 @@ if AnswerTypeFor == 1
     end
     cd(fold0)
 
-    VariablesRecorded = [VariablesRecorded, {'ForecastData','GridForecastModel'}];
+    VariablesRecorded = [VariablesRecorded, {'ForecastData', 'GridForecastModel'}];
     FileNames = [FileNames, {'FileNameForecast'}];
 end
 
@@ -249,7 +249,8 @@ switch AnalysisCase
             if isempty(PossibleAnalysisDates); error('DT 1'); end
         end
 
-        ChoiceEvent = listdlg('PromptString',{'Select event(s) to analyse through SLIP:',''}, 'ListString',PossibleAnalysisDates);
+        ChoiceEvent = listdlg('PromptString',{'Select event(s) to analyse through SLIP:',''}, ...
+                              'ListString',PossibleAnalysisDates, 'SelectionMode','multiple');
         AnalysisEvents = PossibleAnalysisDates(ChoiceEvent);
         
         drawnow % Remember to remove if in Standalone version

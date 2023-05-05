@@ -11,7 +11,8 @@ load('InfoDetectedSoilSlips.mat',    'InfoDetectedSoilSlips','SubArea','FilesDet
 load('GridCoordinates.mat',          'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
 load('StudyAreaVariables.mat',       'StudyAreaPolygon')
 load('MorphologyParameters.mat',     'AspectAngleAll','ElevationAll','SlopeAll', ...
-                                     'MeanCurvatureAll','ProfileCurvatureAll','PlanformCurvatureAll')
+                                     'MeanCurvatureAll','ProfileCurvatureAll','PlanformCurvatureAll', ...
+                                     'OriginallyProjected','SameCRSForAll')
 load('FlowRouting.mat',              'ContributingAreaAll','TwiAll')
 load('SoilGrids.mat',                'ClayContentAll','SandContentAll','NdviAll')
 load('LithoPolygonsStudyArea.mat',   'LithoAllUnique','LithoPolygonsStudyArea')
@@ -22,12 +23,23 @@ load('Distances.mat',                'MinDistToRoadAll')
 load('RainInterpolated.mat',         'RainInterpolated','RainDateInterpolationStarts')
 load('TempInterpolated.mat',         'TempInterpolated','TempDateInterpolationStarts')
 
-if length(FileDetectedSoilSlip) == 1
+if length(FilesDetectedSoilSlip) == 1
     InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{1};
 else
     IndDetToUse = listdlg('PromptString',{'Choose dataset you want to use: ',''}, ...
                           'ListString',FilesDetectedSoilSlip, 'SelectionMode','single');
     InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDetToUse};
+end
+
+if OriginallyProjected && SameCRSForAll
+    load('MorphologyParameters.mat', 'OriginalProjCRS')
+    ProjCRS = OriginalProjCRS;
+else
+    EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate polygons)"
+                                 "For Example:"
+                                 "Sicily -> 32633"
+                                 "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
+    ProjCRS = projcrs(EPSG);
 end
 cd(fold0)
 
@@ -119,9 +131,16 @@ else
     VegStudy     = cellfun(@(x) zeros(size(x)), xLongStudy, 'UniformOutput',false);
 end
 
+% Excel reading
+cd(fold_user)
+LithoClasses   = readcell('ClassesML.xlsx', 'Sheet','Litho');
+TopSoilClasses = readcell('ClassesML.xlsx', 'Sheet','Top soil');
+LandUseClasses = readcell('ClassesML.xlsx', 'Sheet','Land use');
+VegClasses     = readcell('ClassesML.xlsx', 'Sheet','Veg');
+cd(fold0)
+
 % Litho classes association
 ProgressBar.Message = "Associating subsoil classes...";
-LithoClasses = readcell('ClassesML.xlsx', 'Sheet','Litho');
 for i1 = 1:size(LithoAllUnique,2)
     IndClassLitho = find(strcmp(LithoAllUnique{i1}, string(LithoClasses(:,1))));
     if CategoricalClasses
@@ -139,7 +158,6 @@ end
 
 % Top-soil classes association
 ProgressBar.Message = "Associating topsoil classes...";
-TopSoilClasses = readcell('ClassesML.xlsx', 'Sheet','Top soil');
 for i1 = 1:size(TopSoilAllUnique,2)
     IndClassTopSoil = find(strcmp(TopSoilAllUnique{i1}, string(TopSoilClasses(:,1))));
     if CategoricalClasses
@@ -157,7 +175,6 @@ end
 
 % Land use classes association
 ProgressBar.Message = "Associating land use classes...";
-LandUseClasses = readcell('ClassesML.xlsx', 'Sheet','Land use');
 for i1 = 1:size(AllLandUnique,2)
     IndClassLand = find(strcmp(AllLandUnique{i1}, string(LandUseClasses(:,1))));
     if CategoricalClasses
@@ -175,7 +192,6 @@ end
 
 % Veg classes association
 ProgressBar.Message = "Associating vegetation classes...";
-VegClasses = readcell('ClassesML.xlsx', 'Sheet','Veg');
 for i1 = 1:size(VegetationAllUnique,2)
     IndClassVeg = find(strcmp(VegetationAllUnique{i1}, string(VegClasses(:,1))));
     if CategoricalClasses
@@ -1036,7 +1052,7 @@ switch RainfallMethod
                 switch ANNMode
                     case 'With Validation Data'
                         Model = fitcnet(DatasetTrain, OutputTrain, 'ValidationData',{DatasetTest, OutputTest}, ...
-                                                                   'ValidationFrequency',5, 'ValidationPatience',20, ...
+                                                                   'ValidationFrequency',5, 'ValidationPatience',30, ...
                                                                    'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
                                                                    'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',5e4);
 

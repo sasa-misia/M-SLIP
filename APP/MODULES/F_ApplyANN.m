@@ -482,4 +482,5 @@ switch AreaMode
         save('ANNResults.mat', VariablesANNResults{:})
         cd(fold0)
 end
+
 close(ProgressBar) % Fig instead of ProgressBar if in standalone version

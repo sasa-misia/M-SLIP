@@ -21,7 +21,7 @@ switch FeatImpChoice
         ProgressBar.Indeterminate = 'off';
         for IndCurrMdl = 1:size(ANNModels,2)
             ProgressBar.Value   = IndCurrMdl/size(ANNModels,2);
-            ProgressBar.Message = strcat("Evaluating feature importance for model n. ", string(IndCurrMdl)," of ", size(ANNModels,2));
+            ProgressBar.Message = strcat("Evaluating feature importance for model n. ", string(IndCurrMdl)," of ", string(size(ANNModels,2)));
         
             CurrModel       = ANNModels{'Model',IndCurrMdl}{:};
             CurrPredictors  = ANNModels{'ConditioningFactorsNames',IndCurrMdl}{:};

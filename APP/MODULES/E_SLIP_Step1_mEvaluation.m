@@ -6,12 +6,14 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait..', 'Message','Loading fil
                                  'Cancelable','on', 'Indeterminate','on');
 drawnow
 
-load('GridCoordinates.mat', 'xLongAll','IndexDTMPointsInsideStudyArea')
-load('SoilParameters.mat', 'KtAll')
-% load('GeneralRainfall.mat')
-load('RainInterpolated.mat', 'RainInterpolated')
-load('AnalysisInformation.mat', 'StabilityAnalysis')
+load('GridCoordinates.mat',      'xLongAll','IndexDTMPointsInsideStudyArea')
+load('SoilParameters.mat',       'KtAll')
+load('RainInterpolated.mat',     'RainInterpolated')
+load('AnalysisInformation.mat',  'StabilityAnalysis')
 load('UserTimeSens_Answers.mat', 'AnswerRainfallFor')
+if AnswerRainfallFor
+    load('RainInterpolated.mat', 'SelectedHoursRun')
+end
 
 tic
 %% Preliminary operations and data extraction
