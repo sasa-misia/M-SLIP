@@ -19,6 +19,8 @@ end
 cd(fold0)
 
 %% Preliminary operations
+ProgressBar.Message = 'Preliminary operations...';
+
 if TopSoilExist
     Options = {'TopSoil', 'SubSoil'};
     SoilInfoType = uiconfirm(Fig, 'What information do you want to use for soil classes', ...
@@ -44,7 +46,43 @@ end
 [pp1, ee1] = getnan2([StudyAreaPolygon.Vertices; nan, nan]);
 IndexDTMPointsOutsideStudyArea = cellfun(@(x,y) find(~inpoly([x(:),y(:)],pp1,ee1)==1), xLongAll, yLatAll, 'UniformOutput',false);
 
+%% Import of classes of ML
+ProgressBar.Message = 'Overwriting of classes with excel info...';
+
+Options = {'As they were imported', 'Classes in excel'};
+ClassesChoice = uiconfirm(Fig, 'How do you want to define classes?', ...
+                               'Classes type', 'Options',Options, 'DefaultOption',1);
+if strcmp(ClassesChoice, 'Classes in excel'); ExcelClasses = true; else; ExcelClasses = false; end
+
+if ExcelClasses % Remember to add union of polygons
+    cd(fold_user)
+    Sheet_InfoClasses    = readcell('ClassesML.xlsx', 'Sheet','Help');
+    Sheet_LithoClasses   = readcell('ClassesML.xlsx', 'Sheet','Litho');
+    Sheet_TopSoilClasses = readcell('ClassesML.xlsx', 'Sheet','Top soil');
+    Sheet_LandUseClasses = readcell('ClassesML.xlsx', 'Sheet','Land use');
+    Sheet_VegClasses     = readcell('ClassesML.xlsx', 'Sheet','Veg');
+    cd(fold0)
+
+    NewAssLandUse = cell(size(AllLandUnique));
+    for i1 = 1:length(AllLandUnique)
+        NumOfClass        = Sheet_LandUseClasses{strcmp(AllLandUnique{i1}, Sheet_LandUseClasses), 2};
+        NewAssLandUse(i1) = Sheet_InfoClasses(find(NumOfClass==[Sheet_InfoClasses{2:end,3}])+1, 2);
+    end
+
+    AllLandUniqueToUse = unique(NewAssLandUse);
+    LandUsePolygonsStudyAreaToUse = repmat(polyshape, 1, length(AllLandUniqueToUse));
+    for i1 = 1:length(AllLandUniqueToUse)
+        IndToUnify = strcmp(AllLandUniqueToUse{i1}, NewAssLandUse);
+        LandUsePolygonsStudyAreaToUse(i1) = union(LandUsePolygonsStudyArea(IndToUnify));
+    end
+else
+    AllLandUniqueToUse = AllLandUnique;
+    LandUsePolygonsStudyAreaToUse = LandUsePolygonsStudyArea;
+end
+
 %% Attributing slope class to each point of DTM
+ProgressBar.Message = 'Creating slope classes...';
+
 SlopeAllCat    = cellfun(@(x) x(:), SlopeAll, 'UniformOutput',false);
 SlopeAllCatTot = cat(1, SlopeAllCat{:});
 
@@ -76,12 +114,14 @@ for i1 = 1:length(LegSlope)
 end
 
 %% Attributing land use class to each point of DTM
-LegLandUse = strcat("LU", string(1:length(AllLandUnique)));
-InfoLegLandUse = [LegLandUse; AllLandUnique];
+ProgressBar.Message = 'Creating land use classes...';
 
-LandUseClassesIndPoints = cell(length(AllLandUnique), size(xLongAll,2));
-for i1 = 1:length(LandUsePolygonsStudyArea)
-    [pp2,ee2] = getnan2([LandUsePolygonsStudyArea(i1).Vertices; nan, nan]);
+LegLandUse = strcat("LU", string(1:length(AllLandUniqueToUse)));
+InfoLegLandUse = [LegLandUse; AllLandUniqueToUse];
+
+LandUseClassesIndPoints = cell(length(AllLandUniqueToUse), size(xLongAll,2));
+for i1 = 1:length(LandUsePolygonsStudyAreaToUse)
+    [pp2,ee2] = getnan2([LandUsePolygonsStudyAreaToUse(i1).Vertices; nan, nan]);
     LandUseClassesIndPoints(i1,:) = cellfun(@(x,y) find(inpoly([x(:),y(:)],pp2,ee2)==1), xLongAll, yLatAll, 'UniformOutput',false);
 end
 
@@ -94,6 +134,8 @@ for i1 = 1:length(LegLandUse)
 end
 
 %% Attributing soil class to each point of DTM
+ProgressBar.Message = 'Creating soil classes...';
+
 LegSoil = strcat("SO", string(1:length(SoilAllUnique)));
 InfoLegSoil = [LegSoil; SoilAllUnique];
 
@@ -112,7 +154,7 @@ for i1 = 1:length(LegSoil)
 end
 
 %% Creation of combinations (clusterized)
-ProgressBar.Message = "Defining clusters for combinations...";
+ProgressBar.Message = 'Defining clusters for combinations...';
 
 CombinationsAll = cellfun(@(x,y,z) strcat(x,"_",y,"_",z), SlopeClassesAll, SoilClassesAll, LandUseClassesAll, 'UniformOutput',false);
 for i1 = 1:length(CombinationsAll)
@@ -184,7 +226,7 @@ HRUsStudyAreaUnique = cellfun(@(x) unique(x), HRUsStudyArea, 'UniformOutput',fal
 HRUsStudyAreaUnique = cat(1, HRUsStudyAreaUnique{:});
 HRUsStudyAreaUnique = unique(HRUsStudyAreaUnique);
 
-%% Creation of polygons (TO CONTINUA, You want polyshapes instead of alphashapes)
+%% Creation of polygons (TO CONTINUE, You want polyshapes instead of alphashapes)
 PolyCreation = false; % CHOICE TO USER!
 if PolyCreation
     ProgressBar.Indeterminate = 'off';
@@ -210,36 +252,42 @@ end
 
 %% Plot for check
 ProgressBar.Message = 'Plotting to check...';
-IndClassSelected  = listdlg('PromptString',{'Select the class you want to plot:',''}, ...
-                            'ListString',CombsStudyAreaUnique, 'SelectionMode','multiple');
 
-IndPointsInClass  = find(contains(CombsTotCat, CombsStudyAreaUnique(IndClassSelected)));
+IndClassSelected = listdlg('PromptString',{'Select the class you want to plot:',''}, ...
+                           'ListString',CombsStudyAreaUnique, 'SelectionMode','multiple');
 
-NameOfClassClust  = unique(CombsTotCat(IndPointsInClass));
+IndPointsInClass = find(contains(CombsTotCat, CombsStudyAreaUnique(IndClassSelected)));
 
-IndForEachClust   = arrayfun(@(x) find(CombsTotCat==x), NameOfClassClust, 'UniformOutput',false);
+[NameOfClassClust, IndForUniqueClassClust, IndForClassClust] = unique(CombsTotCat(IndPointsInClass));
 
-PlotColors        = arrayfun(@(x) rand(1, 3), NameOfClassClust, 'UniformOutput',false);
+ColorsUnique     = arrayfun(@(x) rand(1, 3), NameOfClassClust, 'UniformOutput',false);
+ColorsForScatter = cell2mat(ColorsUnique(IndForClassClust));
 
 fig_check = figure(1);
 ax_check  = axes(fig_check);
 hold(ax_check,'on')
 title('HRU Classes')
 
-PlotClusters = cellfun(@(x,z) scatter(xLongTotCat(x), yLatTotCat(x), 6, 'Marker','o', 'MarkerFaceColor',z, ...
-                                            'MarkerEdgeColor','none', 'MarkerFaceAlpha',0.7, 'Parent',ax_check), ...
-                                      IndForEachClust, PlotColors, 'UniformOutput',false);
+PlotLegend = arrayfun(@(x, y, i) scatter(x, y, 6, ColorsForScatter(i,:), 'filled', 'Marker','o', 'MarkerFaceAlpha',0.7, 'Parent',ax_check), ...
+                                    xLongTotCat(IndPointsInClass(IndForUniqueClassClust)), ...
+                                    yLatTotCat(IndPointsInClass(IndForUniqueClassClust)), ...
+                                    IndForUniqueClassClust);
+
+PlotClusters = scatter(xLongTotCat(IndPointsInClass), yLatTotCat(IndPointsInClass), 6, ColorsForScatter, ...
+                                        'filled', 'Marker','o', 'MarkerFaceAlpha',0.7, 'Parent',ax_check);
 
 plot(StudyAreaPolygon, 'FaceColor','none', 'EdgeColor','k', 'LineWidth',1.5)
 
 fig_settings(fold0, 'AxisTick');
 
-leg_check = legend([PlotClusters{:}], ...
-                   string(strrep(NameOfClassClust, '_', ' ')), ...
-                   'NumColumns',4, ...
-                   'Fontsize',5, ...
-                   'Location','bestoutside', ...
-                   'Box','off');
+if numel(PlotLegend) <= 18
+    leg_check = legend(PlotLegend, ...
+                       string(strrep(NameOfClassClust, '_', ' ')), ...
+                       'NumColumns',3, ...
+                       'Fontsize',5, ...
+                       'Location','southoutside', ...
+                       'Box','off');
+end
 
 %% Saving...
 ProgressBar.Message = 'Saving...';
