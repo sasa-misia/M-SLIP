@@ -21,7 +21,7 @@ StudyAreaPolygonScaled = polybuffer(StudyAreaPolygon, BufferDist);
 cd(fold_var)
 % load('GridCoordinates.mat', 'xLongAll','yLatAll')
 % load('MorphologyParameters.mat', 'ElevationAll')
-load('UserB_answers.mat', 'DTMType','NameFileIntersecated')
+load('UserMorph_answers.mat', 'DTMType','NameFileIntersecated')
 
 if DTMType == 0
     [~, NameFileNoExt, ~] = fileparts(NameFileIntersecated);

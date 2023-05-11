@@ -35,7 +35,9 @@ if TopSoilExist
             SoilAllUnique = LithoAllUnique;
             SoilPolygonsStudyArea = LithoPolygonsStudyArea;
     end
+
     clear('LithoPolygonsStudyArea', 'TopSoilPolygonsStudyArea', 'LithoAllUnique', 'TopSoilAllUnique')
+
 else
     SoilAllUnique = LithoAllUnique;
     SoilPolygonsStudyArea = LithoPolygonsStudyArea;
@@ -56,12 +58,37 @@ if strcmp(ClassesChoice, 'Classes in excel'); ExcelClasses = true; else; ExcelCl
 
 if ExcelClasses % Remember to add union of polygons
     cd(fold_user)
-    Sheet_InfoClasses    = readcell('ClassesML.xlsx', 'Sheet','Help');
-    Sheet_LithoClasses   = readcell('ClassesML.xlsx', 'Sheet','Litho');
-    Sheet_TopSoilClasses = readcell('ClassesML.xlsx', 'Sheet','Top soil');
+    Sheet_InfoClasses    = readcell('ClassesML.xlsx', 'Sheet','Main');
     Sheet_LandUseClasses = readcell('ClassesML.xlsx', 'Sheet','Land use');
-    Sheet_VegClasses     = readcell('ClassesML.xlsx', 'Sheet','Veg');
     cd(fold0)
+
+    % [ColWithTitles, ColWithClassNum] = deal(false(1, size(Sheet_InfoClasses, 2))); % AS STARTING POINT TO ADAPT!!
+    % for i1 = 1:length(ColWithTitles)
+    %     ColWithTitles(i1)   = any(cellfun(@(x) strcmp(string(x), 'Title'),  Sheet_InfoClasses(:,i1)));
+    %     ColWithClassNum(i1) = any(cellfun(@(x) strcmp(string(x), 'Number'), Sheet_InfoClasses(:,i1)));
+    % end
+    % ColWithSubject = find(ColWithTitles)-1;
+    % 
+    % if sum(ColWithTitles) > 1 || sum(ColWithClassNum) > 1
+    %     error('Please, align columns in excel! Sheet: Main')
+    % end
+    % 
+    % IndsBlankRowsTot = all(cellfun(@(x) all(ismissing(x)), Sheet_InfoClasses), 2);
+    % IndsBlnkInColNum = cellfun(@(x) all(ismissing(x)), Sheet_InfoClasses(:,ColWithClassNum));
+    % 
+    % if not(isequal(IndsBlankRowsTot, IndsBlnkInColNum))
+    %     error('Please fill with data only tables with association, no more else outside!')
+    % end
+    % 
+    % Sheet_Info_Splits = mat2cell(Sheet_InfoClasses, diff(find([true; diff(~IndsBlankRowsTot); true]))); % Line suggested by ChatGPT that works, but check it better!
+    % 
+    % InfoCont  = {'Sub soil', 'Top soil', 'Land use', 'Vegetation'};
+    % IndSplits = zeros(size(InfoCont));
+    % for i1 = 1:length(IndSplits)
+    %     IndSplits(i1) = find(cellfun(@(x) any(strcmp(InfoCont{i1}, string([x(:,ColWithSubject)]))), Sheet_Info_Splits));
+    % end
+    % 
+    % Sheet_Info_Div = cell2table(Sheet_Info_Splits(IndSplits)', 'VariableNames',InfoCont);
 
     NewAssLandUse = cell(size(AllLandUnique));
     for i1 = 1:length(AllLandUnique)
@@ -75,6 +102,7 @@ if ExcelClasses % Remember to add union of polygons
         IndToUnify = strcmp(AllLandUniqueToUse{i1}, NewAssLandUse);
         LandUsePolygonsStudyAreaToUse(i1) = union(LandUsePolygonsStudyArea(IndToUnify));
     end
+
 else
     AllLandUniqueToUse = AllLandUnique;
     LandUsePolygonsStudyAreaToUse = LandUsePolygonsStudyArea;

@@ -7,6 +7,7 @@ function InterpolatedRaster = raster_interpolation(xLongAll, yLatAll, FileNamePa
 %
 %     InterpolatedRaster = raster_interpolation(xCoordAll, yCoordAll, FileNamePath, InterpMethod)
 
+RasterInfo = georasterinfo(FileNamePath);
 [RastValues, RastRef] = readgeoraster(FileNamePath, 'OutputType','native');
 
 if isempty(RastRef)

@@ -42,7 +42,7 @@ if length(TimeSensitiveParam) > 1
         TimeSensitiveDate{i1} = TimeSensitiveDate{i1}(IndStartTemp:IndEventTemp);
     end
     if length(TimeSensitiveDate)>1 && ~isequal(TimeSensitiveDate{:})
-        error('After uniformization dates of time sensitive data do not match, please check it in the script')
+        error('After uniformization dates of time sensitive, data do not match! Please check it in the script.')
     end
 end
 

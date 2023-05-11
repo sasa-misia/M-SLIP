@@ -28,10 +28,10 @@ if exist('PlotSettings.mat', 'file')
         InputComprose = find(cellfun(@(x) strcmpi(x, "positioncompassrose"), FigSettingsInputs));
         if InputComprose; PositionComprose = FigSettingsInputs{InputComprose+1}; end
     end
-    SelectedFont = Font;
+    SelectedFont     = Font;
     SelectedFontSize = FontSize;
 else
-    SelectedFont = 'Times New Roman';
+    SelectedFont     = 'Times New Roman';
     SelectedFontSize = 8;
     PositionScaleBar = 'southwest';
     PositionComprose = 'northeast';
