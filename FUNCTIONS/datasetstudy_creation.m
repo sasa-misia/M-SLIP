@@ -1,22 +1,21 @@
 function [varargout] = datasetstudy_creation(fold0, varargin)
 
-%   CREATE A DATASET TO USE FOR ML
+% CREATE A DATASET TO USE FOR ML
 %   
-%   Outputs:
+% Outputs:
 %   [DatasetFeaturesStudy]
 %   or
 %   [DatasetFeaturesStudy, DatasetCoordinatesStudy]
 %   or
 %   [DatasetFeaturesStudy, DatasetCoordinatesStudy, RangesForNormalization]
 %   or
-%   [DatasetFeaturesStudy, DatasetCoordinatesStudy, RangesForNormalization, TimeSensitiveDatetimeChosed]
+%   [DatasetFeaturesStudy, DatasetCoordinatesStudy, RangesForNormalization, TimeSensitivePart]
 %   or
-%   [DatasetFeaturesStudy, DatasetCoordinatesStudy, RangesForNormalization, TimeSensitiveDatetimeChosed, DatasetNotNormalized]
+%   [DatasetFeaturesStudy, DatasetCoordinatesStudy, RangesForNormalization, TimeSensitivePart, DatasetNotNormalized]
 %   or
-%   [DatasetFeaturesStudy, DatasetCoordinatesStudy, RangesForNormalization, TimeSensitiveDatetimeChosed, DatasetNotNormalized, FeaturesType]
+%   [DatasetFeaturesStudy, DatasetCoordinatesStudy, RangesForNormalization, TimeSensitivePart, DatasetNotNormalized, FeaturesType]
 %   
-%   Required arguments:
-%   
+% Required arguments:
 %   - fold0 : is to identify the folder in which you have the analysis.
 %   
 %   - 'Features', cellStringArray : a list of the feature you want to use 
@@ -25,7 +24,7 @@ function [varargout] = datasetstudy_creation(fold0, varargin)
 %   'Profile Curvature', 'Planform Curvature', 'Contributing Area (log)', 'TWI', 
 %   'Clay Content', 'Sand Content', 'NDVI', 'Sub Soil', 'Top Soil', 'Land Use', 
 %   'Vegetation', 'Distance To Roads', 'Rainfall', 'Temperature', 'Random'.
-%   If you use ('Features', 'All') or you don't specify anything, then you 
+%   If you use ('Features', 'AllFeats') or you don't specify anything, then you 
 %   will take all of these.
 %   
 %   - 'Categorical', logical : to choose if you want to consider
@@ -35,11 +34,10 @@ function [varargout] = datasetstudy_creation(fold0, varargin)
 %   If you don't specify anything, then ('Categorical', true) will be
 %   assumed.
 %   
-%   Optional arguments:
-%  
-%   - 'Normalize', logical : to have or not ranges for normalization. Default is
-%   true, so it will ask you to specify these ranges during the script. If
-%   you write false, then no Normalization will be performed and outfput
+% Optional arguments:
+%   - 'Normalize', logical : to have or not ranges for normalization. Default 
+%   is true, so it will ask you to specify these ranges during the script. 
+%   If you write false, then no Normalization will be performed and outfput
 %   for Ranges will be a matrix of NaNs.
 %   
 %   - 'Ranges', table : is the table that will be used to normalize data
@@ -51,17 +49,36 @@ function [varargout] = datasetstudy_creation(fold0, varargin)
 %   prompt questions or extra inputs. If you don't specify anything, a new
 %   uifigure will be created.
 %   
-%   - 'DaysForTimeSensitive', num : to set how many days to consider for
+%   - 'TimeSensMode', string : to set the type of approach you want to use
+%   for time sensitive part. Possible string values are 'CumulOrAvg' or 
+%   'MultipleSeparateDays'. If no value is specified, then the default
+%   value will be 'CumulOrAvg'.
+%   
+%   - 'DaysForTS', num : to set how many days to consider for
 %   time sensitive part (cumulate or average). If you don't specify anything 
-%   the value will be set to 1 by default (1 day of cumulate or average value)
+%   the value will be set to 1 by default (1 day of cumulate or average
+%   value). This entry will take effect only when 'TimeSensMode' is set to 
+%   value 'CumulOrAvg'.
+%   
+%   - 'DayOfEvent', datetime : to set the datetime of the event you want to 
+%   consider. If you don't specify anything, then it will be prompted a dialog 
+%   where to choose.
+%   
+%   - 'FileAssName', string : is to define the name of the excel that
+%   contains the association between the content of shapefiles and classes.
+%   If you don't specify anything, then 'ClassesML.xlsx' file will be take 
+%   as default.
 
 %% Settings initialization
-FeatsToUse = {"allfeats"};  % Default
-CategVars  = true;          % Default
-NormData   = true;          % Default
-DaysForTS  = 1;
-FeatType   = [];
-SuggRanges = [];
+FeatsToUse = {"allfeats"};      % Default
+CategVars  = true;              % Default
+NormData   = true;              % Default
+ModeForTS  = "cumuloravg";      % Default
+DaysForTS  = 1;                 % Default
+FileAssoc  = 'ClassesML.xlsx';  % Default
+Prmpt4Fts  = [];                % Inizialized
+FeatsType  = [];                % Initialized
+SuggRanges = [];                % Initialized
 
 if ~isempty(varargin)
     StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
@@ -70,34 +87,42 @@ if ~isempty(varargin)
     vararginCopy = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
     vararginCopy(StringPart) = varargin(StringPart);
 
-    InputFeatures    = find(cellfun(@(x) strcmpi(x, "features"),               vararginCopy));
-    InputCategorical = find(cellfun(@(x) strcmpi(x, "categorical"),            vararginCopy));
-    InputNormalize   = find(cellfun(@(x) strcmpi(x, "normalize"),              vararginCopy));
-    InputDaysForTS   = find(cellfun(@(x) strcmpi(x, "daysfortimesensitive"),   vararginCopy));
-    InputTargetFig   = find(cellfun(@(x) strcmpi(x, "targetfig"),              vararginCopy));
+    InputFeatures    = find(cellfun(@(x) strcmpi(x, "features"),     vararginCopy));
+    InputCategorical = find(cellfun(@(x) strcmpi(x, "categorical"),  vararginCopy));
+    InputNormalize   = find(cellfun(@(x) strcmpi(x, "normalize"),    vararginCopy));
+    InputModeForTS   = find(cellfun(@(x) strcmpi(x, "timesensmode"), vararginCopy));
+    InputDaysForTS   = find(cellfun(@(x) strcmpi(x, "daysforts"),    vararginCopy));
+    InputEventDay    = find(cellfun(@(x) strcmpi(x, "dayofevent"),   vararginCopy));
+    InputTargetFig   = find(cellfun(@(x) strcmpi(x, "targetfig"),    vararginCopy));
+    InputFileAssoc   = find(cellfun(@(x) strcmpi(x, "fileassname"),  vararginCopy));
+    InputRanges      = find(cellfun(@(x) strcmpi(x, "ranges"),       vararginCopy));
 
     if InputFeatures;    FeatsToUse = varargin{InputFeatures+1};    end
     if InputCategorical; CategVars  = varargin{InputCategorical+1}; end
     if InputNormalize;   NormData   = varargin{InputNormalize+1};   end
+    if InputModeForTS;   ModeForTS  = varargin{InputModeForTS+1};   end
     if InputDaysForTS;   DaysForTS  = varargin{InputDaysForTS+1};   end
-
-    if InputTargetFig
-        Fig = varargin{InputTargetFig+1};
-    else
-        Fig = uifigure;
-    end
+    if InputEventDay;    EventDay   = varargin{InputEventDay+1};    end
+    if InputTargetFig;   Fig        = varargin{InputTargetFig+1};   end
+    if InputFileAssoc;   FileAssoc  = varargin{InputFileAssoc+1};   end
+    if InputRanges;      Ranges     = varargin{InputRanges+1};      end
 
     if InputFeatures
         FeatsToUse = cellfun(@(x) lower(string(x)), FeatsToUse, 'Uniform',false); % To have consistency in terms of data type and case type
     end
+
+    if exist('Ranges', 'var') && not(istable(Ranges))
+        error('Ranges input variable must be a table!')
+    end
 end
 
+if not(exist('Fig', 'var')); Fig = uifigure; end
+
 DatasetFeaturesStudy = table;
-FileAssCategs = 'ClassesML.xlsx';
 
 %% Loading of main variables
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
-                                 'Message','Reading files for dataset creation...', ...
+                                 'Message','Dataset: reading files for dataset creation...', ...
                                  'Indeterminate','on');
 drawnow
 
@@ -117,7 +142,7 @@ yLatStudyCat  = cat(1, yLatStudy{:});
 DatasetCoordinatesStudy = table(xLongStudyCat, yLatStudyCat, 'VariableNames',{'Longitude','Latitude'});
 
 %% Loading of features (numerical part)
-ProgressBar.Message = 'Reading numerical part...';
+ProgressBar.Message = 'Dataset: reading numerical part...';
 
 % Elevation
 if any(contains([FeatsToUse{:}], ["elevation", "allfeats"]))
@@ -127,7 +152,8 @@ if any(contains([FeatsToUse{:}], ["elevation", "allfeats"]))
     DatasetFeaturesStudy.Elevation = cat(1,ElevationStudy{:});
     clear('ElevationAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Elevation [m]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = [0, 2000];
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -140,7 +166,8 @@ if any(contains([FeatsToUse{:}], ["slope", "allfeats"]))
     DatasetFeaturesStudy.Slope = cat(1,SlopeStudy{:});
     clear('SlopeAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Slope [°]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = [0, 80];
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -153,7 +180,8 @@ if any(contains([FeatsToUse{:}], ["aspect", "allfeats"]))
     DatasetFeaturesStudy.AspectAngle = cat(1,AspectAngleStudy{:});
     clear('AspectAngleAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Aspect Angle [°]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = [0, 360];
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -166,7 +194,8 @@ if any(contains([FeatsToUse{:}], ["mean", "allfeats"]))
     DatasetFeaturesStudy.MeanCurvature = cat(1,MeanCurvStudy{:});
     clear('MeanCurvatureAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Mean Curvature [1/m]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = quantile(DatasetFeaturesStudy.MeanCurvature, [0.25, 0.75]);
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -179,7 +208,8 @@ if any(contains([FeatsToUse{:}], ["profile", "allfeats"]))
     DatasetFeaturesStudy.ProfileCurvature = cat(1,ProfileCurvStudy{:});
     clear('ProfileCurvatureAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Profile Curvature [1/m]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = quantile(DatasetFeaturesStudy.ProfileCurvature, [0.25, 0.75]);
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -192,7 +222,8 @@ if any(contains([FeatsToUse{:}], ["planform", "allfeats"]))
     DatasetFeaturesStudy.PlanformCurvature = cat(1,PlanformCurvStudy{:});
     clear('PlanformCurvatureAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Planform Curvature [1/m]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = quantile(DatasetFeaturesStudy.PlanformCurvature, [0.25, 0.75]);
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -205,7 +236,8 @@ if any(contains([FeatsToUse{:}], ["contributing", "allfeats"]))
     DatasetFeaturesStudy.ContributingAreaLog = cat(1,ContrAreaLogStudy{:});
     clear('ContributingAreaAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Contributing Area [log(m2)]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = [min(DatasetFeaturesStudy.ContributingAreaLog), max(DatasetFeaturesStudy.ContributingAreaLog)];
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -218,7 +250,8 @@ if any(contains([FeatsToUse{:}], ["twi", "allfeats"]))
     DatasetFeaturesStudy.TWI = cat(1,TwiStudy{:});
     clear('TwiAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "TWI [log(m2)]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = [min(DatasetFeaturesStudy.TWI), max(DatasetFeaturesStudy.TWI)];
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -231,7 +264,8 @@ if any(contains([FeatsToUse{:}], ["clay", "allfeats"]))
     DatasetFeaturesStudy.ClayContent = cat(1,ClayContentStudy{:});
     clear('ClayContentAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Clay Content [-]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = [min(DatasetFeaturesStudy.ClayContent), max(DatasetFeaturesStudy.ClayContent)];
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -244,7 +278,8 @@ if any(contains([FeatsToUse{:}], ["sand", "allfeats"]))
     DatasetFeaturesStudy.SandContent = cat(1,SandContentStudy{:});
     clear('SandContentAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Sand Content [-]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = [min(DatasetFeaturesStudy.SandContent), max(DatasetFeaturesStudy.SandContent)];
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -257,7 +292,8 @@ if any(contains([FeatsToUse{:}], ["ndvi", "allfeats"]))
     DatasetFeaturesStudy.NDVI = cat(1,NdviStudy{:});
     clear('NdviAll')
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "NDVI [-]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = [min(DatasetFeaturesStudy.NDVI), max(DatasetFeaturesStudy.NDVI)];
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -270,7 +306,8 @@ if any(contains([FeatsToUse{:}], ["distance", "allfeats"]))
     DatasetFeaturesStudy.MinDistanceToRoads = cat(1,MinDistToRoadStudy{:});
     clear('MinDistToRoadAll')
 
-    FeatType = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Distance To Roads [m]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = [min(DatasetFeaturesStudy.MinDistanceToRoads), max(DatasetFeaturesStudy.MinDistanceToRoads)];
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -280,21 +317,22 @@ if any(contains([FeatsToUse{:}], ["random", "allfeats"]))
     RandomStudy = cellfun(@(x,y) rand(size(x)), IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
     DatasetFeaturesStudy.Random = cat(1,RandomStudy{:});
 
-    FeatType  = [FeatType, "Numerical"];
+    Prmpt4Fts = [Prmpt4Fts, "Random [-]"];
+    FeatsType = [FeatsType, "Numerical"];
     RngsToAdd = [0, 1];
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
 
 %% Loading of features (categorical part)
-ProgressBar.Message = 'Reading categorical part...';
+ProgressBar.Message = 'Dataset: reading categorical part...';
 
 % Reading of excel sheets
 if any(contains([FeatsToUse{:}], ["sub", "top", "land", "vegetation", "allfeats"]))
-    Sheet_InfoClasses    = readcell([fold_user,sl,FileAssCategs], 'Sheet','Main');
-    Sheet_SubSoilClasses = readcell([fold_user,sl,FileAssCategs], 'Sheet','Sub soil');
-    Sheet_TopSoilClasses = readcell([fold_user,sl,FileAssCategs], 'Sheet','Top soil');
-    Sheet_LandUseClasses = readcell([fold_user,sl,FileAssCategs], 'Sheet','Land use');
-    Sheet_VegetClasses   = readcell([fold_user,sl,FileAssCategs], 'Sheet','Vegetation');
+    Sheet_InfoClasses    = readcell([fold_user,sl,FileAssoc], 'Sheet','Main');
+    Sheet_SubSoilClasses = readcell([fold_user,sl,FileAssoc], 'Sheet','Sub soil');
+    Sheet_TopSoilClasses = readcell([fold_user,sl,FileAssoc], 'Sheet','Top soil');
+    Sheet_LandUseClasses = readcell([fold_user,sl,FileAssoc], 'Sheet','Land use');
+    Sheet_VegetClasses   = readcell([fold_user,sl,FileAssoc], 'Sheet','Vegetation');
 
     [ColWithTitles, ColWithClassNum] = deal(false(1, size(Sheet_InfoClasses, 2)));
     for i1 = 1:length(ColWithTitles)
@@ -327,7 +365,7 @@ end
 
 % Sub Soil
 if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
-    ProgressBar.Message = "Associating subsoil classes...";
+    ProgressBar.Message = "Dataset: associating subsoil classes...";
     load([fold_var,sl,'LithoPolygonsStudyArea.mat'], 'LithoAllUnique','LithoPolygonsStudyArea')
 
     [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_SubSoilClasses, 2)));
@@ -381,21 +419,23 @@ if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
         end
     end
 
-    DatasetFeaturesStudy.SubSoilClass = cat(1,SubSoilStudy{:});
-
+    Prmpt4Fts = [Prmpt4Fts, "Sub Soil Class [-]"];
     if CategVars
-        FeatType  = [FeatType, "Categorical"];
+        DatasetFeaturesStudy.SubSoilClass = categorical(cat(1,SubSoilStudy{:}), string(AssSubSoilClassUnique), 'Ordinal',true);
+        FeatsType  = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
-        FeatType  = [FeatType, "Numerical"];
+        DatasetFeaturesStudy.SubSoilClass = cat(1,SubSoilStudy{:});
+        FeatsType  = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Sub soil'){:}{2:end,ColWithClassNum}])];
     end
+
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
 
 % Top Soil
 if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
-    ProgressBar.Message = "Associating topsoil classes...";
+    ProgressBar.Message = "Dataset: associating topsoil classes...";
     load([fold_var,sl,'TopSoilPolygonsStudyArea.mat'], 'TopSoilAllUnique','TopSoilPolygonsStudyArea')
 
     [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_TopSoilClasses, 2)));
@@ -449,21 +489,23 @@ if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
         end
     end
 
-    DatasetFeaturesStudy.TopSoilClass = cat(1,TopSoilStudy{:});
-
+    Prmpt4Fts = [Prmpt4Fts, "Top Soil Class [-]"];
     if CategVars
-        FeatType  = [FeatType, "Categorical"];
+        DatasetFeaturesStudy.TopSoilClass = categorical(cat(1,TopSoilStudy{:}), string(AssTopSoilClassUnique), 'Ordinal',true);
+        FeatsType  = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
-        FeatType  = [FeatType, "Numerical"];
+        DatasetFeaturesStudy.TopSoilClass = cat(1,TopSoilStudy{:});
+        FeatsType  = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Top soil'){:}{2:end,ColWithClassNum}])];
     end
+
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
 
 % Land Use
 if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
-    ProgressBar.Message = "Associating land use classes...";
+    ProgressBar.Message = "Dataset: associating land use classes...";
     load([fold_var,sl,'LandUsesVariables.mat'], 'AllLandUnique','LandUsePolygonsStudyArea')
 
     [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_LandUseClasses, 2)));
@@ -517,21 +559,23 @@ if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
         end
     end
 
-    DatasetFeaturesStudy.LandUseClass = cat(1,LandUseStudy{:});
-
+    Prmpt4Fts = [Prmpt4Fts, "Land Use Class [-]"];
     if CategVars
-        FeatType  = [FeatType, "Categorical"];
+        DatasetFeaturesStudy.LandUseClass = categorical(cat(1,LandUseStudy{:}), string(AssLandUseClassUnique), 'Ordinal',true);
+        FeatsType  = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
-        FeatType  = [FeatType, "Numerical"];
+        DatasetFeaturesStudy.LandUseClass = cat(1,LandUseStudy{:});
+        FeatsType  = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Land use'){:}{2:end,ColWithClassNum}])];
     end
+
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
 
 % Vegetation
 if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
-    ProgressBar.Message = "Associating vegetation classes...";
+    ProgressBar.Message = "Dataset: associating vegetation classes...";
     load([fold_var,sl,'VegPolygonsStudyArea.mat'], 'VegetationAllUnique','VegPolygonsStudyArea')
 
     [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_VegetClasses, 2))); % RIPRENDI QUA
@@ -585,20 +629,22 @@ if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
         end
     end
 
-    DatasetFeaturesStudy.VegetationClass = cat(1,VegetStudy{:});
-
+    Prmpt4Fts = [Prmpt4Fts, "Vegetation Class [-]"];
     if CategVars
-        FeatType  = [FeatType, "Categorical"];
+        DatasetFeaturesStudy.VegetationClass = categorical(cat(1,VegetStudy{:}), string(AssVegetClassUnique), 'Ordinal',true);
+        FeatsType  = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
-        FeatType  = [FeatType, "Numerical"];
+        DatasetFeaturesStudy.VegetationClass = cat(1,VegetStudy{:});
+        FeatsType  = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Vegetation'){:}{2:end,ColWithClassNum}])];
     end
+
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
 
 %% Loading of features (time sensitive part)
-ProgressBar.Message = 'Reading time sensitive part...';
+ProgressBar.Message = 'Dataset: reading time sensitive part...';
 
 TimeSensitiveParam = {};
 CumulableParam     = [];
@@ -615,9 +661,16 @@ if any(contains([FeatsToUse{:}], ["rain", "allfeats"]))
     TimeSensitiveDate  = [TimeSensitiveDate, {RainDateInterpolationStarts}];
     clear('RainInterpolated')
 
-    FeatType     = [FeatType, "TimeSensitive"];
-    MaxDailyRain = 30; % To discuss this value (max in Emilia was 134 mm in a day)
-    RngsToAdd    = [0, MaxDailyRain*DaysForTS];
+    if strcmp(ModeForTS, "cumuloravg")
+        Prmpt4Fts    = [Prmpt4Fts, strcat("Rainfall Cumulate ",num2str(DaysForTS), "d [mm]")];
+        FeatsType    = [FeatsType, "TimeSensitive"];
+        MaxDailyRain = 30; % To discuss this value (max in Emilia was 134 mm in a day)
+        RngsToAdd    = [0, MaxDailyRain*DaysForTS];
+    elseif strcmp(ModeForTS, "multipleseparatedays")
+        Prmpt4Fts = [Prmpt4Fts, "Rainfall Daily [mm]"];
+        FeatsType = [FeatsType, repmat("TimeSensitive",1,DaysForTS)];
+        RngsToAdd = [0, 120];
+    end
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
 
@@ -631,7 +684,13 @@ if any(contains([FeatsToUse{:}], ["temp", "allfeats"]))
     TimeSensitiveDate  = [TimeSensitiveDate, {TempDateInterpolationStarts}];
     clear('TempInterpolated')
 
-    FeatType  = [FeatType, "TimeSensitive"];
+    if strcmp(ModeForTS, "cumuloravg")
+        Prmpt4Fts = [Prmpt4Fts, strcat("Temperature Average ",num2str(DaysForTS), "d [°]")];
+        FeatsType = [FeatsType, "TimeSensitive"];
+    elseif strcmp(ModeForTS, "multipleseparatedays")
+        Prmpt4Fts = [Prmpt4Fts, "Temperature Daily [°]"];
+        FeatsType = [FeatsType, repmat("TimeSensitive",1,DaysForTS)];
+    end
     RngsToAdd = [-10, 35]; % In Celsius
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
@@ -662,8 +721,14 @@ if any(contains([FeatsToUse{:}], ["rain", "temp", "allfeats"]))
 
     TimeSensitiveDate = TimeSensitiveDate{1}; % Taking only the first one since they are identical!
 
-    RowToTake  = listdlg('PromptString',{'Select the date to consider (start times of 24 h):',''}, ...
-                         'ListString',TimeSensitiveDate, 'SelectionMode','single');
+    if exist('EventDay', 'var')
+        RowToTake = find(TimeSensitiveDate == EventDay);
+        if isempty(RowToTake); error('The date you chosed as input does not exist in your merged data!'); end
+    else
+        RowToTake = listdlg('PromptString',{'Select the date to consider (start times of 24 h):',''}, ...
+                            'ListString',TimeSensitiveDate, 'SelectionMode','single');
+    end
+
     TimeSensitiveDatetimeChosed = TimeSensitiveDate(RowToTake);
 
     if TimeSensitiveDate(RowToTake) < TimeSensitiveDate(DaysForTS)
@@ -676,65 +741,97 @@ if any(contains([FeatsToUse{:}], ["rain", "temp", "allfeats"]))
     end
     clear('TimeSensitiveData')
 
-    ColumnsToAdd = cell(1, length(TimeSensitiveParam));
-    for i1 = 1:length(TimeSensitiveParam)
-        ColumnToAddTemp = cell(1, size(TimeSensitiveDataStudy{i1}, 2));
-        for i2 = 1:size(TimeSensitiveDataStudy{i1}, 2)
-            if CumulableParam(i1)
-                ColumnToAddTemp{i2} = sum([TimeSensitiveDataStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
-            else
-                ColumnToAddTemp{i2} = mean([TimeSensitiveDataStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+    if strcmp(ModeForTS, "cumuloravg")
+        ColumnsToAdd = cell(1, length(TimeSensitiveParam));
+        for i1 = 1:length(TimeSensitiveParam)
+            ColumnToAddTemp = cell(1, size(TimeSensitiveDataStudy{i1}, 2));
+            for i2 = 1:size(TimeSensitiveDataStudy{i1}, 2)
+                if CumulableParam(i1)
+                    ColumnToAddTemp{i2} = sum([TimeSensitiveDataStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                else
+                    ColumnToAddTemp{i2} = mean([TimeSensitiveDataStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                end
+            end
+            ColumnsToAdd{i1} = cat(1,ColumnToAddTemp{:});
+        end
+    
+        TimeSensitiveOper = repmat({'Averaged'}, 1, length(TimeSensitiveParam));
+        TimeSensitiveOper(CumulableParam) = {'Cumulated'};
+    
+        FeaturesNamesToAdd  = cellfun(@(x, y) [x,y,num2str(DaysForTS),'d'], TimeSensitiveParam, TimeSensitiveOper, 'UniformOutput',false);
+        
+        for i1 = 1:length(TimeSensitiveParam)
+            DatasetFeaturesStudy.(FeaturesNamesToAdd{i1}) = ColumnsToAdd{i1};
+        end
+    elseif strcmp(ModeForTS, "multipleseparatedays")
+        ColumnsToAdd = cell(DaysForTS, length(TimeSensitiveParam));
+        RowsToTake = RowToTake : -1 : (RowToTake-DaysForTS+1);
+        for i1 = 1:DaysForTS
+            ColumnsToAdd(i1,:) = cellfun(@(x) cat(1,x{RowsToTake(i1),:}), TimeSensitiveDataStudy, 'UniformOutput',false);
+        end
+
+        FeaturesNamesToAdd = cellfun(@(x) strcat(x,'-',string(1:DaysForTS)','daysBefore'), TimeSensitiveParam, 'UniformOutput',false);
+
+        for i1 = 1:length(TimeSensitiveParam) % It is important to follow this order for normalization!
+            for i2 = 1:DaysForTS
+                DatasetFeaturesStudy.(FeaturesNamesToAdd{i1}(i2)) = ColumnsToAdd{i2,i1};
             end
         end
-        ColumnsToAdd{i1} = cat(1,ColumnToAddTemp{:});
-    end
-    clear('TimeSensitiveDataStudy')
-
-    TimeSensitiveOper = repmat({'Averaged'}, 1, length(TimeSensitiveParam));
-    TimeSensitiveOper(CumulableParam) = {'Cumulated'};
-
-    FeaturesNamesToAdd  = cellfun(@(x, y) [x,y,num2str(DaysForTS),'d'], TimeSensitiveParam, TimeSensitiveOper, 'UniformOutput',false);
-    
-    for i1 = 1:length(TimeSensitiveParam)
-        DatasetFeaturesStudy.(FeaturesNamesToAdd{i1}) = ColumnsToAdd{i1};
+    else
+        error('Something went wrong in selecting the mode for time sensitive, please check "datasetstudy_creation"')
     end
 end
 
 %% Normalization
+ProgressBar.Message = 'Dataset: normalization of data...';
+
+FeatsDataset = DatasetFeaturesStudy.Properties.VariableNames;
 if NormData
-    InputRanges = find(cellfun(@(x) strcmpi(x, "ranges"), vararginCopy));
-    if InputRanges
-        if not(istable(varargin{InputRanges+1}))
-            error('Ranges input variable must be a table!')
-        end
-        Ranges = varargin{InputRanges+1};
-    else
-        PromptForRanges = strcat("Ranges for ", DatasetFeaturesStudy.Properties.VariableNames');
+    if not(exist('Ranges', 'var'))
+        PromptForRanges = strcat("Ranges for ", Prmpt4Fts');
         RangesInputs = inputdlg( PromptForRanges, '', 1, ...
                                  strcat("[",num2str(round(SuggRanges(:,1),3,'significant'), '%.2e'),", ", ...
                                             num2str(round(SuggRanges(:,2),3,'significant'), '%.2e'),"]")      );
-        Ranges = zeros(length(RangesInputs), 2);
-        for i1 = 1:length(RangesInputs)
-            Ranges(i1,:) = str2num(RangesInputs{i1});
+
+        TSCount = 1;
+        CurrRow = 1;
+        Ranges  = zeros(length(FeatsDataset), 2);
+        for i1 = 1:length(FeatsDataset)
+            Ranges(i1,:) = str2num(RangesInputs{CurrRow});
+            if not(strcmp(FeatsType(i1), "TimeSensitive"))
+                CurrRow = CurrRow + 1;
+            elseif strcmp(FeatsType(i1), "TimeSensitive") && strcmp(ModeForTS, "multipleseparatedays") % Pay attention to order of TimeSens vars in Dataset!
+                TSCount = TSCount + 1;
+                if TSCount > DaysForTS
+                    TSCount = 1;
+                    CurrRow = CurrRow + 1;
+                end
+            elseif strcmp(FeatsType(i1), "TimeSensitive") && strcmp(ModeForTS, "cumuloravg") % Maybe not necessary
+                CurrRow = CurrRow + 1; % Maybe not necessary
+            end
         end
-        Ranges = array2table(Ranges, 'RowNames',DatasetFeaturesStudy.Properties.VariableNames, ...
+        Ranges = array2table(Ranges, 'RowNames',FeatsDataset, ...
                                      'VariableNames',["Min value", "Max value"]);
     end
 
-    FeaturesNames = DatasetFeaturesStudy.Properties.VariableNames;
     DatasetFeaturesStudyNorm = table();
     for i1 = 1:size(DatasetFeaturesStudy,2)
-        DatasetFeaturesStudyNorm.(FeaturesNames{i1}) = rescale(DatasetFeaturesStudy.(FeaturesNames{i1}), ...
-                                                                       'InputMin',Ranges{FeaturesNames{i1}, 1}, ...
-                                                                       'InputMax',Ranges{FeaturesNames{i1}, 2});
+        if not(strcmp(FeatsType(i1), "Categorical"))
+            DatasetFeaturesStudyNorm.(FeatsDataset{i1}) = rescale(DatasetFeaturesStudy.(FeatsDataset{i1}), ...
+                                                                           'InputMin',Ranges{FeatsDataset{i1}, 1}, ...
+                                                                           'InputMax',Ranges{FeatsDataset{i1}, 2});
+        elseif strcmp(FeatsType(i1), "Categorical")
+            DatasetFeaturesStudyNorm.(FeatsDataset{i1}) = DatasetFeaturesStudy.(FeatsDataset{i1});
+        end
     end
 else
-    Ranges = array2table(nan(size(DatasetFeaturesStudy,2), 2), ...
-                                'RowNames',DatasetFeaturesStudy.Properties.VariableNames, ...
-                                'VariableNames',["Min value", "Max value"]);
+    Ranges = array2table(nan(size(DatasetFeaturesStudy,2), 2), 'RowNames',FeatsDataset, ...
+                                                               'VariableNames',["Min value", "Max value"]);
 end
 
 %% Output creation
+ProgressBar.Message = 'Dataset: Outputs...';
+
 if NormData
     varargout{1} = DatasetFeaturesStudyNorm;
     varargout{5} = DatasetFeaturesStudy;
@@ -747,11 +844,12 @@ varargout{2} = DatasetCoordinatesStudy;
 varargout{3} = Ranges;
 
 if TimeSensExist
-    varargout{4} = TimeSensitiveDatetimeChosed;
+    varargout{4} = table(TimeSensitiveParam, TimeSensitiveDatetimeChosed, TimeSensitiveDate, ...
+                         TimeSensitiveDataStudy, CumulableParam, 'VariableNames',{'ParamNames', 'EventTime', 'Datetimes', 'Data', 'Cumulable'});
 else
-    varargout{4} = "No Time Sensitive data selected as input!";
+    varargout{4} = table("No Time Sensitive data selected as input!", 'VariableNames',{'EventTime'});
 end
 
-varargout{6} = FeatType;
+varargout{6} = FeatsType;
 
 end
