@@ -4,12 +4,11 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files
 drawnow
 
 %% Loading data
-cd(fold_var)
-load('HRUs.mat',            'CombinationsAll','HRUsAll','InfoLegLandUse','InfoLegSlope','InfoLegSoil')
-load('GridCoordinates.mat', 'xLongAll','yLatAll')
+load([fold_var,sl,'HRUs.mat'],            'CombinationsAll','HRUsAll','InfoLegLandUse','InfoLegSlope','InfoLegSoil')
+load([fold_var,sl,'GridCoordinates.mat'], 'xLongAll','yLatAll')
 
-if exist('PlotSettings.mat', 'file')
-    load('PlotSettings.mat', 'Font','FontSize','LegendPosition')
+if exist([fold_var,sl,'PlotSettings.mat'], 'file')
+    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
     SelectedFont     = Font;
     SelectedFontSize = FontSize;
 else
@@ -19,18 +18,18 @@ else
 end
 
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
-cd(fold_res_ml_curr)
-load('TrainedANNs.mat',     'TotPolUncStable','TotPolUnstabPoints')
-cd(fold0)
+load([fold_res_ml_curr,sl,'TrainedANNs.mat'], 'StablePolyMrgd','UnstablePolyMrgd')
 
 % figure(Fig)
 % drawnow
 
 %% Calculating indices of points inside polygons
-[pp1, ee1] = getnan2([TotPolUnstabPoints.Vertices; nan, nan]);
+if length(UnstablePolyMrgd) > 1; UnstablePolyMrgd = union(UnstablePolyMrgd); end
+[pp1, ee1] = getnan2([UnstablePolyMrgd.Vertices; nan, nan]);
 IndOfUnstabPoints = cellfun(@(x,y) find(inpoly([x(:),y(:)], pp1,ee1)), xLongAll, yLatAll, 'UniformOutput',false);
 
-[pp2, ee2] = getnan2([TotPolUncStable.Vertices; nan, nan]);
+if length(StablePolyMrgd) > 1; StablePolyMrgd = union(StablePolyMrgd); end
+[pp2, ee2] = getnan2([StablePolyMrgd.Vertices; nan, nan]);
 IndOfStabPoints   = cellfun(@(x,y) find(inpoly([x(:),y(:)], pp2,ee2)), xLongAll, yLatAll, 'UniformOutput',false);
 
 %% Extraction of HRUs
@@ -156,4 +155,4 @@ writetable(TabSlope  , 'LegendSlope.txt')
 writetable(TabSoil   , 'LegendSoil.txt')
 cd(fold0)
 
-% close(ProgressBar)
+close(ProgressBar)

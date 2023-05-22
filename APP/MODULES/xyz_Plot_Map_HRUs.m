@@ -28,7 +28,7 @@ end
 
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
 cd(fold_res_ml_curr)
-load('TrainedANNs.mat',               'TotPolUncStable','TotPolUnstabPoints')
+load('TrainedANNs.mat', 'StablePolyMrgd','UnstablePolyMrgd')
 cd(fold0)
 
 %% Plot settings
@@ -78,9 +78,15 @@ switch AreaType
         IndToPlot  = IndexDTMPointsInsideStudyArea;
 
     case 'Stable and Unstable'
-        TotPolStableSplit   = regions(TotPolUncStable);
-        TotPolWithoutHoles  = rmholes(TotPolStableSplit);
-        TotPolUnstableSplit = arrayfun(@(x) intersect(x, TotPolUnstabPoints), TotPolWithoutHoles);
+        if length(UnstablePolyMrgd) == 1
+            TotPolStableSplit   = regions(StablePolyMrgd);
+            TotPolWithoutHoles  = rmholes(TotPolStableSplit);
+            TotPolUnstableSplit = arrayfun(@(x) intersect(x, UnstablePolyMrgd), TotPolWithoutHoles);
+        else
+            TotPolStableSplit   = StablePolyMrgd;
+            TotPolWithoutHoles  = rmholes(TotPolStableSplit);
+            TotPolUnstableSplit = UnstablePolyMrgd;
+        end
         
         AreaToPlot = arrayfun(@(x,y) union(x, y), TotPolStableSplit, TotPolUnstableSplit);
         IndToPlot  = cell(length(AreaToPlot), size(xLongAll,2));

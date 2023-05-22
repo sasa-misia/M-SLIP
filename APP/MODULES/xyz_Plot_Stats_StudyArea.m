@@ -30,6 +30,30 @@ end
 cd(fold0)
 
 %% Plot options
+Options  = {'Study Area', 'Stable Area', 'Unstable Area'};
+PlotArea = uiconfirm(Fig, 'In what area do you want to plot?', ...
+                           'Plot Area', 'Options',Options);
+
+if any(strcmp(PlotArea, {'Stable Area', 'Unstable Area'}))
+    fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
+    cd(fold_res_ml_curr)
+    load('TrainedANNs.mat', 'UnstablePolyMrgd','StablePolyMrgd')
+    cd(fold0)
+end
+
+switch PlotArea
+    case 'Study Area'
+        IndsDTMPointsInsideStatArea = IndexDTMPointsInsideStudyArea;
+
+    case 'Stable Area'
+        [pp1, ee1] = getnan2([StablePolyMrgd.Vertices; nan, nan]);
+        IndsDTMPointsInsideStatArea = cellfun(@(x,y) find(inpoly([x(:),y(:)], pp1,ee1)), xLongAll, yLatAll, 'UniformOutput',false);
+
+    case 'Unstable Area'
+        [pp1, ee1] = getnan2([UnstablePolyMrgd.Vertices; nan, nan]);
+        IndsDTMPointsInsideStatArea = cellfun(@(x,y) find(inpoly([x(:),y(:)], pp1,ee1)), xLongAll, yLatAll, 'UniformOutput',false);
+end
+
 Options  = {'BoxPlot', 'CumulativeDistribution'};
 PlotType = uiconfirm(Fig, 'How do you want to plot results?', ...
                            'Plot Type', 'Options',Options);
@@ -46,46 +70,46 @@ Titles = string(strcat(('a':'z')', ')'));
 %% Extraction of points in study area (numerical part)
 ProgressBar.Message = 'Extraction of points in study area for numerical part...';
 
-xLongStudy             = cellfun(@(x,y) x(y), xLongAll,             IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+xLongStudy             = cellfun(@(x,y) x(y), xLongAll,             IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('xLongAll')
 
-yLatStudy              = cellfun(@(x,y) x(y), yLatAll,              IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+yLatStudy              = cellfun(@(x,y) x(y), yLatAll,              IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('yLatAll')
 
-Info.ElevationStudy    = cellfun(@(x,y) x(y), ElevationAll,         IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.ElevationStudy    = cellfun(@(x,y) x(y), ElevationAll,         IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('ElevationAll')
 
-Info.SlopeStudy        = cellfun(@(x,y) x(y), SlopeAll,             IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.SlopeStudy        = cellfun(@(x,y) x(y), SlopeAll,             IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('SlopeAll')
 
-Info.AspectAngleStudy  = cellfun(@(x,y) x(y), AspectAngleAll,       IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.AspectAngleStudy  = cellfun(@(x,y) x(y), AspectAngleAll,       IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('AspectAngleAll')
 
-Info.MeanCurvStudy     = cellfun(@(x,y) x(y), MeanCurvatureAll,     IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.MeanCurvStudy     = cellfun(@(x,y) x(y), MeanCurvatureAll,     IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('MeanCurvatureAll')
 
-Info.ProfileCurvStudy  = cellfun(@(x,y) x(y), ProfileCurvatureAll,  IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.ProfileCurvStudy  = cellfun(@(x,y) x(y), ProfileCurvatureAll,  IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('ProfileCurvatureAll')
 
-Info.PlanformCurvStudy = cellfun(@(x,y) x(y), PlanformCurvatureAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.PlanformCurvStudy = cellfun(@(x,y) x(y), PlanformCurvatureAll, IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('PlanformCurvatureAll')
 
-Info.ContribAreaStudy  = cellfun(@(x,y) x(y), ContributingAreaAll,  IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.ContribAreaStudy  = cellfun(@(x,y) x(y), ContributingAreaAll,  IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('ContributingAreaAll')
 
-Info.TwiStudy          = cellfun(@(x,y) x(y), TwiAll,               IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.TwiStudy          = cellfun(@(x,y) x(y), TwiAll,               IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('TwiAll')
 
-Info.ClayContentStudy  = cellfun(@(x,y) x(y), ClayContentAll,       IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.ClayContentStudy  = cellfun(@(x,y) x(y), ClayContentAll,       IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('ClayContentAll')
 
-Info.SandContentStudy  = cellfun(@(x,y) x(y), SandContentAll,       IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.SandContentStudy  = cellfun(@(x,y) x(y), SandContentAll,       IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('SandContentAll')
 
-Info.NdviStudy         = cellfun(@(x,y) x(y), NdviAll,              IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.NdviStudy         = cellfun(@(x,y) x(y), NdviAll,              IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('NdviAll')
 
-Info.DistToRoadStudy   = cellfun(@(x,y) x(y), MinDistToRoadAll,     IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+Info.DistToRoadStudy   = cellfun(@(x,y) x(y), MinDistToRoadAll,     IndsDTMPointsInsideStatArea, 'UniformOutput',false);
 clear('MinDistToRoadAll')
 
 NumericalParam = {'Elevation', 'Slope', 'Aspect', 'MeanCurvature', 'ProfileCurvature', 'PlanformCurvature', ...
@@ -115,26 +139,28 @@ end
 
 % Excel reading
 cd(fold_user)
-LithoClasses   = readcell('ClassesML.xlsx', 'Sheet','Litho');
+SubSoilClasses   = readcell('ClassesML.xlsx', 'Sheet','Sub soil');
 TopSoilClasses = readcell('ClassesML.xlsx', 'Sheet','Top soil');
 LandUseClasses = readcell('ClassesML.xlsx', 'Sheet','Land use');
-VegClasses     = readcell('ClassesML.xlsx', 'Sheet','Veg');
+VegClasses     = readcell('ClassesML.xlsx', 'Sheet','Vegetation');
 cd(fold0)
 
 % Litho classes association
 ProgressBar.Message = "Associating subsoil classes...";
 for i1 = 1:size(LithoAllUnique,2)
-    IndClassLitho = find(strcmp(LithoAllUnique{i1}, string(LithoClasses(:,1))));
+    IndClassLitho = find(strcmp(LithoAllUnique{i1}, string(SubSoilClasses(:,1))));
     if CategoricalClasses
-        if isempty(IndClassLitho); ClassLitho = ""; else; ClassLitho = string(LithoClasses(IndClassLitho, 1)); end
+        if isempty(IndClassLitho); ClassLitho = ""; else; ClassLitho = string(SubSoilClasses(IndClassLitho, 1)); end
     else
-        if isempty(IndClassLitho); ClassLitho = 0; else; ClassLitho = LithoClasses{IndClassLitho, 2}; end
+        if isempty(IndClassLitho); ClassLitho = 0; else; ClassLitho = SubSoilClasses{IndClassLitho, 2}; end
     end
     LUPolygon = LithoPolygonsStudyArea(i1);
     [pp,ee] = getnan2([LUPolygon.Vertices; nan, nan]);
-    for i2 = 1:size(xLongStudy,2)  
-        IndexInsideLithoPolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp,ee)==1);
-        Info.LithoStudy{i2}(IndexInsideLithoPolygon) = ClassLitho;
+    for i2 = 1:size(xLongStudy,2)
+        if not(isempty(xLongStudy{i2}))
+            IndexInsideLithoPolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp,ee)==1);
+            Info.LithoStudy{i2}(IndexInsideLithoPolygon) = ClassLitho;
+        end
     end
 end
 
@@ -149,9 +175,11 @@ for i1 = 1:size(TopSoilAllUnique,2)
     end
     TSUPolygon = TopSoilPolygonsStudyArea(i1);
     [pp,ee] = getnan2([TSUPolygon.Vertices; nan, nan]);
-    for i2 = 1:size(xLongStudy,2)  
-        IndexInsideTopSoilPolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp,ee)==1);
-        Info.TopSoilStudy{i2}(IndexInsideTopSoilPolygon) = ClassTopSoil;
+    for i2 = 1:size(xLongStudy,2)
+        if not(isempty(xLongStudy{i2}))
+            IndexInsideTopSoilPolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp,ee)==1);
+            Info.TopSoilStudy{i2}(IndexInsideTopSoilPolygon) = ClassTopSoil;
+        end
     end
 end
 
@@ -167,8 +195,10 @@ for i1 = 1:size(AllLandUnique,2)
     LandUsePolygon = LandUsePolygonsStudyArea(i1);
     [pp,ee] = getnan2([LandUsePolygon.Vertices; nan, nan]);
     for i2 = 1:size(xLongStudy,2)  
-        IndexInsideLandUsePolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp,ee)==1);
-        Info.LandUseStudy{i2}(IndexInsideLandUsePolygon) = ClassLandUse;
+        if not(isempty(xLongStudy{i2}))
+            IndexInsideLandUsePolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp,ee)==1);
+            Info.LandUseStudy{i2}(IndexInsideLandUsePolygon) = ClassLandUse;
+        end
     end
 end
 
@@ -184,8 +214,10 @@ for i1 = 1:size(VegetationAllUnique,2)
     VUPolygon = VegPolygonsStudyArea(i1);
     [pp_veg,ee_veg] = getnan2([VUPolygon.Vertices; nan, nan]);
     for i2 = 1:size(xLongStudy,2)  
-        IndexInsideVegPolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp_veg,ee_veg)==1);
-        Info.VegStudy{i2}(IndexInsideVegPolygon) = ClassVeg;
+        if not(isempty(xLongStudy{i2}))
+            IndexInsideVegPolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp_veg,ee_veg)==1);
+            Info.VegStudy{i2}(IndexInsideVegPolygon) = ClassVeg;
+        end
     end
 end
 
@@ -317,9 +349,9 @@ else
 end
 
 if strcmp(PlotType, 'BoxPlot')
-    fold_fig_curr = [fold_fig,sl,'Box Plots Study Area'];
+    fold_fig_curr = [fold_fig,sl,'Box Plots ',PlotArea];
 elseif strcmp(PlotType, 'CumulativeDistribution')
-    fold_fig_curr = [fold_fig,sl,'Cumulative Distributions Study Area'];
+    fold_fig_curr = [fold_fig,sl,'Cumulative Distributions ',PlotArea];
 end
 
 if ~exist(fold_fig_curr, 'dir')
@@ -331,18 +363,18 @@ cd(fold_fig_curr)
 for i1 = 1:length(PlotOpts)
     if strcmp(PlotChoice, 'Unique Figure')
         if strcmp(PlotType, 'BoxPlot')
-            filename_fig = 'Overall features box plots in Study Area';
+            filename_fig = ['Overall features box plots in ',PlotArea];
         elseif strcmp(PlotType, 'CumulativeDistribution')
-            filename_fig = 'Overall features cumulative distributions in Study Area';
+            filename_fig = ['Overall features cumulative distributions in ',PlotArea];
         end
         GirdSubPlots = [4, 4];
         curr_fig = figure('Position',[80, 50, 600, 900], 'Visible','off');
         PlotNum  = 1:TimeIndependent; % You can even rearrange the order!
     elseif strcmp(PlotChoice, 'Separate Figures')
         if strcmp(PlotType, 'BoxPlot')
-            filename_fig = [PlotList{PlotOpts{i1}}, ' feature box plot in study area'];
+            filename_fig = [PlotList{PlotOpts{i1}}, ' feature box plot in ',PlotArea];
         elseif strcmp(PlotType, 'CumulativeDistribution')
-            filename_fig = [PlotList{PlotOpts{i1}}, ' feature cumulative distribution in study area'];
+            filename_fig = [PlotList{PlotOpts{i1}}, ' feature cumulative distribution in ',PlotArea];
         end
         GirdSubPlots = [1, length(ValsCatPerField{PlotOpts{i1}})];
         curr_fig = figure(i1);
