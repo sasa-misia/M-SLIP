@@ -35,6 +35,10 @@ function [IndicesTrainDataset, ExpectedOutputs] = datasetml_indexing(DatasetCoor
 %   - 'DayOfLandslide', logical : is to specify if the day you are using in
 %   your Dataset is the one of when the landslide was detected. If no value 
 %   is specified, then true value will be taken as default.
+%   
+%   - 'CriticalSlope', num : is to specify the critical slope below which you 
+%   have stable points. It will only have an effect if 'StableMethod' is set 
+%   to 'Slope'. If no value is specified, then 8° will be take as default.
 
 %% Settings initialization
 StableMethod  = "entirestable";  % Default
@@ -42,6 +46,7 @@ ModifyRatio   = true;            % Default
 RatioToImpose = 1;               % Default
 ResampleMode  = "undersampling"; % Default
 LandslideDay  = true;            % Default
+CriticalSlope = 8;               % Default
 
 if ~isempty(varargin)
     StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
@@ -55,12 +60,14 @@ if ~isempty(varargin)
     InputResampleMode = find(cellfun(@(x) strcmpi(x, "resamplemode"),   vararginCopy));
     InputRatio2Impose = find(cellfun(@(x) strcmpi(x, "ratiotoimpose"),  vararginCopy));
     InputLandslideDay = find(cellfun(@(x) strcmpi(x, "dayoflandslide"), vararginCopy));
+    InputCriticSlope  = find(cellfun(@(x) strcmpi(x, "criticalslope"),  vararginCopy));
 
     if InputStableMethod; StableMethod  = varargin{InputStableMethod+1}; end
     if InputModifyRatio;  ModifyRatio   = varargin{InputModifyRatio+1};  end
     if InputResampleMode; ResampleMode  = varargin{InputResampleMode+1}; end
     if InputRatio2Impose; RatioToImpose = varargin{InputRatio2Impose+1}; end
     if InputLandslideDay; LandslideDay  = varargin{InputLandslideDay+1}; end
+    if InputCriticSlope;  CriticalSlope = varargin{InputCriticSlope+1};  end
 end
 
 %% Union of multi polygons
@@ -82,10 +89,7 @@ IndsInStable   = inpoly([DatasetCoords.Longitude,DatasetCoords.Latitude], pp2,ee
 %% Definition of unconditionally stable points and reduction of tables
 switch StableMethod
     case "slope"
-        CriticalSlope = str2double(inputdlg({"Choose the critical slope below which you have stable points."}, ...
-                                             '', 1, {num2str(max(DatasetFeatures.Slope)/9)}));
         IndsBelowCritSlope = DatasetFeatures.Slope <= CriticalSlope;
-
         IndsInStable = (IndsInStable & IndsBelowCritSlope);
 end
 
