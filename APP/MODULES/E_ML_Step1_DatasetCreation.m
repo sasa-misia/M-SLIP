@@ -5,42 +5,106 @@ drawnow
 
 rng(10) % For reproducibility of the model
 
-%% Loading data and initialization of AnalysisInformation
+%% Loading data and initialization of variables
 load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','SubArea','FilesDetectedSoilSlip')
 load([fold_var,sl,'GridCoordinates.mat'],       'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
 load([fold_var,sl,'StudyAreaVariables.mat'],    'StudyAreaPolygon')
 
 if length(FilesDetectedSoilSlip) == 1
-    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{1};
+    IndDetToUse = 1;
 else
     IndDetToUse = listdlg('PromptString',{'Choose dataset you want to use: ',''}, ...
                           'ListString',FilesDetectedSoilSlip, 'SelectionMode','single');
-    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDetToUse};
 end
 
-AnalysisType = "ANN Trained in TrainingANNs script";
-AnalysisInformation = table(AnalysisType, 'VariableNames',{'Type'});
+DatasetStudyInfo = table;
+LandslideDay     = true;
+CriticalSlope    = nan;
+EventDate        = nan;
+DaysForTS        = nan;
+TimeSensMode     = nan;
+UseRanges        = false;
+RangesForNorm    = nan;
+CauseMode        = nan;
+
+%% Pre existing DatasetML check
+[AddToExistingDataset, OldSettings] = deal(false);
+if exist([fold_var,sl,'DatasetML.mat'], 'file')
+    Options = {'Yes, add this to the old one.', 'No, overwite it!'};
+    MergeDataAns = uiconfirm(Fig, ['A pre-existing dataset for ML has been found. ' ...
+                                   'Do you want to merge this new one with the old?'], ...
+                                  'Merge datasets', 'Options',Options, 'DefaultOption',1);
+    if strcmp(MergeDataAns, 'Yes, add this to the old one.')
+        AddToExistingDataset = true;
+        UseRanges            = true;
+
+        load([fold_var,sl,'DatasetStudy.mat'], 'DatasetStudyInfo','RangesForNorm')
+        load([fold_var,sl,'DatasetML.mat'],    'DatasetMLInfo','DatasetMLCoords','DatasetMLFeats', ...
+                                               'DatasetMLFeatsNotNorm','DatasetMLClasses','DatasetMLDates')
+        DatasetMLInfoOld         = DatasetMLInfo;
+        DatasetMLCoordsOld       = DatasetMLCoords;
+        DatasetMLFeatsOld        = DatasetMLFeats;
+        DatasetMLFeatsNotNormOld = DatasetMLFeatsNotNorm;
+        DatasetMLClassesOld      = DatasetMLClasses;
+        DatasetMLDatesOld        = DatasetMLDates;
+
+        Options = {'Yes, please', 'No, use different settings'};
+        OldSettingsAns = uiconfirm(Fig, 'Do you want to mantain settings of the old one?', ...
+                                        'Dataset settings', 'Options',Options, 'DefaultOption',1);
+        if strcmp(OldSettingsAns, 'Yes, please'); OldSettings = true; end
+    end
+end
 
 %% Dataset options
-ProgressBar.Message = "ANN options...";
+ProgressBar.Message = "Dataset options...";
 
-FeaturesOptions = {'Elevation', 'Slope', 'Aspect Angle', 'Mean Curvature', 'Profile Curvature', ...
-                   'Planform Curvature', 'Contributing Area (log)', 'TWI', 'Clay Content', ...
-                   'Sand Content', 'NDVI', 'Sub Soil', 'Top Soil', 'Land Use', 'Vegetation', ...
-                   'Distance To Roads', 'Random', 'Rainfall', 'Temperature'};
-IndFeatsChosed  = listdlg('PromptString',{'Select features to use:',''}, ...
-                          'ListString',FeaturesOptions, 'SelectionMode','multiple');
-FeaturesChosed  = FeaturesOptions(IndFeatsChosed);
+if AddToExistingDataset
+    FeaturesChosed = DatasetStudyInfo.Parameters;
+else
+    FeaturesOptions = {'Elevation', 'Slope', 'Aspect Angle', 'Mean Curvature', 'Profile Curvature', ...
+                       'Planform Curvature', 'Contributing Area (log)', 'TWI', 'Clay Content', ...
+                       'Sand Content', 'NDVI', 'Sub Soil', 'Top Soil', 'Land Use', 'Vegetation', ...
+                       'Distance To Roads', 'Random', 'Rainfall', 'Temperature'};
+    IndFeatsChosed  = listdlg('PromptString',{'Select features to use:',''}, ...
+                              'ListString',FeaturesOptions, 'SelectionMode','multiple');
+    FeaturesChosed  = FeaturesOptions(IndFeatsChosed);
+end
 
-Options = {'Yes', 'No'};
-NormalizeChoice = uiconfirm(Fig, 'Do you want to normalize data?', ...
-                                 'Normalization', 'Options',Options, 'DefaultOption',1);
-if strcmp(NormalizeChoice,'Yes'); NormData = true; else; NormData = false; end
+TimeSensExist = false;
+if any(strcmp(FeaturesChosed, 'Rainfall')) || any(strcmp(FeaturesChosed, 'Temperature'))
+    if AddToExistingDataset
+        TimeSensMode = DatasetStudyInfo.TimeSensitiveMode;
+    else
+        Options = {'SeparateDays', 'CondensedDays', 'TriggerCausePeak'};
+        TimeSensMode = uiconfirm(Fig, 'How do you want to built the time sensitive data?', ...
+                                      'Time sensitive structure', 'Options',Options, 'DefaultOption',2);
+    end
 
-Options = {'Categorical classes', 'Numbered classes'};
-CategoricalChoice = uiconfirm(Fig, 'How do you want to define classes?', ...
-                                   'Classes type', 'Options',Options, 'DefaultOption',2);
-if strcmp(CategoricalChoice,'Categorical classes'); Categs = true; else; Categs = false; end
+    if AddToExistingDataset && OldSettings
+        MultipleDayAnalysis = DatasetStudyInfo.MultipleDayAnalysis;
+    else
+        MultipleDayChoice = uiconfirm(Fig, 'Do you want to add a different day in dataset?', ...
+                                           'Time sensitive analyses', 'Options',{'Yes', 'No, only a single day'}, 'DefaultOption',2);
+        if strcmp(MultipleDayChoice,'Yes'); MultipleDayAnalysis = true; else; MultipleDayAnalysis = false; end
+    end
+
+    TimeSensExist = true;
+end
+
+if AddToExistingDataset
+    NormData    = DatasetStudyInfo.NormalizedData;
+    CategsExist = DatasetStudyInfo.CategoricalClasses;
+else
+    Options = {'Yes', 'No'};
+    NormalizeChoice = uiconfirm(Fig, 'Do you want to normalize data?', ...
+                                     'Normalization', 'Options',Options, 'DefaultOption',1);
+    if strcmp(NormalizeChoice,'Yes'); NormData = true; else; NormData = false; end
+
+    Options = {'Categorical classes', 'Numbered classes'};
+    CategoricalChoice = uiconfirm(Fig, 'How do you want to define classes?', ...
+                                       'Classes type', 'Options',Options, 'DefaultOption',2);
+    if strcmp(CategoricalChoice,'Categorical classes'); CategsExist = true; else; CategsExist = false; end
+end
 
 if SubArea
     Options = {'PolygonsOfInfoDetected', 'ManualSquares'};
@@ -50,118 +114,134 @@ else
     PolyUnstableMode = 'ManualSquares';
 end
 
-Options = {'SlopeOutsideUnstable', 'AllOutsideUnstable', 'BufferedUnstablePolygons'};
-StablePointsApproach  = uiconfirm(Fig, 'How do you want to define stable points?', ...
-                                       'Stable Area', 'Options',Options, 'DefaultOption',3);
+if AddToExistingDataset && OldSettings
+    StablePointsApproach = DatasetStudyInfo.StableAreaApproach;
+    if strcmp(StablePointsApproach, 'SlopeOutsideUnstable')
+        CriticalSlope = DatasetStudyInfo.CriticalSlope;
+    end
+    InpBufferSizes = DatasetStudyInfo.InputBufferSizes;
+    ModifyRatio    = DatasetStudyInfo.ModifyRatioClasses;
+    if ModifyRatio
+        RatioInputs   = table2array(DatasetStudyInfo.RatioClasses);
+        RatioToImpose = RatioInputs(1)/RatioInputs(2);
+        ResampleMode  = DatasetStudyInfo.ResampleModeDatasetML;
+        if exist('MultipleDayAnalysis', 'var') && MultipleDayAnalysis && strcmp(ResampleMode,'Undersampling')
+            MantainPointsUnstab = DatasetStudyInfo.UnstablePointsMantainedInDayOfStable;
+        end
+    end
 
-if strcmp(PolyUnstableMode, 'PolygonsOfInfoDetected')
-    PromptBuffer = ["Size of the buffer to define indecision area [m]"
-                    "Size of the buffer to define stable area [m]"    ];
-    SuggBuffVals = {'50', '250'};
 else
-    PromptBuffer = ["Size of the window side where are located unstable points"
-                    "Size of the window side to define indecision area"
-                    "Size of the window side to define stable area"            ];
-    SuggBuffVals = {'45', '200', '300'};
+    Options = {'SlopeOutsideUnstable', 'AllOutsideUnstable', 'BufferedUnstablePolygons'};
+    StablePointsApproach  = uiconfirm(Fig, 'How do you want to define stable points?', ...
+                                           'Stable Area', 'Options',Options, 'DefaultOption',3);
+
+    if strcmp(StablePointsApproach, 'SlopeOutsideUnstable')
+        CriticalSlope  = str2double(inputdlg({"Choose the critical slope below which you have stable points."}, '', 1, {'8'}));
+    end
+    
+    if strcmp(PolyUnstableMode, 'PolygonsOfInfoDetected')
+        PromptBuffer = ["Size of the buffer to define indecision area [m]"
+                        "Size of the buffer to define stable area [m]"    ];
+        SuggBuffVals = {'100', '250'};
+    else
+        PromptBuffer = ["Size of the window side where are located unstable points"
+                        "Size of the window side to define indecision area"
+                        "Size of the window side to define stable area"            ];
+        SuggBuffVals = {'45', '200', '300'};
+    end
+    
+    if any(strcmp(StablePointsApproach, {'SlopeOutsideUnstable','AllOutsideUnstable'}))
+        PromptBuffer(end) = [];
+        SuggBuffVals(end) = [];
+    end
+    
+    InpBufferSizes = str2double(inputdlg(PromptBuffer, '', 1, SuggBuffVals));
+    
+    Options = {'Yes', 'No'};
+    ModifyRatioChoice  = uiconfirm(Fig, 'Do you want to modify ratio of positive and negative points?', ...
+                                        'Ratio Pos to Neg', 'Options',Options, 'DefaultOption',1);
+    if strcmp(ModifyRatioChoice,'Yes'); ModifyRatio = true; else; ModifyRatio = false; end
+    
+    if ModifyRatio
+        RatioInputs = str2double(inputdlg(["Choose part of unstable: ", "Choose part of stable: "], '', 1, {'1', '2'}));
+        RatioToImpose = RatioInputs(1)/RatioInputs(2);
+    
+        Options = {'Undersampling', 'Oversampling'};
+        ResampleMode = uiconfirm(Fig, 'What approach do you want to use in resampling data?', ...
+                                      'Resampling technique', 'Options',Options, 'DefaultOption',1);
+    
+        if exist('MultipleDayAnalysis', 'var') && MultipleDayAnalysis && strcmp(ResampleMode,'Undersampling')
+            Options = {'Yes', 'No'};
+            MantainUnstabChoice  = uiconfirm(Fig, ['Do you want to mantain points where there is instability ' ...
+                                                   'also in the day when all points are stable? ' ...
+                                                   '(these points will be mantained during the merge and ' ...
+                                                   'the subsequent ratio adjustment)'], ...
+                                                   'Mantain unstable points', 'Options',Options, 'DefaultOption',1);
+            if strcmp(MantainUnstabChoice,'Yes'); MantainPointsUnstab = true; else; MantainPointsUnstab = false; end
+        end
+    end
 end
 
 switch StablePointsApproach
-    case {'SlopeOutsideUnstable', 'AllOutsideUnstable'}
+    case {'SlopeOutsideUnstable'}
         PolyStableMode = 'AllOutside';
-        PromptBuffer(end) = [];
-        SuggBuffVals(end) = [];
+        StableMethod   = 'Slope';
+
+    case {'AllOutsideUnstable'}
+        PolyStableMode = 'AllOutside';
+        StableMethod   = 'EntireStable';
 
     case {'BufferedUnstablePolygons'}
         PolyStableMode = 'Buffer';
+        StableMethod   = 'EntireStable';
 end
 
-if strcmp(StablePointsApproach, 'SlopeOutsideUnstable')
-    StableMethod = 'Slope';
-else
-    StableMethod = 'EntireStable';
+%% Writing DatasetStudyInfo
+DatasetStudyInfo.FullPathInfoDetUsed  = [fold_raw_det_ss,sl,char(FilesDetectedSoilSlip(IndDetToUse))];
+DatasetStudyInfo.Parameters           = {FeaturesChosed};
+DatasetStudyInfo.NormalizedData       = NormData;
+DatasetStudyInfo.CategoricalClasses   = CategsExist;
+DatasetStudyInfo.UnstablePolygonsMode = PolyUnstableMode;
+DatasetStudyInfo.StableAreaApproach   = StablePointsApproach;
+if strcmp(StablePointsApproach,'SlopeOutsideUnstable')
+    DatasetStudyInfo.CriticalSlope = CriticalSlope;
 end
-
-InpBufferSizes = str2double(inputdlg(PromptBuffer, '', 1, SuggBuffVals));
-
-Options = {'Yes', 'No'};
-ModifyRatioChoice  = uiconfirm(Fig, 'Do you want to modify ratio of positive and negative points?', ...
-                                    'Ratio Pos to Neg', 'Options',Options, 'DefaultOption',1);
-if strcmp(ModifyRatioChoice,'Yes'); ModifyRatio = true; else; ModifyRatio = false; end
-
-AnalysisInformation.CategoricalClasses   = Categs;
-AnalysisInformation.UnstablePolygonsMode = PolyUnstableMode;
-AnalysisInformation.StableAreaApproach   = StablePointsApproach;
-AnalysisInformation.StablePolygonsMode   = PolyStableMode;
-AnalysisInformation.RatioClassesModified = ModifyRatio;
-
+DatasetStudyInfo.InputBufferSizes     = {InpBufferSizes};
+DatasetStudyInfo.ModifyRatioClasses   = ModifyRatio;
 if ModifyRatio
-    RatioInputs = str2double(inputdlg(["Choose part of unstable: ", "Choose part of stable: "], '', 1, {'1', '2'}));
-    AnalysisInformation.RatioClasses = {RatioInputs};
-    RatioToImpose = RatioInputs(1)/RatioInputs(2);
-
-    Options = {'Undersampling', 'Oversampling'};
-    ResampleMode = uiconfirm(Fig, 'What approach do you want to use in resampling data?', ...
-                                  'Resampling technique', 'Options',Options, 'DefaultOption',1);
-
-    AnalysisInformation.ResampleModeDatasetML = ResampleMode;
-
-    if MultipleDayAnalysis
-        Options = {'Yes', 'No'};
-        MantainUnstabChoice  = uiconfirm(Fig, ['Do you want to mantain points where there is instability ' ...
-                                               'even in the day when all points are stable? ' ...
-                                               '(these points will be mantained during the merge and ' ...
-                                               'the subsequent ratio adjustment)'], ...
-                                               'Mantain unstable points', 'Options',Options, 'DefaultOption',1);
-        if strcmp(MantainUnstabChoice,'Yes'); MantainPointsUnstab = true; else; MantainPointsUnstab = false; end
-    
-        AnalysisInformation.UnstablePointsMantainedInDayOfStable = MantainPointsUnstab;
+    DatasetStudyInfo.RatioClasses = {array2table(RatioInputs', 'VariableNames',{'UnstablePart','StablePart'})};
+    DatasetStudyInfo.ResampleModeDatasetML = ResampleMode;
+    if MultipleDayAnalysis && strcmp(ResampleMode,'Undersampling')
+        DatasetStudyInfo.UnstablePointsMantainedInDayOfStable = MantainPointsUnstab;
     end
 end
 
-switch PolyUnstableMode
-    case 'PolygonsOfInfoDetected'
-        AnalysisInformation.BufferForIndecisionArea = InpBufferSizes(1);
-        if strcmp(PolyStableMode, 'Buffer')
-            AnalysisInformation.BufferForMaxAreaVisible = InpBufferSizes(2);
-        end
-
-    case 'ManualSquares'
-        AnalysisInformation.PolyCreationCoordType = 'Planar';
-        AnalysisInformation.SizeForUnstableArea   = InpBufferSizes(1);
-        AnalysisInformation.SizeForIndecisionArea = InpBufferSizes(2);
-        if strcmp(PolyStableMode, 'Buffer')
-            AnalysisInformation.SizeForMaxAreaVisible = InpBufferSizes(3);
-        end
-end
-
-%% ANN time sensitive options
-TimeSensExist = false;
-TimeSensitiveDate = {};
-
-% Rainfall
-if any(strcmp(FeaturesChosed, 'Rainfall'))
-    load([fold_var,sl,'RainInterpolated.mat'], 'RainDateInterpolationStarts')
-    TimeSensitiveDate = [TimeSensitiveDate, {RainDateInterpolationStarts}];
-    TimeSensExist = true;
-end
-
-% Temperature
-if any(strcmp(FeaturesChosed, 'Temperature'))
-    load([fold_var,sl,'TempInterpolated.mat'], 'TempDateInterpolationStarts')
-    TimeSensitiveDate = [TimeSensitiveDate, {TempDateInterpolationStarts}];
-    TimeSensExist = true;
-end
-
-% Uniformization of time sensitive part
-EventDate = nan;
+%% ANN time sensitive additional options
 if TimeSensExist
+    TimeSensitiveDate = {};
+    
+    % Rainfall
+    if any(strcmp(FeaturesChosed, 'Rainfall'))
+        load([fold_var,sl,'RainInterpolated.mat'], 'RainDateInterpolationStarts')
+        TimeSensitiveDate = [TimeSensitiveDate, {RainDateInterpolationStarts}];
+        TimeSensExist = true;
+    end
+    
+    % Temperature
+    if any(strcmp(FeaturesChosed, 'Temperature'))
+        load([fold_var,sl,'TempInterpolated.mat'], 'TempDateInterpolationStarts')
+        TimeSensitiveDate = [TimeSensitiveDate, {TempDateInterpolationStarts}];
+        TimeSensExist = true;
+    end
+    
+    % Uniformization of time sensitive part
     StartDateCommon = max(cellfun(@min, TimeSensitiveDate)); % Start in end dates
     EndDateCommon   = min(cellfun(@max, TimeSensitiveDate)); % End in end dates
-
+    
     if EndDateCommon < StartDateCommon
         error('Time sensitive part has no datetime in common! Please re-interpolate time sensitive part.')
     end
-
+    
     if length(TimeSensitiveDate) > 1
         for i1 = 1 : length(TimeSensitiveDate)
             IndStartCommon = find(StartDateCommon == TimeSensitiveDate{i1}); % You should put an equal related to days and not exact timing
@@ -172,130 +252,182 @@ if TimeSensExist
             error('After uniformization of dates in time sensitive part, number of elements is not consistent! Please check it in the script.')
         end
     end
-
+    
     TimeSensitiveDate = TimeSensitiveDate{1}; % Taking only the first one since they are identical!
-
+    
     IndEvent = listdlg('PromptString',{'Select the date to consider for event (start times of 24 h):',''}, ...
                        'ListString',TimeSensitiveDate, 'SelectionMode','single');
     EventDate = TimeSensitiveDate(IndEvent);
-end
 
-%% ANN additional options
-if TimeSensExist
-    Options = {'SeparateDailyCumulates', 'SingleCumulate'};
-    TimeSensMode = uiconfirm(Fig, 'How do you want to built the time sensitive data?', ...
-                                    'Neural network topology', 'Options',Options, 'DefaultOption',2);
+    LandslideDayAns = uiconfirm(Fig, 'Is this a landslide day?', ...
+                                     'Landslide day', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
+    if strcmp(LandslideDayAns,'No'); LandslideDay = false; end
 
-    MultipleDayChoice = uiconfirm(Fig, 'Do you want to add a different day in dataset?', ...
-                                       'Time sensitive analyses', 'Options',{'Yes', 'No, only a single day'}, 'DefaultOption',2);
-    if strcmp(MultipleDayChoice,'Yes'); MultipleDayAnalysis = true; else; MultipleDayAnalysis = false; end
-
+    % User choice about days to consider
     MaxDaysPossible = IndEvent;
     if MultipleDayAnalysis
-        DaysBeforeEventWhenStable = str2double(inputdlg({["Please specify how many days before the event you want "
-                                                          "to consider all points as stable."
-                                                          strcat("(You have ",string(IndEvent), ...
-                                                                 " days of cumulate rainfalls to your event)")]}, '', 1, {'10'}));
-        
-        if (IndEvent-DaysBeforeEventWhenStable) <= 0
-            error('You have to select another day for stable points, more forward in time than the start of your dataset')
+        if AddToExistingDataset && OldSettings
+            DaysBeforeEventWhenStable = DatasetStudyInfo.DayBeforeEventForStablePoints;
+
+            if (IndEvent-DaysBeforeEventWhenStable) <= 0
+                error(['Since you want to add this dataset to the old one, ', ...
+                       'you need more recording datetimes for TS. You need', ...
+                       num2str(-IndEvent+DaysBeforeEventWhenStable),' more days in recs!'])
+            end
+        else
+            DaysBeforeEventWhenStable = str2double(inputdlg({["Please specify how many days before the event you want "
+                                                              "to consider all points as stable."
+                                                              strcat("(You have ",string(IndEvent), ...
+                                                                     " days of cumulate rainfalls to your event)")]}, '', 1, {'10'}));
+
+            if (IndEvent-DaysBeforeEventWhenStable) <= 0
+                error(['You have to select another day for stable points, ', ...
+                       'more forward in time than the start of your dataset'])
+            end
         end
 
         MaxDaysPossible = IndEvent-DaysBeforeEventWhenStable;
-
-        MantainUnstabChoice  = uiconfirm(Fig, ['Do you want to mantain points where there is instability ' ...
-                                               'even in the day when all points are stable? ' ...
-                                               '(these points will be mantained during the merge and ' ...
-                                               'the subsequent ratio adjustment)'], ...
-                                               'Mantain unstable points', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
-        if strcmp(MantainUnstabChoice,'Yes'); MantainPointsUnstab = true; else; MantainPointsUnstab = false; end
+        BeforeEventDate = EventDate-days(DaysBeforeEventWhenStable);
     end
 
-    AnalysisInformation.TimeSensitiveMode   = TimeSensMode;
-    AnalysisInformation.MultipleDayAnalysis = MultipleDayAnalysis;
+    if AddToExistingDataset % Important: do not add OldSettings because, even if you don't want the OldSettings, this parameter MUST BE the same!
+        DaysForTS = DatasetStudyInfo.DaysForTS;
+        if (MaxDaysPossible-DaysForTS) < 0
+            error(['Since you want to add this dataset to the old one, you need more ', ...
+                   num2str(-MaxDaysPossible+DaysForTS),' days in recs!'])
+        end
+        if strcmp(TimeSensMode,'TriggerCausePeak')
+            CauseMode = DatasetStudyInfo.CauseMode;
+        end
+
+    else
+        switch TimeSensMode
+            case 'SeparateDays'
+                DaysForTS = str2double(inputdlg({['Please specify the max number of day (max ', ...
+                                                  num2str(MaxDaysPossible),') you want to consider:']}, '', 1, {num2str(MaxDaysPossible)}));
+        
+            case 'CondensedDays'
+                DaysForTS = str2double(inputdlg({[ "Please specify how many days you want to cumulate (or average): "
+                                                   strcat("(Max possible:  ",string(MaxDaysPossible)," days") ]}, '', 1, {num2str(MaxDaysPossible)}));
+
+            case 'TriggerCausePeak'
+                DaysForTS = str2double(inputdlg({[ "Please specify how many days you want to consider for cause rainfall amount: "
+                                                   strcat("(Max possible:  ",string(MaxDaysPossible-2)," days") ]}, '', 1, {num2str(MaxDaysPossible-2)})); % -2 because script is set to search an event in a time window of max 2 days before or after
+
+                Options   = {'DailyCumulate', 'EventsCumulate'};
+                CauseMode = uiconfirm(Fig, 'How do you want to define cause rainfall?', ...
+                                           'Cause Rainfall', 'Options',Options, 'DefaultOption',2);
+        end
+
+        if (MaxDaysPossible-DaysForTS) < 0
+            error('You have to select fewer days than the maximum possible (or you have to change matrix of daily rainfalls)')
+        end
+    end
+
+    % Continuing to write DatasetStudyInfo
+    DatasetStudyInfo.EventDate           = EventDate;
+    DatasetStudyInfo.LandslideEvent      = LandslideDay;
+    DatasetStudyInfo.TimeSensitiveMode   = TimeSensMode;
+    if strcmp(TimeSensMode,'TriggerCausePeak')
+        DatasetStudyInfo.CauseMode       = CauseMode;
+    end
+    DatasetStudyInfo.MultipleDayAnalysis = MultipleDayAnalysis;
     if MultipleDayAnalysis
-        AnalysisInformation.DayBeforeEventForStablePoints = DaysBeforeEventWhenStable;
-        AnalysisInformation.UnstablePointsMantainedInDayOfStable = MantainPointsUnstab;
+        DatasetStudyInfo.BeforeEventDate = BeforeEventDate;
+        DatasetStudyInfo.DayBeforeEventForStablePoints = DaysBeforeEventWhenStable;
     end
-    
-    switch TimeSensMode
-        case 'SeparateDailyCumulates'
-            NumOfDayToConsider = str2double(inputdlg({['Please specify the max number of day (max ', ...
-                                                        num2str(MaxDaysPossible),') you want to consider:']}, '', 1, {num2str(MaxDaysPossible)}));
-
-            if NumOfDayToConsider > IndEvent; error('You have to select a number < than the max'); end
-
-            AnalysisInformation.MaxNumOfDailyTS = NumOfDayToConsider;
-    
-        case 'SingleCumulate'
-            DaysToCumulate = str2double(inputdlg({["Please specify how many days you want to cumulate: "
-                                                   strcat("(Max possible:  ",string(MaxDaysPossible)," days")]}, ...
-                                                   '', 1, {num2str(MaxDaysPossible)}));
-            
-            if (MaxDaysPossible-DaysToCumulate) < 0
-                error('You have to select fewer days than the maximum possible (or you have to change matrix of daily rainfalls)')
-            end
-
-            AnalysisInformation.DaysCumulated       = DaysToCumulate;
-    end
+    DatasetStudyInfo.DaysForTS = DaysForTS;
 end
 
 %% Datasets creation
-[DatasetFeatsStudyNorm, DatasetCoordinatesStudy, RangesForNorm, TimeSensPart, ...
-    DatasetFeatsStudyNotNorm, FeaturesType] = datasetstudy_creation( fold0, 'Features',FeaturesChosed, ...
-                                                                            'Categorical',Categs, 'Normalize',NormData, ...
-                                                                            'TargetFig',Fig, 'DayOfEvent',EventDate, ...
-                                                                            'DaysForTimeSensitive',DaysToCumulate );
-FeaturesNames = DatasetFeatsStudyNorm.Properties.VariableNames;
+[DatasetStudyFeats, DatasetStudyCoords, RangesForNorm, TimeSensPart, DatasetStudyFeatsNotNorm, ...
+        FeaturesType, ClassPolys] = datasetstudy_creation( fold0, 'Features',FeaturesChosed, ...
+                                                                  'Categorical',CategsExist, ...
+                                                                  'Normalize',NormData, ...
+                                                                  'TargetFig',Fig, ...
+                                                                  'DayOfEvent',EventDate, ...
+                                                                  'DaysForTS',DaysForTS, ...
+                                                                  'TimeSensMode',TimeSensMode, ...
+                                                                  'CauseMode',CauseMode, ...
+                                                                  'UseRanges',UseRanges, ...
+                                                                  'Ranges',RangesForNorm);
+
+FeaturesNames = DatasetStudyFeats.Properties.VariableNames;
 
 if TimeSensExist
     TimeSensitiveParam = TimeSensPart.ParamNames;
     CumulableParam     = TimeSensPart.Cumulable;
     TimeSensitiveDate  = TimeSensPart.Datetimes;
     TimeSensitiveDataInterpStudy = TimeSensPart.Data;
+    if strcmp(TimeSensMode,'TriggerCausePeak')
+        TimeSensitiveTrigg = TimeSensPart.TriggAmountPerEvent;
+        TimeSensitivePeaks = TimeSensPart.PeaksPerEvent;
+        TimeSensEventDates = TimeSensPart.DatesPerEvent;
+        StartDateEventTrig = TimeSensPart.StartDateTriggering;
+        HoursDiff = abs(EventDate-StartDateEventTrig);
+        if HoursDiff >= hours(1)
+            warning(['There is a difference of ',num2str(hours(HoursDiff)), ...
+                     ' between data you chosed and the start of the triggering!', ...
+                     ' Event date will be overwrite.'])
+        end
+    end
 
     if not(isequal(EventDate, TimeSensPart.EventTime))
         error('Datetime of DatasetStudy and the one you chosed do not match! Please check "datasetstudy_creation" function')
     end
-
-    AnalysisInformation.TimeSensitiveParameters          = TimeSensitiveParam;
-    AnalysisInformation.TimeSensitiveCumulableParameters = CumulableParam;
-    AnalysisInformation.TimeSensitiveDates               = TimeSensitiveDate;
 end
 
-yLatMean = mean(DatasetCoordinatesStudy.Latitude);
+%% Continuing to write DatasetStudyInfo
+DatasetStudyInfo.FeaturesNames = {FeaturesNames};
+DatasetStudyInfo.FeaturesTypes = {FeaturesType};
+DatasetStudyInfo.ClassPolygons = {ClassPolys};
+if TimeSensExist
+    DatasetStudyInfo.TSParameters = {TimeSensitiveParam};
+    DatasetStudyInfo.TSCumulable  = {CumulableParam};
+end
 
 %% R2 Correlation coefficients for Study Area
-DatasetFeatsStudyNormTemp    = DatasetFeatsStudyNorm;
-DatasetFeatsStudyNotNormTemp = DatasetFeatsStudyNotNorm;
+ProgressBar.Message = "Creation of correlation matrix...";
+
+DatasetStudyFeatsTemp        = DatasetStudyFeats;
+DatasetStudyFeatsNotNormTemp = DatasetStudyFeatsNotNorm;
 if any(strcmp(FeaturesType, "Categorical"))
     ColumnsToConvert = find(strcmp(FeaturesType, "Categorical"));
     for i1 = ColumnsToConvert % ColumnsToConvert must be always horizontal!
-        DatasetFeatsStudyNormTemp.(FeaturesNames{i1})    = grp2idx(DatasetFeatsStudyNormTemp{:, i1});
-        DatasetFeatsStudyNotNormTemp.(FeaturesNames{i1}) = grp2idx(DatasetFeatsStudyNotNormTemp{:, i1});
+        DatasetStudyFeatsTemp.(FeaturesNames{i1})        = grp2idx(DatasetStudyFeatsTemp{:, i1});
+        DatasetStudyFeatsNotNormTemp.(FeaturesNames{i1}) = grp2idx(DatasetStudyFeatsNotNormTemp{:, i1});
     end
 end
 
-DatasetFeatsStudyNormTemp    = table2array(DatasetFeatsStudyNormTemp);
-DatasetFeatsStudyNotNormTemp = table2array(DatasetFeatsStudyNotNormTemp);
+DatasetStudyFeatsTemp        = table2array(DatasetStudyFeatsTemp);
+DatasetStudyFeatsNotNormTemp = table2array(DatasetStudyFeatsNotNormTemp);
 
-DatasetFeatsStudyNormTemp(isnan(DatasetFeatsStudyNormTemp))       = -9999; % To replace NaNs with -9999 because otherwise you will have NaNs in R2 matrix.
-DatasetFeatsStudyNotNormTemp(isnan(DatasetFeatsStudyNotNormTemp)) = -9999; % To replace NaNs with -9999 because otherwise you will have NaNs in R2 matrix.
+DatasetStudyFeatsTemp(isnan(DatasetStudyFeatsTemp))               = -9999; % To replace NaNs with -9999 because otherwise you will have NaNs in R2 matrix.
+DatasetStudyFeatsNotNormTemp(isnan(DatasetStudyFeatsNotNormTemp)) = -9999; % To replace NaNs with -9999 because otherwise you will have NaNs in R2 matrix.
 
-R2ForDatasetFeatsStudyNorm = array2table(corrcoef(DatasetFeatsStudyNormTemp), ...
+R2ForDatasetStudyFeats        = array2table(corrcoef(DatasetStudyFeatsTemp), ...
                                             'VariableNames',FeaturesNames, 'RowNames',FeaturesNames);
-R2ForDatasetFeatsStudyNotNorm = array2table(corrcoef(DatasetFeatsStudyNotNormTemp), ...
+R2ForDatasetStudyFeatsNotNorm = array2table(corrcoef(DatasetStudyFeatsNotNormTemp), ...
                                             'VariableNames',FeaturesNames, 'RowNames',FeaturesNames);
 
 %% Statistics of study area
 ProgressBar.Message = "Statistics of study area...";
 
-DatasetQuants   = cell(1, size(DatasetFeatsStudyNorm, 2));
-DatasetExtremes = cell(2, size(DatasetFeatsStudyNorm, 2));
-for i1 = 1:size(DatasetFeatsStudyNorm, 2)
-    DatasetQuants{i1}       = quantile(DatasetFeatsStudyNorm{:,i1},[0.25, 0.75]);
-    DatasetExtremes(:,i1)   = {min(DatasetFeatsStudyNorm{:,i1}); max(DatasetFeatsStudyNorm{:,i1})};
+[TempNormStats, TempNotNormStats] = deal(array2table(nan(size(DatasetStudyFeats,2), 4), ...
+                                                                'VariableNames',{'1stQuantile','3rdQuantile','MinExtreme','MaxExtreme'}, ...
+                                                                'RowNames',FeaturesNames));
+for i1 = 1:length(FeaturesNames)
+    if strcmp(FeaturesType(i1),'Categorical'); continue; end
+    TempNormStats{FeaturesNames{i1}, 1:2} = quantile(DatasetStudyFeats.(FeaturesNames{i1}), [0.25, 0.75]);
+    TempNormStats{FeaturesNames{i1}, 3:4} = [min(DatasetStudyFeats.(FeaturesNames{i1})), ...
+                                                     max(DatasetStudyFeats.(FeaturesNames{i1}))];
+
+    TempNotNormStats{FeaturesNames{i1}, 1:2} = quantile(DatasetStudyFeatsNotNorm.(FeaturesNames{i1}), [0.25, 0.75]);
+    TempNotNormStats{FeaturesNames{i1}, 3:4} = [min(DatasetStudyFeatsNotNorm.(FeaturesNames{i1})), ...
+                                                        max(DatasetStudyFeatsNotNorm.(FeaturesNames{i1}))];
 end
+
+DatasetStudyStats = table({TempNormStats}, {TempNotNormStats}, 'VariableNames',{'Normalized', 'NotNormalized'});
 
 %% Creation of landslides, indecision, and stable polygons
 [UnstablePolygons, StablePolygons, ...
@@ -311,683 +443,272 @@ IndecisPolyMrgd  = union(IndecisionPolygons);
 StablePolyMrgd   = union(StablePolygons);
 
 %% Rebalance of dataset
-[IndicesTrainDataset, ExpectedOut] = datasetml_indexing(DatasetCoordinatesStudy, ...
-                                                        DatasetFeatsStudyNotNorm, ...
-                                                        UnstablePolyMrgd, ...
-                                                        StablePolyMrgd, ...
-                                                        'StableMethod',StableMethod, ...
-                                                        'ModifyRatio',ModifyRatio, ...
-                                                        'RatioToImpose',RatioToImpose, ...
-                                                        'ResampleMode',ResampleMode);
+[IndicesMLDataset, ExpectedOut] = datasetml_indexing(DatasetStudyCoords, DatasetStudyFeatsNotNorm, ...
+                                                     UnstablePolyMrgd, StablePolyMrgd, 'StableMethod',StableMethod, ...
+                                                                                       'ModifyRatio',ModifyRatio, ...
+                                                                                       'RatioToImpose',RatioToImpose, ...
+                                                                                       'ResampleMode',ResampleMode, ...
+                                                                                       'DayOfLandslide',LandslideDay, ...
+                                                                                       'CriticalSlope',CriticalSlope);
 
-DatasetMLCoords  = DatasetCoordinatesStudy(IndicesTrainDataset,:);
-DatasetMLNotNorm = DatasetFeatsStudyNotNorm(IndicesTrainDataset,:);
-DatasetMLNorm    = DatasetFeatsStudyNorm(IndicesTrainDataset,:);
+DatasetMLCoordsPart1       = DatasetStudyCoords(IndicesMLDataset,:);
+DatasetMLFeatsNotNormPart1 = DatasetStudyFeatsNotNorm(IndicesMLDataset,:);
+DatasetMLFeatsPart1        = DatasetStudyFeats(IndicesMLDataset,:);
+DatasetMLClassesPart1      = table(ExpectedOut, 'VariableNames',{'ExpectedOutput'});
+DatasetMLDatesPart1        = table(repmat(EventDate, size(DatasetMLCoordsPart1,1), 1), ...
+                                   repmat(LandslideDay, size(DatasetMLCoordsPart1,1), 1), 'VariableNames',{'Datetime','LandslideEvent'});
 
-%% Creation of a copy at different time and copy to mantain with all points
-if MultipleDayAnalysis
-    DatasetMLCoordsToAdd  = DatasetMLCoords;
-    DatasetMLNotNormToAdd = DatasetMLNotNorm;
-    DatasetMLNormToAdd    = DatasetMLNorm;
-    ExpectedOutToAdd      = false(size(ExpectedOut)); % At this particular timing prediction should be 0! (no landslide)
-end
+%% Creation of a copy to use in analysis (could be made of 2 different days)
+if not(MultipleDayAnalysis)
+    DatasetMLCoords       = DatasetMLCoordsPart1;
+    DatasetMLFeatsNotNorm = DatasetMLFeatsNotNormPart1;
+    DatasetMLFeats        = DatasetMLFeatsPart1;
+    DatasetMLClasses      = DatasetMLClassesPart1;
+    DatasetMLDates        = DatasetMLDatesPart1;
 
-%% Loop for ANN models (different rainfall time)
-ProgressBar.Indeterminate = 'off';
+elseif MultipleDayAnalysis
+    ProgressBar.Message = 'Addition of points in the day of stability';
 
-switch TimeSensMode
-    case 'SeparateDailyCumulates'
-        Options = {'With Validation Data', 'Auto', 'Normal'};
-        ANNMode  = uiconfirm(Fig, 'How do you want to built your neural network?', ...
-                                  'Neural network choice', 'Options',Options, 'DefaultOption',2);
+    DatasetMLCoordsPart2       = DatasetMLCoordsPart1;
+    DatasetMLFeatsNotNormPart2 = DatasetMLFeatsNotNormPart1; % To overwrite TS part (rows below)
+    DatasetMLFeatsPart2        = DatasetMLFeatsPart1; % To overwrite TS part (rows below)
+    DatasetMLClassesPart2      = table(false(size(ExpectedOut)), 'VariableNames',{'ExpectedOutput'}); % At this particular timing prediction should be 0! (no landslide)
+    DatasetMLDatesPart2        = table(repmat(BeforeEventDate, size(DatasetMLCoordsPart1,1), 1), ...
+                                       false(size(DatasetMLCoordsPart1,1), 1), 'VariableNames',{'Datetime','LandslideEvent'});
 
-        LayerActivation = 'sigmoid'; % CHOICE TO USER!
-        Standardize     = true;      % CHOICE TO USER!
+    switch TimeSensMode
+        case 'SeparateDays'
+            FeatsNamesToChange = cellfun(@(x) strcat(x,'-',string(1:DaysForTS)','daysBefore'), TimeSensitiveParam, 'UniformOutput',false); % Remember to change this line if you change feats names in datasetstudy_creation function!
 
-        StructureInput  = inputdlg("Number of nuerons in each hidden: ", '', 1, {'[60, 20]'});
-        LayerSize       = str2num(StructureInput{1});
-
-        ANNModels = cell(12, NumOfDayToConsider);
-        AnalysisInformation.MaxDaysConsidered = NumOfDayToConsider;
-        AnalysisInformation.ANNMode           = ANNMode;
-        for i1 = 1:NumOfDayToConsider
-            ProgressBar.Value = i1/NumOfDayToConsider;
-            ProgressBar.Message = strcat("Training model n. ", string(i1)," of ", string(NumOfDayToConsider));
-        
-            %% Addition in table of time sensitive parameters
-            ConditioningFactorToAdd  = cellfun(@(x) [x,'-',num2str(i1)], TimeSensitiveParam, 'UniformOutput',false);
-            FeaturesNames = [FeaturesNames, ConditioningFactorToAdd];
-
-            RowToTake   = find(TimeSensitiveDate == EventDate)-i1+1;
-            ColumnToAdd = cellfun(@(x) cat(1,x{RowToTake,:}), TimeSensitiveDataInterpStudy, 'UniformOutput',false);
-
-            RangesForNorm = [ RangesForNorm  ;      % Pre-existing
-                               0    ,   120  ;      % Cumulative daily rainfall (to discuss this value, max was 134 mm in a day for Emilia Romagna)
-                              -10   ,   40    ];    % Mean daily temperature (to discuss this value)
-
-            ColumnToAddTable     = table( ColumnToAdd{:}, 'VariableNames',FeaturesNames(end-length(TimeSensitiveParam)+1 : end) );
-            ColumnToAddTableNorm = array2table(rescale([ColumnToAdd{:}], ...
-                                                        'InputMin',RangesForNorm(end-length(TimeSensitiveParam)+1 : end,1)', ...  % Must be a row
-                                                        'InputMax',RangesForNorm(end-length(TimeSensitiveParam)+1 : end,2)'), ... % Must be a row
-                                                    'VariableNames',FeaturesNames(end-length(TimeSensitiveParam)+1 : end));
-
-            DatasetFeatsStudyNotNorm = [DatasetFeatsStudyNotNorm, ColumnToAddTable    ]; % Horizontal concatenation
-            DatasetFeatsStudyNorm    = [DatasetFeatsStudyNorm,    ColumnToAddTableNorm]; % Horizontal concatenation
-
-            ColumnToAddTable = ColumnToAddTable(IndicesTrainDataset,:);
-            ColumnToAddTableNorm = ColumnToAddTableNorm(IndicesTrainDataset,:);
-
-            DatasetMLNotNorm = [DatasetMLNotNorm, ColumnToAddTable    ];
-            DatasetMLNorm    = [DatasetMLNorm,    ColumnToAddTableNorm];
-
-            %% Addition of points at different time
-            if MultipleDayAnalysis
-                RowToTakeAtDiffTime = RowToTake-DaysBeforeEventWhenStable;
-                ColumnToAddAtDiffTime = cellfun(@(x) cat(1,x{RowToTakeAtDiffTime,:}), TimeSensitiveDataInterpStudy, 'UniformOutput',false);
-                
-                ColumnToAddTableAtDiffTime     = table( ColumnToAddAtDiffTime{:}, 'VariableNames',FeaturesNames(end-length(TimeSensitiveParam)+1 : end) );
-                ColumnToAddTableAtDiffTimeNorm = array2table(rescale([ColumnToAddAtDiffTime{:}], ...
-                                                                      'InputMin',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 1)', ...  % Must be a row
-                                                                      'InputMax',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 2)'), ... % Must be a row
-                                                                  'VariableNames',FeaturesNames(end-length(TimeSensitiveParam)+1 : end));
-
-                ColumnToAddTableAtDiffTime(IndToRemove1,:)     = [];
-                ColumnToAddTableAtDiffTimeNorm(IndToRemove1,:) = [];
-                if ModifyRatio
-                    ColumnToAddTableAtDiffTime(IndToRemove2,:)     = []; 
-                    ColumnToAddTableAtDiffTimeNorm(IndToRemove2,:) = []; 
-                end
-
-                DatasetMLNotNormToAdd = [DatasetMLNotNormToAdd, ColumnToAddTableAtDiffTime    ];
-                DatasetMLNormToAdd    = [DatasetMLNormToAdd   , ColumnToAddTableAtDiffTimeNorm];
-
-                DatasetMLNotNormToUse = [DatasetMLNotNorm; DatasetMLNotNormToAdd];
-                DatasetMLNormToUse    = [DatasetMLNorm;    DatasetMLNormToAdd   ];
-                ExpectedOutToUse      = [ExpectedOut;      ExpectedOutToAdd     ];
-                DatasetMLCoordsToUse  = [DatasetMLCoords;  DatasetMLCoordsToAdd ];
-
-                if ModifyRatio
-                    IndOutPos   = find(ExpectedOutToUse==1);
-                    IndOutNeg   = find(ExpectedOutToUse==0);
-                    RatioPosNeg = length(IndOutPos)/length(IndOutNeg);
-
-                    PercToRemove = 1-RatioPosNeg/OptimalRatio;
-
-                    if MantainPointsUnstab
-                        [pp3, ee3] = getnan2([StablePolyMrgd.Vertices; nan, nan]);
-                        IndPointStable = find(inpoly([DatasetMLCoordsToUse.Longitude,DatasetMLCoordsToUse.Latitude], pp3,ee3));
-
-                        IndOfIndPointUncStableToRemove = randperm(numel(IndPointStable), ...
-                                                                  ceil(numel(IndOutNeg)*PercToRemove)); % ceil(numel(IndOutNeg)*PercToRemove) remain because you have in any case to remove that number of points
-                        IndToRemove3 = IndPointStable(IndOfIndPointUncStableToRemove);
-                    else
-                        IndOfIndOutNegToRemove = randperm(numel(IndOutNeg), ceil(numel(IndOutNeg)*PercToRemove));
-                        IndToRemove3 = IndOutNeg(IndOfIndOutNegToRemove);
-                    end
-
-                    DatasetMLNotNormToUse(IndToRemove3,:) = [];
-                    DatasetMLNormToUse(IndToRemove3,:)    = [];
-                    ExpectedOutToUse(IndToRemove3)        = [];
-                    DatasetMLCoordsToUse(IndToRemove3,:)  = [];
-                
-                    IndOutPosNew   = find(ExpectedOutToUse==1);
-                    IndOutNegNew   = find(ExpectedOutToUse==0);
-                    RatioPosNegNew = length(IndOutPosNew)/length(IndOutNegNew);
-                    if (numel(IndOutPosNew) ~= numel(IndOutPos)) || (round(OptimalRatio, 1) ~= round(RatioPosNegNew, 1))
-                        error("Something went wrong in re-attributing the correct ratio between positive and negative outputs!")
-                    end
-                end
-            else
-                DatasetMLNotNormToUse = DatasetMLNotNorm;
-                DatasetMLNormToUse    = DatasetMLNorm;
-                ExpectedOutToUse      = ExpectedOut;
-                DatasetMLCoordsToUse  = DatasetMLCoords;
-            end
-            
-            %% Model creation and prediction
-            rng(7) % For reproducibility of the model
-            PartitionTrain = cvpartition(ExpectedOutToUse, 'Holdout',0.20);
-        
-            IndTrainLogical = training(PartitionTrain); % Indices for the training set
-            IndTrain = find(IndTrainLogical);
-            
-            IndTestLogical = test(PartitionTrain); % Indices for the test set
-            IndTest = find(IndTestLogical);
-            
-            DatasetTrain = DatasetMLNormToUse(IndTrainLogical,:);
-            DatasetTest  = DatasetMLNormToUse(IndTestLogical,:);
-            
-            OutputTrain = ExpectedOutToUse(IndTrainLogical);
-            OutputTest  = ExpectedOutToUse(IndTestLogical);
-            
-            switch ANNMode
-                case 'With Validation Data'
-                    Model = fitcnet(DatasetTrain, OutputTrain, 'ValidationData',{DatasetTest, OutputTest}, ...
-                                                               'ValidationFrequency',5, 'ValidationPatience',20, ...
-                                                               'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
-                                                               'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',5e4);
-
-                    FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
-                    if FailedConvergence
-                        warning(strcat("ATTENTION! Model n. ", string(i1), " failed to converge! Please analyze it."))
-                    end
-
-                case 'Auto'
-                    Model = fitcnet(DatasetTrain, OutputTrain, 'OptimizeHyperparameters','all', ...
-                                                               'MaxObjectiveEvaluations',20);
-                case 'Normal'
-                    Model = fitcnet(DatasetTrain, OutputTrain, 'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
-                                                               'Standardize',Standardize, 'Lambda',1.2441e-09);
-            end
-
-            FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
-            if FailedConvergence
-                warning(strcat("ATTENTION! Model n. ", string(i1), " failed to converge! Please analyze it."))
-            end
-            
-            [PredictionTrain, ProbabilityTrain] = predict(Model, DatasetTrain);
-            [PredictionTest,  ProbabilityTest]  = predict(Model, DatasetTest);
-        
-            DatasetTestMSE = loss(Model, DatasetTest, OutputTest);
-
-            R2 = corrcoef(table2array(DatasetMLNormToUse));
-        
-            % General matrix creation 
-            ANNModels(:, i1) = {Model; DatasetTrain; DatasetTest; OutputTrain; OutputTest; ...
-                                PredictionTrain; ProbabilityTrain; PredictionTest; ...
-                                ProbabilityTest; DatasetTestMSE; R2; FeaturesNames};
-        end
-
-    case 'SingleCumulate'
-        %% Table rainfall addition
-        ConditioningFactorOper = repmat({'Averaged'}, 1, length(TimeSensitiveParam));
-        ConditioningFactorOper(CumulableParam) = {'Cumulated'};
-
-        ConditioningFactorToAdd  = cellfun(@(x, y) [x,y,num2str(DaysToCumulate),'d'], TimeSensitiveParam, ConditioningFactorOper, 'UniformOutput',false);
-        FeaturesNames = [FeaturesNames, ConditioningFactorToAdd];
-    
-        RowToTake   = length(TimeSensitiveDate);
-        ColumnToAdd = cell(1, length(TimeSensitiveParam));
-        for i1 = 1:length(TimeSensitiveParam)
-            ColumnToAddTemp = cell(1, size(TimeSensitiveDataInterpStudy{i1}, 2));
-            for i2 = 1:size(TimeSensitiveDataInterpStudy{i1}, 2)
-                if CumulableParam(i1)
-                    ColumnToAddTemp{i2} = sum([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysToCumulate+1), i2}], 2);
-                else
-                    ColumnToAddTemp{i2} = mean([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysToCumulate+1), i2}], 2);
-                end
-            end
-            ColumnToAdd{i1} = cat(1,ColumnToAddTemp{:});
-        end
-
-        MaxDailyRain  = 30; % To discuss this value (max in Emilia was 134 mm in a day)
-        MaxRangeRain  = MaxDailyRain*DaysToCumulate;
-
-        RangesForNorm = [ RangesForNorm         ;      % Pre-existing
-                           0    ,   MaxRangeRain;      % Cumulative daily rainfall (to discuss this value, max was 134 mm in a day for Emilia Romagna)
-                          -10   ,   40           ];    % Mean daily temperature (to discuss this value)
-
-        ColumnToAddTable     = table( ColumnToAdd{:}, 'VariableNames',FeaturesNames(end-length(TimeSensitiveParam)+1 : end) );
-        ColumnToAddTableNorm = array2table(rescale([ColumnToAdd{:}], ...
-                                                    'InputMin',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 1)', ...  % Must be a row
-                                                    'InputMax',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 2)'), ... % Must be a row
-                                                'VariableNames',FeaturesNames(end-length(TimeSensitiveParam)+1 : end));
-
-        DatasetFeatsStudyNotNorm = [DatasetFeatsStudyNotNorm    , ColumnToAddTable    ]; % Horizontal concatenation
-        DatasetFeatsStudyNorm = [DatasetFeatsStudyNorm, ColumnToAddTableNorm]; % Horizontal concatenation
-
-        ColumnToAddTable(IndToRemove1,:)     = [];
-        ColumnToAddTableNorm(IndToRemove1,:) = [];
-        if ModifyRatio
-            ColumnToAddTable(IndToRemove2,:)     = []; 
-            ColumnToAddTableNorm(IndToRemove2,:) = []; 
-        end
-
-        DatasetMLNotNorm     = [DatasetMLNotNorm    , ColumnToAddTable    ];
-        DatasetMLNorm = [DatasetMLNorm, ColumnToAddTableNorm];
-
-        %% Addition of point at different time
-        if MultipleDayAnalysis
-            RowToTakeAtDiffTime = RowToTake-DaysBeforeEventWhenStable;
-            ColumnToAddAtDiffTime = cell(1, length(TimeSensitiveParam));
             for i1 = 1:length(TimeSensitiveParam)
-                ColumnToAddAtDiffTimeTemp = cell(1, size(TimeSensitiveDataInterpStudy{i1}, 2));
+                for i2 = 1:DaysForTS
+                    RowToTakeAtDiffTime = IndEvent - DaysBeforeEventWhenStable - i2 + 1;
+                    TSStableTimeNotNorm = cat(1,TimeSensitiveDataInterpStudy{i1}{RowToTakeAtDiffTime,:});
+                    if NormData
+                        TSStableTime = rescale(TSStableTimeNotNorm, ...
+                                               'InputMin',RangesForNorm{FeatsNamesToChange{i1}(i2), 'Min value'}, ...
+                                               'InputMax',RangesForNorm{FeatsNamesToChange{i1}(i2), 'Max value'});
+                    else
+                        TSStableTime = TSStableTimeNotNorm;
+                    end
+
+                    DatasetMLFeatsNotNormPart2.(FeatsNamesToChange{i1}(i2)) = TSStableTimeNotNorm(IndicesMLDataset);
+                    DatasetMLFeatsPart2.(FeatsNamesToChange{i1}(i2))        = TSStableTime(IndicesMLDataset);
+                end
+            end
+
+        case 'CondensedDays'
+            TimeSensitiveOper = repmat({'Averaged'}, 1, length(TimeSensitiveParam));
+            TimeSensitiveOper(CumulableParam) = {'Cumulated'};
+        
+            FeatsNamesToChange  = cellfun(@(x, y) [x,y,num2str(DaysForTS),'d'], TimeSensitiveParam, TimeSensitiveOper, 'UniformOutput',false);
+
+            RowToTakeAtDiffTime = IndEvent-DaysBeforeEventWhenStable;
+            for i1 = 1:length(TimeSensitiveParam)
+                ColumnToChangeAtDiffTimeTemp = cell(1, size(TimeSensitiveDataInterpStudy{i1}, 2));
                 for i2 = 1:size(TimeSensitiveDataInterpStudy{i1}, 2)
                     if CumulableParam(i1)
-                        ColumnToAddAtDiffTimeTemp{i2} = sum([TimeSensitiveDataInterpStudy{i1}{RowToTakeAtDiffTime : -1 : (RowToTakeAtDiffTime-DaysToCumulate+1), i2}], 2);
+                        ColumnToChangeAtDiffTimeTemp{i2} = sum([TimeSensitiveDataInterpStudy{i1}{RowToTakeAtDiffTime : -1 : (RowToTakeAtDiffTime-DaysForTS+1), i2}], 2);
                     else
-                        ColumnToAddAtDiffTimeTemp{i2} = mean([TimeSensitiveDataInterpStudy{i1}{RowToTakeAtDiffTime : -1 : (RowToTakeAtDiffTime-DaysToCumulate+1), i2}], 2);
+                        ColumnToChangeAtDiffTimeTemp{i2} = mean([TimeSensitiveDataInterpStudy{i1}{RowToTakeAtDiffTime : -1 : (RowToTakeAtDiffTime-DaysForTS+1), i2}], 2);
                     end
                 end
-                ColumnToAddAtDiffTime{i1} = cat(1,ColumnToAddAtDiffTimeTemp{:});
+                TSStableTimeNotNorm = cat(1,ColumnToChangeAtDiffTimeTemp{:});
+                if NormData
+                    TSStableTime = rescale(TSStableTimeNotNorm, ...
+                                           'InputMin',RangesForNorm{FeatsNamesToChange{i1}, 'Min value'}, ...
+                                           'InputMax',RangesForNorm{FeatsNamesToChange{i1}, 'Max value'});
+                else
+                    TSStableTime = TSStableTimeNotNorm;
+                end
+
+                DatasetMLFeatsNotNormPart2.(FeatsNamesToChange{i1}) = TSStableTimeNotNorm(IndicesMLDataset);
+                DatasetMLFeatsPart2.(FeatsNamesToChange{i1})        = TSStableTime(IndicesMLDataset);
             end
-            
-            ColumnToAddTableAtDiffTime     = table( ColumnToAddAtDiffTime{:}, 'VariableNames',FeaturesNames(end-length(TimeSensitiveParam)+1 : end) );
-            ColumnToAddTableAtDiffTimeNorm = array2table(rescale([ColumnToAddAtDiffTime{:}], ...
-                                                                  'InputMin',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 1)', ...  % Must be a row
-                                                                  'InputMax',RangesForNorm(end-length(TimeSensitiveParam)+1 : end, 2)'), ... % Must be a row
-                                                              'VariableNames',FeaturesNames(end-length(TimeSensitiveParam)+1 : end));
+           
+        case 'TriggerCausePeak'
+            TimeSensType = ["Trigger"; strcat("Cause",num2str(DaysForTS),"d"); "TriggPeak"];
+            FeatsNamesToChange = cellfun(@(x) strcat(x,TimeSensType), TimeSensitiveParam, 'UniformOutput',false);
 
-            ColumnToAddTableAtDiffTime(IndToRemove1,:)     = [];
-            ColumnToAddTableAtDiffTimeNorm(IndToRemove1,:) = [];
-            if ModifyRatio
-                ColumnToAddTableAtDiffTime(IndToRemove2,:)     = []; 
-                ColumnToAddTableAtDiffTimeNorm(IndToRemove2,:) = []; 
+            DesiredDateStableTrigg = EventDate - days(DaysBeforeEventWhenStable);
+            for i1 = 1:length(TimeSensitiveParam)
+                TSStableTimeNotNorm = cell(1, 3); % 3 because you will have Trigger, cause, and peak
+                TSStableTime        = cell(1, 3);
+                if not(exist('StartDateNoTrigg', 'var'))
+                    [HoursDiff, IndStableToTake] = min(cellfun(@(x) abs(DesiredDateStableTrigg-min(x)), TimeSensEventDates{i1}));
+                    if HoursDiff >= hours(1)
+                        warning(['There is a difference of ',num2str(hours(HoursDiff)), ...
+                                 ' between data you chosed and the start of the stable event!', ...
+                                 ' Stable event date will be overwrite.'])
+                    end
+                else
+                    IndStableToTake = find(cellfun(@(x) min(abs(StartDateNoTrigg-x)) < minutes(1), TimeSensEventDates{i1}));
+                    if isempty(IndStableToTake) || (numel(IndStableToTake) > 1)
+                        error(['Triggering event is not present in ',TimeSensitiveParam{i1},' or there are multiple possibilities. Please check it!'])
+                    end
+                end
+                StartDateNoTrigg = min(TimeSensEventDates{i1}{IndStableToTake});
+    
+                TSStableTimeNotNorm{1} = full(cat(1, TimeSensitiveTrigg{i1}{IndStableToTake,:})); % Pay attention to order! 1st row is Trigger
+    
+                switch CauseMode
+                    case 'DailyCumulate'
+                        RowToTake = find( abs(TimeSensitiveDate - StartDateNoTrigg) < days(1), 1 ) - 1; % Overwriting of RowToTake with the first date before your event! I want only the first one. -1 to take the day before the start of the event!
+                        ColumnToAddTemp = cell(1, size(TimeSensitiveDataStudy{i1}, 2));
+                        for i2 = 1:size(TimeSensitiveDataStudy{i1}, 2)
+                            if CumulableParam(i1)
+                                ColumnToAddTemp{i2} = sum([TimeSensitiveDataStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                            else
+                                ColumnToAddTemp{i2} = mean([TimeSensitiveDataStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                            end
+                        end
+                        TSStableTimeNotNorm{2} = cat(1,ColumnToAddTemp{:}); % Pay attention to order! 2nd row is Cause
+    
+                    case 'EventsCumulate'
+                        StartDateCause  = StartDateNoTrigg - days(DaysForTS);
+                        IndsCauseEvents = find(cellfun(@(x) any(StartDateCause < x) && all(StartDateNoTrigg > x), TimeSensEventDates{i1})); % With any(StartDateCause < x) you could go before StartDateCause. change with all if you don't want (that event will be excluded)
+
+                        MinDateEvents = min(cellfun(@min, TimeSensEventDates{i1}));
+                        if StartDateCause < min(MinDateEvents)
+                            warning('Some events could not be included (start date of Cause is before the minimum date of events)')
+                        elseif isempty(IndsCauseEvents)
+                            error('No events in the time period from start cause to start trigger!')
+                        end
+
+                        ColumnToAddTemp = zeros(size(TSStableTimeNotNorm{1},1), length(IndsCauseEvents));
+                        for i2 = 1:length(IndsCauseEvents)
+                            ColumnToAddTemp(:,i2) = full(cat(1, TimeSensitiveTrigg{i1}{IndsCauseEvents(i2),:}));
+                        end
+                        if CumulableParam(i1)
+                            TSStableTimeNotNorm{2} = sum(ColumnToAddTemp, 2); % Pay attention to order! 2nd row is Cause
+                        else
+                            TSStableTimeNotNorm{2} = mean(ColumnToAddTemp, 2); % Pay attention to order! 2nd row is Cause
+                        end
+                end
+    
+                TSStableTimeNotNorm{3} = full(cat(1, TimeSensitivePeaks{i1}{IndStableToTake,:})); % Pay attention to order! 3rd row is Peak
+
+                for i2 = 1:length(FeatsNamesToChange{i1})
+                    if NormData
+                        TSStableTime{i2} = rescale(TSStableTimeNotNorm{i2}, ...
+                                                   'InputMin',RangesForNorm{FeatsNamesToChange{i1}(i2), 'Min value'}, ...
+                                                   'InputMax',RangesForNorm{FeatsNamesToChange{i1}(i2), 'Max value'});
+                    else
+                        TSStableTime{i2} = TSStableTimeNotNorm{i2};
+                    end
+
+                    DatasetMLFeatsNotNormPart2.(FeatsNamesToChange{i1}(i2)) = TSStableTimeNotNorm{i2}(IndicesMLDataset);
+                    DatasetMLFeatsPart2.(FeatsNamesToChange{i1}(i2))        = TSStableTime{i2}(IndicesMLDataset);
+                end
             end
+    end
 
-            DatasetMLNotNormToAdd     = [DatasetMLNotNormToAdd    , ColumnToAddTableAtDiffTime    ];
-            DatasetMLNormToAdd = [DatasetMLNormToAdd, ColumnToAddTableAtDiffTimeNorm];
+    DatasetMLCoords       = [DatasetMLCoordsPart1;       DatasetMLCoordsPart2      ];
+    DatasetMLFeatsNotNorm = [DatasetMLFeatsNotNormPart1; DatasetMLFeatsNotNormPart2];
+    DatasetMLFeats        = [DatasetMLFeatsPart1;        DatasetMLFeatsPart2       ];
+    DatasetMLClasses      = [DatasetMLClassesPart1;      DatasetMLClassesPart2     ];
+    DatasetMLDates        = [DatasetMLDatesPart1;        DatasetMLDatesPart2       ];
 
-            DatasetMLNotNormToUse = [DatasetMLNotNorm; DatasetMLNotNormToAdd];
-            DatasetMLNormToUse    = [DatasetMLNorm;    DatasetMLNormToAdd   ];
-            ExpectedOutToUse      = [ExpectedOut;      ExpectedOutToAdd     ];
-            DatasetMLCoordsToUse  = [DatasetMLCoords;  DatasetMLCoordsToAdd ];
+    if ModifyRatio
+        IndsOfUnstable = (DatasetMLClasses.ExpectedOutput==1);
+        IndsOfStable   = (DatasetMLClasses.ExpectedOutput==0);
 
-            if ModifyRatio
-                IndOutPos   = find(ExpectedOutToUse==1);
-                IndOutNeg   = find(ExpectedOutToUse==0);
-                RatioPosNeg = length(IndOutPos)/length(IndOutNeg);
+        RatioBeforeResampling = sum(IndsOfUnstable)/sum(IndsOfStable);
 
-                PercToRemove = 1-RatioPosNeg/OptimalRatio;
+        switch ResampleMode % NOTE THAT WORKS ONLY IF STABLES > UNSTABLES, PLEASE MODIFY IT!
+            case 'Undersampling'
+                IndsNumsStable = find(IndsOfStable);
+
+                PercToRemove = 1-RatioBeforeResampling/RatioToImpose; % Think about this formula please!
 
                 if MantainPointsUnstab
                     [pp3, ee3] = getnan2([StablePolyMrgd.Vertices; nan, nan]);
-                    IndPointUncStable = find(inpoly([DatasetMLCoordsToUse.Longitude,DatasetMLCoordsToUse.Latitude], pp3,ee3));
+                    IndsPointsInStable = find(inpoly([DatasetMLCoords.Longitude,DatasetMLCoords.Latitude], pp3,ee3));
 
-                    IndOfIndPointUncStableToRemove = randperm(numel(IndPointUncStable), ...
-                                                              ceil(numel(IndOutNeg)*PercToRemove)); % ceil(numel(IndOutNeg)*PercToRemove) remain because you have in any case to remove that number of points
-                    IndToRemove3 = IndPointUncStable(IndOfIndPointUncStableToRemove);
+                    RelIndOfStabToChange = randperm(numel(IndsPointsInStable), ...
+                                                              min(ceil(numel(IndsNumsStable)*PercToRemove), numel(IndsPointsInStable))); % ceil(numel(IndsNumsStable)*PercToRemove) remain because you have in any case to remove that number of points and not IndsPointsInStable. 
+                    IndsToChange = IndsPointsInStable(RelIndOfStabToChange);
                 else
-                    IndOfIndOutNegToRemove = randperm(numel(IndOutNeg), ceil(numel(IndOutNeg)*PercToRemove));
-                    IndToRemove3 = IndOutNeg(IndOfIndOutNegToRemove);
+                    RelIndOfStabToChange = randperm(numel(IndsNumsStable), ceil(numel(IndsNumsStable)*PercToRemove));
+                    IndsToChange = IndsNumsStable(RelIndOfStabToChange);
                 end
+    
+                IndsOfStable(IndsToChange) = false;
 
-                DatasetMLNotNormToUse(IndToRemove3,:) = [];
-                DatasetMLNormToUse(IndToRemove3,:)    = [];
-                ExpectedOutToUse(IndToRemove3)        = [];
-                DatasetMLCoordsToUse(IndToRemove3,:)  = [];
-            
-                IndOutPosNew   = find(ExpectedOutToUse==1);
-                IndOutNegNew   = find(ExpectedOutToUse==0);
-                RatioPosNegNew = length(IndOutPosNew)/length(IndOutNegNew);
-                if (numel(IndOutPosNew) ~= numel(IndOutPos)) || (round(OptimalRatio, 1) ~= round(RatioPosNegNew, 1))
+                RelIndsMLDatasetToUse = [find(IndsOfUnstable); find(IndsOfStable)];
+
+                RatioAfterResampling = sum(IndsOfUnstable)/sum(IndsOfStable);
+                if (any(IndsOfUnstable & IndsOfStable)) || (round(RatioToImpose, 1) ~= round(RatioAfterResampling, 1))
                     error("Something went wrong in re-attributing the correct ratio between positive and negative outputs!")
                 end
-            end
-        else
-            DatasetMLNotNormToUse = DatasetMLNotNorm;
-            DatasetMLNormToUse    = DatasetMLNorm;
-            ExpectedOutToUse      = ExpectedOut;
-            DatasetMLCoordsToUse  = DatasetMLCoords;
-        end
 
-        %% ANN Settings
-        R2 = corrcoef(table2array(DatasetMLNormToUse));
+            case 'Oversampling'
+                IndsNumsUnstable = find(IndsOfUnstable);
+                IndsNumsStable   = find(IndsOfStable);
+    
+                PercToAdd = RatioToImpose/RatioBeforeResampling; % Think about this formula please!
+    
+                NumOfReps = fix(PercToAdd);
+    
+                RelIndOfUntabToAdd   = randperm(numel(IndsNumsUnstable), ceil(numel(IndsNumsUnstable)*(PercToAdd-NumOfReps)));
+                IndsUnstableRepeated = [repmat(IndsNumsUnstable, NumOfReps, 1); IndsNumsUnstable(RelIndOfUntabToAdd)];
 
-        Options = {'With Validation Data', 'Cross Validation (K-Fold)', 'Normal'};
-        ANNMode  = uiconfirm(Fig, 'How do you want to built your neural network?', ...
-                                  'Neural network choice', 'Options',Options, 'DefaultOption',1);
+                RelIndsMLDatasetToUse = [IndsUnstableRepeated; IndsNumsStable];
 
-        LayerActivation = 'sigmoid'; % CHOICE TO USER!
-        Standardize     = true;      % CHOICE TO USER!
-
-        AnalysisInformation.ANNMode           = ANNMode;
-        AnalysisInformation.ActivationFunUsed = LayerActivation;
-        AnalysisInformation.StandardizedInput = Standardize;
-        
-        StructureInput = inputdlg(["Max number of hiddens: "
-                                   "Max number of nuerons in each hidden: "
-                                   "Increase of neurons for each model: "], ...
-                                   '', 1, {'6', '[100, 200, 100, 50, 20, 10]', '10'});
-
-        MaxNumOfHiddens   = str2double(StructureInput{1});
-        MaxNumOfNeurons   = str2num(StructureInput{2});
-        NeurToAddEachStep = str2double(StructureInput{3});
-
-        if MaxNumOfHiddens > numel(MaxNumOfNeurons)
-            error('You have to select the max number of neurons for each hidden layers (Format: [NumNeuronsHid1, NumNeuronsHid2, ...])')
-        end
-
-        AnalysisInformation.MaxNumOfHiddens   = {MaxNumOfHiddens};
-        AnalysisInformation.MaxNumOfNeurons   = {MaxNumOfNeurons};
-        AnalysisInformation.NeurToAddEachStep = {NeurToAddEachStep};
-
-        [NumOfNeuronToTrainEachHidden, ModelNeurCombs] = deal(cell(1, MaxNumOfHiddens));
-        for i1 = 1:MaxNumOfHiddens
-            NumOfNeuronToTrainEachHidden{i1} = [1, NeurToAddEachStep:NeurToAddEachStep:MaxNumOfNeurons(i1)];
-            if NeurToAddEachStep == 1; NumOfNeuronToTrainEachHidden{i1}(1) = []; end
-            ModelNeurCombs{i1} = combvec(NumOfNeuronToTrainEachHidden{1:i1});
-        end
-
-        NumberOfANNs = sum(cellfun(@(x) size(x, 2), ModelNeurCombs));
-        ANNModels = cell(12, NumberOfANNs);
-        i3 = 0;
-        for i1 = 1:MaxNumOfHiddens
-            for i2 = 1:size(ModelNeurCombs{i1}, 2)
-                i3 = i3+1;
-                ProgressBar.Value = i2/size(ModelNeurCombs{i1}, 2);
-                ProgressBar.Message = strcat("Training model n. ", string(i2)," of ", ...
-                                             string(size(ModelNeurCombs{i1}, 2)), ". Num of Hiddens: ", string(i1));
-                
-                %% Model creation and prediction
-                rng(7) % For reproducibility of the model
-                PartitionTrain = cvpartition(ExpectedOutToUse, 'Holdout',0.20);
-            
-                IndTrainLogical = training(PartitionTrain); % Indices for the training set
-                IndTrain = find(IndTrainLogical);
-                
-                IndTestLogical = test(PartitionTrain); % Indices for the test set
-                IndTest = find(IndTestLogical);
-                
-                DatasetTrain = DatasetMLNormToUse(IndTrainLogical,:);
-                DatasetTest  = DatasetMLNormToUse(IndTestLogical,:);
-                
-                OutputTrain = ExpectedOutToUse(IndTrainLogical);
-                OutputTest  = ExpectedOutToUse(IndTestLogical);
-
-                LayerSize = ModelNeurCombs{i1}(:,i2)';
-
-                switch ANNMode
-                    case 'With Validation Data'
-                        Model = fitcnet(DatasetTrain, OutputTrain, 'ValidationData',{DatasetTest, OutputTest}, ...
-                                                                   'ValidationFrequency',5, 'ValidationPatience',30, ...
-                                                                   'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
-                                                                   'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',5e4);
-
-                        FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
-                        if FailedConvergence
-                            warning(strcat("ATTENTION! Model n. ", string(i3), " failed to converge! Please analyze it."))
-                        end
-
-                    case 'Cross Validation (K-Fold)'
-                        ModelCV = fitcnet(DatasetTrain, OutputTrain, 'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
-                                                                     'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',5e4, ...
-                                                                     'LossTolerance',1e-6, 'StepTolerance',1e-6, ...
-                                                                     'Crossval','on', 'KFold',10); % Remember that instead of 'KFold' you can use for example: 'Holdout',0.1
-
-                        % [PredictionOfModelCV, ProbabilitiesOfModelCV] = kfoldPredict(ModelCV); % To have the predictions of the cross validated model
-                        % ConfusionTrain = confusionchart(OutputTrain, PredictionOfModelCV); % To see visually how well the cross validated model predict
-
-                        LossesOfModels = kfoldLoss(ModelCV, 'Mode','individual');
-                        [~, IndBestModel] = min(LossesOfModels);
-                        Model = ModelCV.Trained{IndBestModel};
-                    case 'Normal'
-                        Model = fitcnet(DatasetTrain, OutputTrain, 'LayerSizes',LayerSize, 'Activations',LayerActivation, ...
-                                                                   'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',5e4, ...
-                                                                   'LossTolerance',1e-5, 'StepTolerance',1e-6);
-
-                        FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
-                        if FailedConvergence
-                            warning(strcat("ATTENTION! Model n. ", string(i3), " failed to converge! Please analyze it."))
-                        end
+                RatioAfterResampling = numel(IndsUnstableRepeated)/numel(IndsNumsStable);
+                if (not(isempty(intersect(IndsUnstableRepeated,IndsNumsStable)))) || (round(RatioToImpose, 1) ~= round(RatioAfterResampling, 1))
+                    error("Something went wrong in re-attributing the correct ratio between positive and negative outputs!")
                 end
-                
-                [PredictionTrain, ProbabilityTrain] = predict(Model, DatasetTrain);
-                [PredictionTest,  ProbabilityTest]  = predict(Model, DatasetTest);
-            
-                DatasetTestMSE = loss(Model, DatasetTest, OutputTest);
-            
-                % General matrix creation
-                ANNModels(:, i3) = {Model; DatasetTrain; DatasetTest; OutputTrain; OutputTest; ...
-                                    PredictionTrain; ProbabilityTrain; PredictionTest; ...
-                                    ProbabilityTest; DatasetTestMSE; R2; FeaturesNames};
-            end
         end
-end
 
-%% Evaluation of prediction quality by means of ROC
-ProgressBar.Indeterminate = 'on';
-ProgressBar.Message       = "Analyzing quality of models...";
-
-Options = {'MATLAB', 'MaximizeRatio-TPR-FPR', 'MaximizeArea-TPR-TNR'};
-MethodBestThreshold = uiconfirm(Fig, 'How do you want to find the optimal threshold for ROC curves?', ...
-                                     'Optimal ratio ROC', 'Options',Options, 'DefaultOption',1);
-
-AnalysisInformation.MethodForSelectingOptimalThresholdInROCs = MethodBestThreshold;
-
-NumberOfANNs        = size(ANNModels, 2);
-ANNModelsROCTest    = cell(5, NumberOfANNs);
-ANNModelsROCTrain   = cell(5, NumberOfANNs);
-for i1 = 1:NumberOfANNs
-    OutputTest       = ANNModels{5, i1};
-    OutputTrain      = ANNModels{4, i1};
-    ProbabilityTest  = ANNModels{9, i1};
-    ProbabilityTrain = ANNModels{7, i1};
-
-    % Test performance
-    [FPR4ROC_Test, TPR4ROC_Test, ThresholdsROC_Test, AUC_Test, OptPoint_Test] = perfcurve(OutputTest, ProbabilityTest(:,2), 1);
-    switch MethodBestThreshold
-        case 'MATLAB'
-            % Method integrated in MATLAB
-            IndBest_Test = find(ismember([FPR4ROC_Test, TPR4ROC_Test], OptPoint_Test, 'rows'));
-            BestThreshold_Test = ThresholdsROC_Test(IndBest_Test);
-        case 'MaximizeRatio-TPR-FPR'
-            % Method max ratio TPR/FPR
-            RatioTPR_FPR_Test = TPR4ROC_Test./FPR4ROC_Test;
-            RatioTPR_FPR_Test(isinf(RatioTPR_FPR_Test)) = nan;
-            [~, IndBest_Test]  = max(RatioTPR_FPR_Test);
-            BestThreshold_Test = ThresholdsROC_Test(IndBest_Test);
-        case 'MaximizeArea-TPR-TNR'
-            % Method max product TPR*TNR
-            AreaTPR_TNR_Test   = TPR4ROC_Test.*(1-FPR4ROC_Test);
-            [~, IndBest_Test]  = max(AreaTPR_TNR_Test);
-            BestThreshold_Test = ThresholdsROC_Test(IndBest_Test);
-    end
-    
-    % Train performance
-    [FPR4ROC_Train, TPR4ROC_Train, ThresholdsROC_Train, AUC_Train, OptPoint_Train] = perfcurve(OutputTrain, ProbabilityTrain(:,2), 1);
-    switch MethodBestThreshold
-        case 'MATLAB'
-            % Method integrated in MATLAB
-            IndBest_Train = find(ismember([FPR4ROC_Train, TPR4ROC_Train], OptPoint_Train, 'rows'));
-            BestThreshold_Train = ThresholdsROC_Train(IndBest_Train);
-        case 'MaximizeRatio-TPR-FPR'
-            % Method max ratio TPR/FPR
-            RatioTPR_FPR_Train = TPR4ROC_Train./FPR4ROC_Train;
-            RatioTPR_FPR_Train(isinf(RatioTPR_FPR_Train)) = nan;
-            [~, IndBest_Train]  = max(RatioTPR_FPR_Train);
-            BestThreshold_Train = ThresholdsROC_Train(IndBest_Train);
-        case 'MaximizeArea-TPR-TNR'
-            % Method max product TPR*TNR
-            AreaTPR_TNR_Train   = TPR4ROC_Train.*(1-FPR4ROC_Train);
-            [~, IndBest_Train]  = max(AreaTPR_TNR_Train);
-            BestThreshold_Train = ThresholdsROC_Train(IndBest_Train);
-    end
-    
-    % General matrices creation
-    ANNModelsROCTest(:, i1)  = {FPR4ROC_Test,  TPR4ROC_Test,  AUC_Test,  BestThreshold_Test,  IndBest_Test};
-    ANNModelsROCTrain(:, i1) = {FPR4ROC_Train, TPR4ROC_Train, AUC_Train, BestThreshold_Train, IndBest_Train};
-end
-
-%% Conversion in tables
-ProgressBar.Message = "Creation of tables...";
-ANNModels = cell2table(ANNModels);
-ANNModels.Properties.RowNames = {'Model', 'DatasetTrain', 'DatasetTest', 'OutputTrain', ...
-                                 'OutputTest', 'PredictionTrain', 'ProbabilityTrain', ...
-                                 'PredictionTest', 'ProbabilityTest', 'DatasetTestMSE', ...
-                                 'R2', 'FeaturesNames'};
-
-ANNModelsROCTest = cell2table(ANNModelsROCTest);
-ANNModelsROCTest.Properties.RowNames = {'FPR-Test', 'TPR-Test', 'AUC-Test', 'BestThreshold-Test', 'Index of Best Thr-Test'};
-
-ANNModelsROCTrain = cell2table(ANNModelsROCTrain);
-ANNModelsROCTrain.Properties.RowNames = {'FPR-Train', 'TPR-Train', 'AUC-Train', 'BestThreshold-Train', 'Index of Best Thr-Train'};
-
-RangesForNorm = table(RangesForNorm(:,1), RangesForNorm(:,2), 'VariableNames',["Min value", "Max value"]);
-RangesForNorm.Properties.RowNames = FeaturesNames;
-
-%% Plot for check (the last one, that is the one with 30 days of rainfall)
-ProgressBar.Message = "Plotting results...";
-
-[~, BestModelForTest]  = max(cell2mat(ANNModelsROCTest{3,:}));
-[~, BestModelForTrain] = max(cell2mat(ANNModelsROCTrain{3,:}));
-ModelToPlot = str2double(inputdlg({["Which model do you want to plot?"
-                                    strcat("From 1 to ", string(size(ANNModels,2)))
-                                    strcat("Best for Test is: ", string(BestModelForTest))
-                                    strcat("Best for Train is: ", string(BestModelForTrain))]}, '', 1, {'1'}));
-
-PlotOption = 1;
-if MultipleDayAnalysis
-    Options = {'Day of the event', [num2str(DaysBeforeEventWhenStable), ' days before the event']};
-    PlotChoice = uiconfirm(Fig, 'What event do you want to plot?', ...
-                                'Figure to plot', 'Options',Options, 'DefaultOption',1);
-    switch PlotChoice
-        case 'Day of the event'
-            PlotOption = 2;
-        case [num2str(DaysBeforeEventWhenStable), ' days before the event']
-            PlotOption = 3;
+        DatasetMLCoords       = DatasetMLCoords(RelIndsMLDatasetToUse,:);
+        DatasetMLFeatsNotNorm = DatasetMLFeatsNotNorm(RelIndsMLDatasetToUse,:);
+        DatasetMLFeats        = DatasetMLFeats(RelIndsMLDatasetToUse,:);
+        DatasetMLClasses      = DatasetMLClasses(RelIndsMLDatasetToUse,:);
+        DatasetMLDates        = DatasetMLDates(RelIndsMLDatasetToUse,:);
     end
 end
 
-fig_check = figure(3);
-ax_check = axes(fig_check);
-hold(ax_check,'on')
-
-BestThresholdTrain  = ANNModelsROCTrain{4,ModelToPlot}{:};
-BestThresholdTest   = ANNModelsROCTest{4,ModelToPlot}{:};
-IndexOfBestThrTrain = ANNModelsROCTrain{5,ModelToPlot}{:};
-IndexOfBestThrTest  = ANNModelsROCTest{5,ModelToPlot}{:};
-
-BestThrTPRTrain = ANNModelsROCTrain{2,ModelToPlot}{:}(IndexOfBestThrTrain);
-BestThrTPRTest  = ANNModelsROCTest{2,ModelToPlot}{:}(IndexOfBestThrTest);
-BestThrFPRTrain = ANNModelsROCTrain{1,ModelToPlot}{:}(IndexOfBestThrTrain);
-BestThrFPRTest  = ANNModelsROCTest{1,ModelToPlot}{:}(IndexOfBestThrTest);
-
-disp(strcat("Your TPR relative to the best threshold are (train - test): ", string(BestThrTPRTrain), " - ", string(BestThrTPRTest)))
-disp(strcat("Your FPR relative to the best threshold are (train - test): ", string(BestThrFPRTrain), " - ", string(BestThrFPRTest)))
-
-ModelSelected = ANNModels{1,ModelToPlot}{:};
-
-switch PlotOption
-    case 1
-        ProbabilityTrain      = ANNModels{7,ModelToPlot}{:};
-        ProbabilityTest       = ANNModels{9,ModelToPlot}{:};
-        PredictionTrainWithBT = ProbabilityTrain(:,2) >= BestThresholdTrain;
-        PredictionTestWithBT  = ProbabilityTest(:,2)  >= BestThresholdTest;
-
-    case 2
-        DatasetForPlot = DatasetMLNorm;
-        OutputForPlot  = ExpectedOut;
-        [~, ProbabilityForPlot] = predict(ModelSelected, DatasetForPlot);
-        PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= BestThresholdTrain; % Please keep attention to 0.9 of the Best Threshold
-
-    case 3
-        DatasetForPlot = DatasetMLNormToAdd;
-        OutputForPlot  = ExpectedOutToAdd;
-        [~, ProbabilityForPlot] = predict(ModelSelected, DatasetForPlot);
-        PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= BestThresholdTrain; % Please keep attention to 0.9 of the Best Threshold
-end
-
-plot(StudyAreaPolygon, 'FaceColor','none', 'EdgeColor','k', 'LineWidth',1.5)
-
-if strcmp(StablePointsApproach,'VisibleWindow')
-    switch PlotOption
-        case {1, 2}
-            plot(UnstablePolyMrgd, 'FaceAlpha',.5, 'FaceColor',"#d87e7e");
-        case 3
-            plot(UnstablePolyMrgd, 'FaceAlpha',.5, 'FaceColor',"#5aa06b");
+%% Overwriting of dates in DatasetStudyInfo and DatasetMLDates (if TriggerCausePeak)
+if TimeSensExist && strcmp(TimeSensMode,'TriggerCausePeak')
+    DatasetStudyInfo.EventDate = StartDateEventTrig;
+    DatasetMLDates.Datetime(DatasetMLDates.Datetime == EventDate) = StartDateEventTrig;
+    if MultipleDayAnalysis
+        DatasetStudyInfo.BeforeEventDate = StartDateNoTrigg;
+        DatasetStudyInfo.DayBeforeEventForStablePoints = ceil(days(StartDateEventTrig-StartDateNoTrigg));
+        DatasetMLDates.Datetime(DatasetMLDates.Datetime == BeforeEventDate) = StartDateNoTrigg;
     end
-    plot(IndecisPolyMrgd, 'FaceAlpha',.5, 'FaceColor',"#fff2cc");
-    plot(StablePolyMrgd,  'FaceAlpha',.5, 'FaceColor',"#5aa06b");
+end
+DatasetMLInfo = DatasetStudyInfo;
+
+%% Aggregation of DatasetML
+if AddToExistingDataset
+    ProgressBar.Message   = "Merge of datasets...";
+    DatasetMLInfo         = [DatasetMLInfoOld         ; DatasetMLInfo        ];
+    DatasetMLCoords       = [DatasetMLCoordsOld       ; DatasetMLCoords      ];
+    DatasetMLFeats        = [DatasetMLFeatsOld        ; DatasetMLFeats       ];
+    DatasetMLFeatsNotNorm = [DatasetMLFeatsNotNormOld ; DatasetMLFeatsNotNorm];
+    DatasetMLClasses      = [DatasetMLClassesOld      ; DatasetMLClasses     ];
+    DatasetMLDates        = [DatasetMLDatesOld        ; DatasetMLDates       ];
 end
 
-hdetected = cellfun(@(x,y) scatter(x, y, '^k', 'Filled'), InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
-
-switch PlotOption
-    case 1
-        hUnstableTest  = scatter(DatasetMLCoordsToUse.Longitude(IndTest(PredictionTestWithBT)), ...
-                                 DatasetMLCoordsToUse.Latitude(IndTest(PredictionTestWithBT)), ...
-                                 30, 'Marker','s', 'MarkerFaceColor',"#318ce7", 'MarkerEdgeColor','none');
-        
-        hUnstableTrain = scatter(DatasetMLCoordsToUse.Longitude(IndTrain(PredictionTrainWithBT)), ...
-                                 DatasetMLCoordsToUse.Latitude(IndTrain(PredictionTrainWithBT)), ...
-                                 30, 'Marker','d', 'MarkerFaceColor',"#33E6FF", 'MarkerEdgeColor','none');
-
-    case {2, 3}
-        hUnstableForPlot = scatter(DatasetMLCoords.Longitude(PredictionWithBTForPlot), ...
-                                   DatasetMLCoords.Latitude(PredictionWithBTForPlot), ...
-                                   30, 'Marker','s', 'MarkerFaceColor',"#318ce7", 'MarkerEdgeColor','none');
+if size(DatasetMLInfo, 1) == 1
+    AdviceAns = uiconfirm(Fig, ['If you want o add other events/areas to your dataset for ML, ' ...
+                                'Please consider to run again all previous scripts with new ' ...
+                                'data (different study area, recordings, etc...)'], ...
+                               'Merge datasets', 'Options',{'Ok, I understand!'});
 end
-
-switch PlotOption
-    case 1
-        xPointUnstab = DatasetMLCoordsToUse.Longitude(logical(ExpectedOutToUse));
-        yPointUnstab = DatasetMLCoordsToUse.Latitude(logical(ExpectedOutToUse));
-
-        xPointStab   = DatasetMLCoordsToUse.Longitude(not(logical(ExpectedOutToUse)));
-        yPointStab   = DatasetMLCoordsToUse.Latitude(not(logical(ExpectedOutToUse)));
-
-    case 2
-        xPointUnstab = DatasetMLCoords.Longitude(logical(ExpectedOut));
-        yPointUnstab = DatasetMLCoords.Latitude(logical(ExpectedOut));
-
-        xPointStab   = DatasetMLCoords.Longitude(not(logical(ExpectedOut)));
-        yPointStab   = DatasetMLCoords.Latitude(not(logical(ExpectedOut)));
-
-    case 3
-        xPointUnstab = DatasetMLCoordsToAdd.Longitude(logical(ExpectedOutToAdd));
-        yPointUnstab = DatasetMLCoordsToAdd.Latitude(logical(ExpectedOutToAdd));
-
-        xPointStab   = DatasetMLCoordsToAdd.Longitude(not(logical(ExpectedOutToAdd)));
-        yPointStab   = DatasetMLCoordsToAdd.Latitude(not(logical(ExpectedOutToAdd)));
-end
-
-hUnstabOutputReal = scatter(xPointUnstab, yPointUnstab, ...
-                            15, 'Marker',"hexagram", 'MarkerFaceColor',"#ff0c01", ...
-                            'MarkerEdgeColor','none', 'MarkerFaceAlpha',0.5);
-
-hStableOutputReal = scatter(xPointStab, yPointStab, ...
-                            15, 'Marker',"hexagram", 'MarkerFaceColor',"#77AC30", ...
-                            'MarkerEdgeColor','none', 'MarkerFaceAlpha',0.5);
-
-switch PlotOption
-    case {1, 2}
-        title("Day of the event")
-    case 3
-        title([num2str(DaysBeforeEventWhenStable), ' days before the event'])
-    otherwise
-        error('Plot option not defined')
-end
-
-dLat1Meter  = rad2deg(1/earthRadius); % 1 m in lat
-dLong1Meter = rad2deg(acos( (cos(1/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % 1 m in long
-
-RatioLatLong = dLat1Meter/dLong1Meter;
-daspect([1, RatioLatLong, 1])
-
-%% Creation of a folder where save model and future predictions
-cd(fold_res_ml)
-EventDate.Format = 'dd-MM-yyyy';
-MLFolderName = char(inputdlg({'Choose a folder name (inside Results->ML Models and Predictions):'}, ...
-                                '', 1, {['ML-ANNs-Event-',char(EventDate)]} ));
-
-if exist(MLFolderName, 'dir')
-    Options = {'Yes, thanks', 'No, for God!'};
-    Answer  = uiconfirm(Fig, strcat(MLFolderName, " is an existing folder. Do you want to overwrite it?"), ...
-                             'Existing ML Folder', 'Options',Options, 'DefaultOption',2);
-    switch Answer
-        case 'Yes, thanks.'
-            rmdir(MLFolderName,'s')
-            mkdir(MLFolderName)
-        case 'No, for God!'
-            return
-    end
-else
-    mkdir(MLFolderName)
-end
-
-fold_res_ml_curr = [fold_res_ml,sl,MLFolderName];
 
 %% Saving...
 ProgressBar.Message = "Saving files...";
-cd(fold_res_ml_curr)
-VariablesML = {'ANNModels', 'ANNModelsROCTrain', 'ANNModelsROCTest', ...
-               'DatasetFeatsStudyNotNorm', 'DatasetFeatsStudyNorm', 'DatasetCoordinatesStudy', ...
-               'UnstablePolygons', 'IndecisPolygons', 'StablePolygons', ...
-               'UnstablePolyMrgd', 'IndecisPolyMrgd', 'StablePolyMrgd', ...
-               'RangesForNorm', 'Categs', 'AnalysisInformation', ...
-               'R2ForDatasetFeatsStudyNorm', 'R2ForDatasetFeatsStudyNotNorm'};
-save('TrainedANNs.mat', VariablesML{:})
-cd(fold0)
+VariablesDatasetStudy = {'DatasetStudyInfo', 'UnstablePolygons', 'IndecisionPolygons', 'StablePolygons', ...
+                         'DatasetStudyCoords', 'DatasetStudyFeats', 'DatasetStudyFeatsNotNorm', 'DatasetStudyStats', ...
+                         'RangesForNorm', 'R2ForDatasetStudyFeats', 'R2ForDatasetStudyFeatsNotNorm'};
+
+VariablesDatasetML = {'DatasetMLInfo', 'DatasetMLCoords', 'DatasetMLFeats', 'DatasetMLFeatsNotNorm', ...
+                      'DatasetMLClasses', 'DatasetMLDates', 'RangesForNorm'};
+
+save([fold_var,sl,'DatasetStudy.mat'], VariablesDatasetStudy{:})
+save([fold_var,sl,'DatasetML.mat'],    VariablesDatasetML{:})
 
 close(ProgressBar) % Fig instead of ProgressBar if in standalone version

@@ -3,7 +3,7 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files
                                  'Indeterminate','on');
 drawnow
 
-%% Loading data and initialization of AnalysisInformation
+%% Loading data and initialization of variables
 cd(fold_var)
 load('GridCoordinates.mat',        'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
 load('StudyAreaVariables.mat',     'StudyAreaPolygon')
@@ -11,101 +11,121 @@ load('MorphologyParameters.mat',   'SlopeAll','OriginallyProjected','SameCRSForA
 load('LandUsesVariables.mat',      'AllLandUnique','LandUsePolygonsStudyArea')
 load('LithoPolygonsStudyArea.mat', 'LithoAllUnique','LithoPolygonsStudyArea')
 
+SoilInfoType = 'SubSoil';
 TopSoilExist = false;
 if exist('TopSoilPolygonsStudyArea.mat', 'file')
     load('TopSoilPolygonsStudyArea.mat', 'TopSoilAllUnique','TopSoilPolygonsStudyArea')
     TopSoilExist = true;
 end
+
+DatasetStudyExist = false;
+if exist('DatasetStudy.mat', 'file')
+    load('DatasetStudy.mat', 'DatasetStudyInfo')
+    ClassesPolys = DatasetStudyInfo.ClassPolygons{:};
+    DatasetStudyExist = true;
+end
 cd(fold0)
 
-%% Preliminary operations
-ProgressBar.Message = 'Preliminary operations...';
-
+%% HRUs options
 if TopSoilExist
     Options = {'TopSoil', 'SubSoil'};
     SoilInfoType = uiconfirm(Fig, 'What information do you want to use for soil classes', ...
                                   'Soil information', 'Options',Options);
-
-    switch SoilInfoType
-        case 'TopSoil'
-            SoilAllUnique = TopSoilAllUnique;
-            SoilPolygonsStudyArea = TopSoilPolygonsStudyArea;
-
-        case 'SubSoil'
-            SoilAllUnique = LithoAllUnique;
-            SoilPolygonsStudyArea = LithoPolygonsStudyArea;
-    end
-
-    clear('LithoPolygonsStudyArea', 'TopSoilPolygonsStudyArea', 'LithoAllUnique', 'TopSoilAllUnique')
-
-else
-    SoilAllUnique = LithoAllUnique;
-    SoilPolygonsStudyArea = LithoPolygonsStudyArea;
-
-    clear('LithoPolygonsStudyArea', 'LithoAllUnique')
 end
+
+
+Options = {'As they were imported', 'Classes in excel'};
+if DatasetStudyExist; Options = [Options, {'Polygons used for DatasetStudy'}]; end
+PolyToUse = uiconfirm(Fig, 'How do you want to define classes?', ...
+                           'Classes type', 'Options',Options, 'DefaultOption',1);
+
+StepsSlope = 1/ceil((str2double(inputdlg("Specify number of classes for slope (int num) : ", '', 1, {'10'}))));
+if StepsSlope > 1; error('Please, select a number >= 1'); end
+
+%% Preliminary operations
+ProgressBar.Message = 'Preliminary operations...';
 
 [pp1, ee1] = getnan2([StudyAreaPolygon.Vertices; nan, nan]);
 IndexDTMPointsOutsideStudyArea = cellfun(@(x,y) find(~inpoly([x(:),y(:)],pp1,ee1)==1), xLongAll, yLatAll, 'UniformOutput',false);
 
 %% Import of classes of ML
-ProgressBar.Message = 'Overwriting of classes with excel info...';
+ProgressBar.Message = 'Extracting classes...';
 
-Options = {'As they were imported', 'Classes in excel'};
-ClassesChoice = uiconfirm(Fig, 'How do you want to define classes?', ...
-                               'Classes type', 'Options',Options, 'DefaultOption',1);
-if strcmp(ClassesChoice, 'Classes in excel'); ExcelClasses = true; else; ExcelClasses = false; end
+switch PolyToUse
+    case 'As they were imported'
+        AllLandUniqueToUse = AllLandUnique;
+        LandUsePolygonsStudyAreaToUse = LandUsePolygonsStudyArea;
 
-if ExcelClasses % Remember to add union of polygons
-    cd(fold_user)
-    Sheet_InfoClasses    = readcell('ClassesML.xlsx', 'Sheet','Main');
-    Sheet_LandUseClasses = readcell('ClassesML.xlsx', 'Sheet','Land use');
-    cd(fold0)
+        switch SoilInfoType
+            case 'TopSoil'
+                SoilAllUnique = TopSoilAllUnique;
+                SoilPolygonsStudyArea = TopSoilPolygonsStudyArea;
+    
+            case 'SubSoil'
+                SoilAllUnique = LithoAllUnique;
+                SoilPolygonsStudyArea = LithoPolygonsStudyArea;
+        end
 
-    % [ColWithTitles, ColWithClassNum] = deal(false(1, size(Sheet_InfoClasses, 2))); % AS STARTING POINT TO ADAPT!!
-    % for i1 = 1:length(ColWithTitles)
-    %     ColWithTitles(i1)   = any(cellfun(@(x) strcmp(string(x), 'Title'),  Sheet_InfoClasses(:,i1)));
-    %     ColWithClassNum(i1) = any(cellfun(@(x) strcmp(string(x), 'Number'), Sheet_InfoClasses(:,i1)));
-    % end
-    % ColWithSubject = find(ColWithTitles)-1;
-    % 
-    % if sum(ColWithTitles) > 1 || sum(ColWithClassNum) > 1
-    %     error('Please, align columns in excel! Sheet: Main')
-    % end
-    % 
-    % IndsBlankRowsTot = all(cellfun(@(x) all(ismissing(x)), Sheet_InfoClasses), 2);
-    % IndsBlnkInColNum = cellfun(@(x) all(ismissing(x)), Sheet_InfoClasses(:,ColWithClassNum));
-    % 
-    % if not(isequal(IndsBlankRowsTot, IndsBlnkInColNum))
-    %     error('Please fill with data only tables with association, no more else outside!')
-    % end
-    % 
-    % Sheet_Info_Splits = mat2cell(Sheet_InfoClasses, diff(find([true; diff(~IndsBlankRowsTot); true]))); % Line suggested by ChatGPT that works, but check it better!
-    % 
-    % InfoCont  = {'Sub soil', 'Top soil', 'Land use', 'Vegetation'};
-    % IndSplits = zeros(size(InfoCont));
-    % for i1 = 1:length(IndSplits)
-    %     IndSplits(i1) = find(cellfun(@(x) any(strcmp(InfoCont{i1}, string([x(:,ColWithSubject)]))), Sheet_Info_Splits));
-    % end
-    % 
-    % Sheet_Info_Div = cell2table(Sheet_Info_Splits(IndSplits)', 'VariableNames',InfoCont);
+    case 'Classes in excel' % (CREATE A SEPARATE FUNCTION TO ASSOCIATE FROM ML EXCEL!)
+        cd(fold_user)
+        Sheet_InfoClasses    = readcell('ClassesML.xlsx', 'Sheet','Main');
+        Sheet_LandUseClasses = readcell('ClassesML.xlsx', 'Sheet','Land use');
+        cd(fold0)
+    
+        % [ColWithTitles, ColWithClassNum] = deal(false(1, size(Sheet_InfoClasses, 2))); % AS STARTING POINT TO ADAPT!!
+        % for i1 = 1:length(ColWithTitles)
+        %     ColWithTitles(i1)   = any(cellfun(@(x) strcmp(string(x), 'Title'),  Sheet_InfoClasses(:,i1)));
+        %     ColWithClassNum(i1) = any(cellfun(@(x) strcmp(string(x), 'Number'), Sheet_InfoClasses(:,i1)));
+        % end
+        % ColWithSubject = find(ColWithTitles)-1;
+        % 
+        % if sum(ColWithTitles) > 1 || sum(ColWithClassNum) > 1
+        %     error('Please, align columns in excel! Sheet: Main')
+        % end
+        % 
+        % IndsBlankRowsTot = all(cellfun(@(x) all(ismissing(x)), Sheet_InfoClasses), 2);
+        % IndsBlnkInColNum = cellfun(@(x) all(ismissing(x)), Sheet_InfoClasses(:,ColWithClassNum));
+        % 
+        % if not(isequal(IndsBlankRowsTot, IndsBlnkInColNum))
+        %     error('Please fill with data only tables with association, no more else outside!')
+        % end
+        % 
+        % Sheet_Info_Splits = mat2cell(Sheet_InfoClasses, diff(find([true; diff(~IndsBlankRowsTot); true]))); % Line suggested by ChatGPT that works, but check it better!
+        % 
+        % InfoCont  = {'Sub soil', 'Top soil', 'Land use', 'Vegetation'};
+        % IndSplits = zeros(size(InfoCont));
+        % for i1 = 1:length(IndSplits)
+        %     IndSplits(i1) = find(cellfun(@(x) any(strcmp(InfoCont{i1}, string([x(:,ColWithSubject)]))), Sheet_Info_Splits));
+        % end
+        % 
+        % Sheet_Info_Div = cell2table(Sheet_Info_Splits(IndSplits)', 'VariableNames',InfoCont);
+    
+        NewAssLandUse = cell(size(AllLandUnique));
+        for i1 = 1:length(AllLandUnique)
+            NumOfClass        = Sheet_LandUseClasses{strcmp(AllLandUnique{i1}, Sheet_LandUseClasses), 2};
+            NewAssLandUse(i1) = Sheet_InfoClasses(find(NumOfClass==[Sheet_InfoClasses{2:end,3}])+1, 2);
+        end
+    
+        AllLandUniqueToUse = unique(NewAssLandUse);
+        LandUsePolygonsStudyAreaToUse = repmat(polyshape, 1, length(AllLandUniqueToUse));
+        for i1 = 1:length(AllLandUniqueToUse)
+            IndToUnify = strcmp(AllLandUniqueToUse{i1}, NewAssLandUse);
+            LandUsePolygonsStudyAreaToUse(i1) = union(LandUsePolygonsStudyArea(IndToUnify));
+        end
 
-    NewAssLandUse = cell(size(AllLandUnique));
-    for i1 = 1:length(AllLandUnique)
-        NumOfClass        = Sheet_LandUseClasses{strcmp(AllLandUnique{i1}, Sheet_LandUseClasses), 2};
-        NewAssLandUse(i1) = Sheet_InfoClasses(find(NumOfClass==[Sheet_InfoClasses{2:end,3}])+1, 2);
-    end
+    case 'Polygons used for DatasetStudy'
+        AllLandUniqueToUse = ClassesPolys{'LandUse','ClassNames'}{:};
+        LandUsePolygonsStudyAreaToUse = ClassesPolys{'LandUse','Polys'}{:};
 
-    AllLandUniqueToUse = unique(NewAssLandUse);
-    LandUsePolygonsStudyAreaToUse = repmat(polyshape, 1, length(AllLandUniqueToUse));
-    for i1 = 1:length(AllLandUniqueToUse)
-        IndToUnify = strcmp(AllLandUniqueToUse{i1}, NewAssLandUse);
-        LandUsePolygonsStudyAreaToUse(i1) = union(LandUsePolygonsStudyArea(IndToUnify));
-    end
-
-else
-    AllLandUniqueToUse = AllLandUnique;
-    LandUsePolygonsStudyAreaToUse = LandUsePolygonsStudyArea;
+        switch SoilInfoType
+            case 'TopSoil'
+                SoilAllUnique = ClassesPolys{'TopSoil','ClassNames'}{:};
+                SoilPolygonsStudyArea = ClassesPolys{'TopSoil','Polys'}{:};
+    
+            case 'SubSoil'
+                SoilAllUnique = ClassesPolys{'SubSoil','ClassNames'}{:};
+                SoilPolygonsStudyArea = ClassesPolys{'SubSoil','Polys'}{:};
+        end
 end
 
 %% Attributing slope class to each point of DTM
@@ -115,7 +135,7 @@ SlopeAllCat    = cellfun(@(x) x(:), SlopeAll, 'UniformOutput',false);
 SlopeAllCatTot = cat(1, SlopeAllCat{:});
 
 % SlopeValuesForClasses = (0:10:60)';
-SlopeValuesForClasses = quantile(SlopeAllCatTot, 0 : 0.10 : 1);
+SlopeValuesForClasses = quantile(SlopeAllCatTot, 0 : StepsSlope : 1);
 
 LegInfoSep = '‒';
 LegInfoSlope = [ strcat(string(round(SlopeValuesForClasses(1:end-1), 3, 'significant')), ...
@@ -145,7 +165,7 @@ end
 ProgressBar.Message = 'Creating land use classes...';
 
 LegLandUse = strcat("LU", string(1:length(AllLandUniqueToUse)));
-InfoLegLandUse = [LegLandUse; AllLandUniqueToUse];
+InfoLegLandUse = [LegLandUse; {AllLandUniqueToUse{:}}]; % {AllLandUniqueToUse{:}} is to avoid problems of size
 
 LandUseClassesIndPoints = cell(length(AllLandUniqueToUse), size(xLongAll,2));
 for i1 = 1:length(LandUsePolygonsStudyAreaToUse)
@@ -165,7 +185,7 @@ end
 ProgressBar.Message = 'Creating soil classes...';
 
 LegSoil = strcat("SO", string(1:length(SoilAllUnique)));
-InfoLegSoil = [LegSoil; SoilAllUnique];
+InfoLegSoil = [LegSoil; {SoilAllUnique{:}}];
 
 SoilClassesIndPoints = cell(length(SoilAllUnique), size(xLongAll,2));
 for i1 = 1:length(SoilPolygonsStudyArea)
@@ -180,6 +200,9 @@ for i1 = 1:length(LegSoil)
         SoilClassesAll{i2}(IndexDTMPointsOutsideStudyArea{i2}) = "Out";
     end
 end
+
+%% Creation of a unique table with separate classes used
+ClassesForCombsAll = table({SlopeClassesAll}, {LandUseClassesAll}, {SoilClassesAll}, 'VariableNames',{'Slope', 'LandUse', 'Soil'});
 
 %% Creation of combinations (clusterized)
 ProgressBar.Message = 'Defining clusters for combinations...';
@@ -254,7 +277,7 @@ HRUsStudyAreaUnique = cellfun(@(x) unique(x), HRUsStudyArea, 'UniformOutput',fal
 HRUsStudyAreaUnique = cat(1, HRUsStudyAreaUnique{:});
 HRUsStudyAreaUnique = unique(HRUsStudyAreaUnique);
 
-%% Creation of polygons (TO CONTINUE, You want polyshapes instead of alphashapes)
+%% Creation of polygons (TO CONTINUE, You want polyshapes instead of alphashapes. TRY CONSIDERING EACH POINT AS A SQUARE TO MERGE WITH OTHER SQUARES!)
 PolyCreation = false; % CHOICE TO USER!
 if PolyCreation
     ProgressBar.Indeterminate = 'off';
@@ -320,7 +343,8 @@ end
 %% Saving...
 ProgressBar.Message = 'Saving...';
 cd(fold_var)
-VariablesHRUs = {'HRUsAll', 'CombinationsAll', 'InfoLegSlope', 'InfoLegLandUse', 'InfoLegSoil', 'HRUsStudyAreaUnique', 'CombsStudyAreaUnique'};
+VariablesHRUs = {'HRUsAll', 'CombinationsAll', 'ClassesForCombsAll', 'InfoLegSlope', ...
+                 'InfoLegLandUse', 'InfoLegSoil', 'HRUsStudyAreaUnique', 'CombsStudyAreaUnique'};
 save('HRUs.mat', VariablesHRUs{:});
 cd(fold0)
 
