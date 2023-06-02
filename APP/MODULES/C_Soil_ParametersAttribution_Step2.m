@@ -134,7 +134,7 @@ ProgressBar.Message = 'Finising...';
 cd(fold_var)
 save('LUDSCMapParameters.mat', VariablesLUPar{:})
 save('SoilParameters.mat', VariablesSoilPar{:})
-if TopSoil % TO CONTINUE!!
+if exist('TopSoil', 'var') % TO CONTINUE!!
     TSUAbbr = LUAbbr;
 end
 cd(fold0)

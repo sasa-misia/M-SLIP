@@ -84,7 +84,7 @@ for i1 = 1:length(FilesDetectedSoilSlip)
                                              'Sub areas', 'Options',Options);
         switch MethodForNearPoints
             case 'Circle'
-                AreaRadius = str2double(inputdlg(['Set radius [m] that will include points for file n. ',num2str(i1)], '', 1, {'100'}));
+                AreaDiamet = str2double(inputdlg(['Set diameter [m] that will include points for file n. ',num2str(i1)], '', 1, {'50'}));
     
             case 'ImportPolygons'
                 cd(fold_var)
@@ -127,8 +127,8 @@ for i1 = 1:length(FilesDetectedSoilSlip)
         if SubArea
             switch MethodForNearPoints
                 case 'Circle'
-                    dLatRadius  = rad2deg(AreaRadius/2/earthRadius); % /2 to have half of the size from the centre
-                    dLongRadius = rad2deg(acos( (cos(AreaRadius/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
+                    dLatRadius  = rad2deg(AreaDiamet/2/earthRadius); % /2 to have half of the size from the centre
+                    dLongRadius = rad2deg(acos( (cos(AreaDiamet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
     
                     Angles       = linspace(0, 2*pi, 50);
                     xLongEllTemp = dLongRadius*cos(Angles) + InfoDetectedSoilSlips{i1}{i2,5};
