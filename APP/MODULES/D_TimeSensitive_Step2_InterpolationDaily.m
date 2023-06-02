@@ -17,10 +17,8 @@ switch DataRead
         ShortName       = 'Temp';
 end
 
-cd(fold_var)
-load(GeneralFileName,       'GeneralData','Gauges','RecDatesEndCommon') % Remember that RainfallDates are referred at the end of your registration period
-load('GridCoordinates.mat', 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
-cd(fold0)
+load([fold_var,sl,GeneralFileName],       'GeneralData','Gauges','RecDatesEndCommon') % Remember that RainfallDates are referred at the end of your registration period
+load([fold_var,sl,'GridCoordinates.mat'], 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
 
 %% Elaboration of data and selection of dates
 ProgressBar.Message = "Selection od dates...";
@@ -57,7 +55,7 @@ DataDaily = zeros(size(GeneralData,1), NumberOfDays);
 for i1 = 1:NumberOfDays
     switch DataRead
         case 'Rainfall'
-            DataDaily(:,i1) = sum( GeneralData(:, (StartDateInd+StepForEntireDay*(i1-1)+1) : StartDateInd+StepForEntireDay*(i1)), 2 );
+            DataDaily(:,i1) = sum(  GeneralData(:, (StartDateInd+StepForEntireDay*(i1-1)+1) : StartDateInd+StepForEntireDay*(i1)), 2 );
         case 'Temperature'
             DataDaily(:,i1) = mean( GeneralData(:, (StartDateInd+StepForEntireDay*(i1-1)+1) : StartDateInd+StepForEntireDay*(i1)), 2 );
     end

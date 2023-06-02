@@ -86,7 +86,7 @@ if AnswerTypeRec == 1
     IndOfStarts  = find(DiffInMiss > 15); % We suppose to have at least 15 records and less than 15 rows blank
     RowsOfStarts = MissIn2ndCol(IndOfStarts) + 1; % + 1 because you have to start from the next row after the last blank
     RowsOfEnds   = MissIn2ndCol(IndOfStarts+1) - 1; % - 1 because you have to end in the previous row before the first blank
-    if not(ismissing(Sheet_DataRec{end,2})) % If your last element is a datetime, then you have to add even the last station (not picked up automatically)
+    if not(ismissing(Sheet_DataRec{end,2})) % If your last element is a datetime, then you have to add also the last station (not picked up automatically)
         RowsOfStarts(end+1) = MissIn2ndCol(end) + 1;
         RowsOfEnds(end+1)   = length(Sheet_DataRec(:,2));
     end
@@ -346,7 +346,7 @@ ProgressBar.Message = strcat("Saving data...");
 
 NameInterp  = [ShortName, 'Interpolated.mat'];
 NameGeneral = ['General', DataRead, '.mat'];
-AnswerType  = {'AnswerTypeRec', 'AnswerTypeFor', 'InterpDuration'};
+AnswerType  = {'AnswerTypeRec', 'AnswerTypeFor'}; % , 'InterpDuration'
 
 cd(fold_var)
 save('UserTimeSens_Answers.mat', FileNames{:},'AnalysisCase',AnswerType{:});
