@@ -8,8 +8,9 @@ drawnow
 cd(fold_var)
 load('StudyAreaVariables.mat')
 % load('GridCoordinates.mat')
-load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','IndDefInfoDet')
+load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','InfoPointsNearDetectedSoilSlips','IndDefInfoDet')
 InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
+InfoPointsNearDetectedSoilSlipsToUse = InfoPointsNearDetectedSoilSlips{IndDefInfoDet};
 
 if exist('PlotSettings.mat', 'file')
     load('PlotSettings.mat')
@@ -43,24 +44,26 @@ FileNameCTR = string(Files(Choice));
 drawnow % Remember to remove if in Standalone version
 figure(Fig) % Remember to remove if in Standalone version
 
-if any(contains(FileNameCTR,'tif')) && any(contains(FileNameCTR,'tfw'))
+if any(contains(FileNameCTR,'tif', 'IgnoreCase',true)) && any(contains(FileNameCTR,'tfw', 'IgnoreCase',true))
     CTRType = 0;
-elseif all(contains(FileNameCTR,'tif'))
+elseif all(contains(FileNameCTR,'tif', 'IgnoreCase',true))
     CTRType = 1;
-elseif all(contains(FileNameCTR,'img'))
+elseif all(contains(FileNameCTR,'img', 'IgnoreCase',true))
     CTRType = 2;
-elseif any(contains(FileNameCTR,'jpg'))
+elseif any(contains(FileNameCTR,'jpg', 'IgnoreCase',true))
     CTRType = 3;
     YetReferenced = false;
-    if any(contains(FileNameCTR,'jgw'))
+    if any(contains(FileNameCTR,'jgw', 'IgnoreCase',true))
         YetReferenced = true;
     end
+else
+    error('CTR file extension not recognized or yet implemented!')
 end
 
 switch CTRType
     case 0
-        NameFile1 = FileNameCTR(contains(FileNameCTR,'tif'));
-        NameFile2 = FileNameCTR(contains(FileNameCTR,'tfw'));
+        NameFile1 = FileNameCTR(contains(FileNameCTR,'tif', 'IgnoreCase',true));
+        NameFile2 = FileNameCTR(contains(FileNameCTR,'tfw', 'IgnoreCase',true));
 
     case 1
         NameFile1 = FileNameCTR;
@@ -69,11 +72,11 @@ switch CTRType
         NameFile1 = FileNameCTR;
 
     case 3
-        NameFile1 = FileNameCTR(contains(FileNameCTR,'jpg'));
+        NameFile1 = FileNameCTR(contains(FileNameCTR,'jpg', 'IgnoreCase',true));
         if YetReferenced
-            NameFile2 = FileNameCTR(contains(FileNameCTR,'jgw'));
+            NameFile2 = FileNameCTR(contains(FileNameCTR,'jgw', 'IgnoreCase',true));
         else
-            NameFile3 = FileNameCTR(contains(FileNameCTR,'txt'));
+            NameFile3 = FileNameCTR(contains(FileNameCTR,'txt', 'IgnoreCase',true));
         end
 
     otherwise
@@ -85,7 +88,7 @@ SkipCTRProcessing = false;
 cd(fold_var)
 if exist('StudyCTR.mat', 'file')
     load('StudyCTR.mat')
-    if exist('NameFileTotUsed', 'var') && all(NameFileTotUsed == NameFile1)
+    if exist('NameFileTotUsed', 'var') && isequal(NameFileTotUsed, NameFile1)
         SkipCTRProcessing = true;
         warning('Pre existing CTR Processing is equal -> CTR Processing will be skipped')
     end
@@ -319,7 +322,7 @@ GrayScaleCTRTot  = cat(1,GrayScaleCTRStudy{:});
 fold_fig_det = strcat(fold_fig,sl,'Detected points plots');
 if ~exist(fold_fig_det,'dir'); mkdir(fold_fig_det); end
 
-Classes = cellfun(@(x) table2cell(x(:,1)), InfoPointsNearDetectedSoilSlips(:,7), 'UniformOutput',false);
+Classes = cellfun(@(x) table2cell(x(:,1)), InfoPointsNearDetectedSoilSlipsToUse(:,7), 'UniformOutput',false);
 Classes = unique(string(cat(1, Classes{:})));
 
 IndClassesNS = strcmp(Classes, 'Land Use not specified'); % Not classified, then they will be removed
@@ -386,8 +389,8 @@ for i1 = 1:length(PolWindow)
         strcat("Municipality: ", string(InfoDetectedSoilSlipsToUse{i1,1}), " does not have CTR")
     end
 
-    PointsNearLong = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,3));
-    PointsNearLat  = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,4));
+    PointsNearLong = cell2mat(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,3));
+    PointsNearLat  = cell2mat(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,4));
 
     IndexPointsInPolWin = find(inpoly([PointsNearLong, PointsNearLat], ppWin, eeWin)==1);
 
@@ -403,7 +406,7 @@ for i1 = 1:length(PolWindow)
         Filename1 = strcat("Classes for point n. ",string(i1));
         title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
               'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind1)
-        subtitle(strcat( "Cod. IOP: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
+        subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
                  'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind1)
         set(fig_class, 'Name',Filename1);
     
@@ -422,7 +425,7 @@ for i1 = 1:length(PolWindow)
         end
     
         % Plot Classes (LU)
-        PointClassNearDSS = string(InfoPointsNearDetectedSoilSlips{i1,4}(:,17)); % This is LU
+        PointClassNearDSS = string(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,17)); % This is LU
         PointClassNearDSS = PointClassNearDSS(IndexPointsInPolWin);
         
         IndClasses = arrayfun(@(x) strcmp(x, PointClassNearDSS), Classes, 'UniformOutput',false);
@@ -464,7 +467,7 @@ for i1 = 1:length(PolWindow)
             
             legend('AutoUpdate','off')
 
-            fig_rescaler(fig_class, hleg1, LegendPosition)
+            fig_rescaler(ax_ind1, hleg1, LegendPosition) % Before was fig_class. Please fix sizes!
         end
     
         if ShowPlots
@@ -490,7 +493,7 @@ for i1 = 1:length(PolWindow)
         Filename2 = strcat("Morphology of point n. ",string(i1));
         title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
               'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind2)
-        subtitle(strcat( "Cod. IOP: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
+        subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
                  'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind2)
         set(fig_morph, 'Name',Filename2);
     
@@ -507,7 +510,7 @@ for i1 = 1:length(PolWindow)
             end
         end
     
-        PointsNearAlt  = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,5));
+        PointsNearAlt  = cell2mat(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,5));
         PointsNearAlt  = PointsNearAlt(IndexPointsInPolWin);
     
         PlotMorph = fastscatter2(PointsNearLong, PointsNearLat, PointsNearAlt, 'FaceAlpha',TTrans, 'Parent',ax_ind2);
@@ -555,7 +558,7 @@ for i1 = 1:length(PolWindow)
         Filename3 = strcat("Slope of point n. ",string(i1));
         title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
               'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind3)
-        subtitle(strcat( "Cod. IOP: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
+        subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
                  'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind3)
         set(fig_slope, 'Name',Filename3);
     
@@ -572,7 +575,7 @@ for i1 = 1:length(PolWindow)
             end
         end
     
-        PointsNearSlope  = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,6));
+        PointsNearSlope  = cell2mat(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,6));
         PointsNearSlope  = PointsNearSlope(IndexPointsInPolWin);
     
         PlotSlope = fastscatter2(PointsNearLong, PointsNearLat, PointsNearSlope, 'FaceAlpha',TTrans, 'Parent',ax_ind3);
@@ -621,7 +624,7 @@ for i1 = 1:length(PolWindow)
         Filename4 = strcat("Aspect of point n. ",string(i1));
         title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
               'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind4)
-        subtitle(strcat( "Cod. IOP: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
+        subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
                  'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind4)
         set(fig_aspect, 'Name',Filename4);
     
@@ -638,7 +641,7 @@ for i1 = 1:length(PolWindow)
             end
         end
     
-        PointsNearAspect  = cell2mat(InfoPointsNearDetectedSoilSlips{i1,4}(:,7));
+        PointsNearAspect  = cell2mat(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,7));
         PointsNearAspect  = PointsNearAspect(IndexPointsInPolWin);
     
         PlotAspect = fastscatter2(PointsNearLong, PointsNearLat, PointsNearAspect, 'FaceAlpha',TTrans, 'Parent',ax_ind4);

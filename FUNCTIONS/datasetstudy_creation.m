@@ -46,10 +46,6 @@ function [varargout] = datasetstudy_creation(fold0, varargin)
 %   If you write false, then no Normalization will be performed and outfput
 %   for Ranges will be a matrix of NaNs.
 %   
-%   - 'UseRanges', logical : is to specify if you want or not to use  a pre 
-%   existing Ranges table. If nothing is specified, then 'false' is taken by 
-%   default.
-%   
 %   - 'Ranges', table : is the table that will be used to normalize data
 %   in dataset. It must be a nx2 table (n is the number of features you
 %   have), containing in the first column min values and in the second the
@@ -94,7 +90,7 @@ NormData   = true;              % Default
 ModeForTS  = "condenseddays";   % Default
 DaysForTS  = 1;                 % Default
 FileAssoc  = 'ClassesML.xlsx';  % Default
-UseRanges  = false;             % Default
+CreateRngs = true;              % Default
 CauseMode  = "eventscumulate";  % Default
 Prmpt4Fts  = [];                % Inizialized
 FeatsType  = [];                % Initialized
@@ -118,7 +114,6 @@ if ~isempty(varargin)
     InputEventDay    = find(cellfun(@(x) strcmpi(x, "dayofevent"),   vararginCopy));
     InputTargetFig   = find(cellfun(@(x) strcmpi(x, "targetfig"),    vararginCopy));
     InputFileAssoc   = find(cellfun(@(x) strcmpi(x, "fileassname"),  vararginCopy));
-    InputUseRanges   = find(cellfun(@(x) strcmpi(x, "useranges"),    vararginCopy));
     InputRanges      = find(cellfun(@(x) strcmpi(x, "ranges"),       vararginCopy));
     InputCauseMode   = find(cellfun(@(x) strcmpi(x, "causemode"),    vararginCopy));
 
@@ -130,7 +125,6 @@ if ~isempty(varargin)
     if InputEventDay;    EventDay   = varargin{InputEventDay+1};    end
     if InputTargetFig;   Fig        = varargin{InputTargetFig+1};   end
     if InputFileAssoc;   FileAssoc  = varargin{InputFileAssoc+1};   end
-    if InputUseRanges;   UseRanges  = varargin{InputUseRanges+1};   end
     if InputRanges;      Ranges     = varargin{InputRanges+1};      end
     if InputCauseMode;   CauseMode  = varargin{InputCauseMode+1};   end
 
@@ -138,10 +132,14 @@ if ~isempty(varargin)
         FeatsToUse = cellfun(@(x) lower(string(x)), FeatsToUse, 'Uniform',false); % To have consistency in terms of data type and case type
     end
 
-    if UseRanges && ( not(exist('Ranges', 'var')) || not(istable(Ranges)) )
-        error('You have chosed to UseRanges but with no Ranges input or not in a table form!')
-    elseif not(UseRanges) && exist('Ranges', 'var')
-        warning('You have put as input Ranges but you have select to not use it with UseRanges. Ranges will be ignored!')
+    if InputRanges
+        CreateRngs = false;
+        if not(istable(Ranges))
+            error('You have specified Ranges as input but not as a table!')
+        elseif isempty(Ranges) || all(isnan(Ranges{:,:}), 'all')
+            CreateRngs = true;
+            warning('You have put as input Ranges but it is empty or filled with nans. Ranges will be ignored and re-created!')
+        end
     end
 end
 
@@ -795,6 +793,8 @@ if any(contains([FeatsToUse{:}], ["rain", "temp", "allfeats"]))
     else
         RowToTake = listdlg('PromptString',{'Select the date to consider (start times of 24 h):',''}, ...
                             'ListString',TimeSensitiveDate, 'SelectionMode','single');
+        figure(Fig)
+        drawnow
     end
 
     TimeSensitiveDatetimeChosed = TimeSensitiveDate(RowToTake);
@@ -859,6 +859,8 @@ if any(contains([FeatsToUse{:}], ["rain", "temp", "allfeats"]))
                                             num2str(cellfun(@(x) length(x), TimeSensEventDates{i1}(IndsPossEvents))'), ' h)');
                     RelIndEvent    = listdlg('PromptString',{'Select the rain event to consider :',''}, ...
                                              'ListString',PossEventNames, 'SelectionMode','single');
+                    figure(Fig)
+                    drawnow
                 elseif IndsPossEvents == 1
                     RelIndEvent    = 1;
                 end
@@ -922,7 +924,7 @@ ProgressBar.Message = 'Dataset: normalization of data...';
 
 FeatsDataset = DatasetFeaturesStudy.Properties.VariableNames;
 if NormData
-    if not(UseRanges)
+    if CreateRngs
         PromptForRanges = strcat("Ranges for ", Prmpt4Fts');
         RangesInputs = inputdlg( PromptForRanges, '', 1, ...
                                  strcat("[",num2str(round(SuggRanges(:,1),3,'significant'), '%.2e'),", ", ...

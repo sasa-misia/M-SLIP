@@ -7,7 +7,7 @@ rng(10) % For reproducibility of the model
 
 %% Loading data, extraction and initialization of variables
 load([fold_var,sl,'DatasetML.mat'],    'DatasetMLInfo','DatasetMLCoords','DatasetMLFeats', ...
-                                       'DatasetMLClasses','DatasetMLDates')
+                                       'DatasetMLClasses','DatasetMLDates','RangesForNorm')
 load([fold_var,sl,'DatasetStudy.mat'], 'UnstablePolygons','IndecisionPolygons','StablePolygons')
 
 TimeSensMode  = 'NoTimeSens';
@@ -50,6 +50,9 @@ switch TestMode
                                 'ListString',string(1:numel(UnstablePolygons)), 'SelectionMode','multiple');
         IndsLogicTestPolys = false(1, numel(UnstablePolygons));
         IndsLogicTestPolys(IndsTestPolys) = true;
+
+        figure(Fig)
+        drawnow
 
         TestPoly  = union([UnstablePolygons(IndsLogicTestPolys) ; StablePolygons(IndsLogicTestPolys)] );
         TrainPoly = union([UnstablePolygons(~IndsLogicTestPolys); StablePolygons(~IndsLogicTestPolys)]);
@@ -136,6 +139,7 @@ if not(strcmp(ANNMode, 'Auto'))
     ModelInfo.ANNsStructures    = array2table(ModelNeurCombs, 'VariableNames',strcat(string(1:length(ModelNeurCombs)),"Layers"));
 end
 ModelInfo.MethodForOptThreshold = MethodBestThreshold;
+ModelInfo.RangesForNorm         = {RangesForNorm};
 
 %% Partitioning of dataset for ML
 rng(7) % For reproducibility of the model
@@ -206,7 +210,7 @@ switch TimeSensMode
                 switch ANNMode
                     case 'With Validation Data'
                         Model = fitcnet(DatasetTrain, ExpectedOutputsTrain, 'ValidationData',{DatasetTest, ExpectedOutputsTest}, ...
-                                                                   'ValidationFrequency',5, 'ValidationPatience',20, ...
+                                                                   'ValidationFrequency',5, 'ValidationPatience',35, ...
                                                                    'LayerSizes',LayerSize{i1}, 'Activations',LayerActivation, ...
                                                                    'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',8e3);
     
@@ -240,7 +244,7 @@ switch TimeSensMode
             end
         end
 
-        if (i3-1) ~= NumberOfANNs
+        if (i3) ~= NumberOfANNs
             error('Not all possible models were trained. Check the script!')
         end
 
@@ -267,7 +271,7 @@ switch TimeSensMode
                         warning(strcat("ATTENTION! Model n. ", string(i1), " failed to converge! Please analyze it."))
                     end
 
-                case 'Cross Validation (K-Fold)'
+                case 'Cross Validation (K-Fold) [slow]'
                     ModelCV = fitcnet(DatasetTrain, ExpectedOutputsTrain, ...
                                                 'LayerSizes',LayerSize{i1}, 'Activations',LayerActivation, ...
                                                 'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',8e3, ...
@@ -408,6 +412,9 @@ if PlotCheck
         DateChosedInd     = listdlg('PromptString',{'Select the event to plot :',''}, ...
                                     'ListString',PossibleDatetimes, 'SelectionMode','single');
         DateChosed = PossibleDatetimes(DateChosedInd);
+
+        figure(Fig)
+        drawnow
 
         IndsEventToTake = (DatasetMLDates.Datetime == DateChosed);
 
@@ -553,6 +560,6 @@ fold_res_ml_curr = [fold_res_ml,sl,MLFolderName];
 %% Saving...
 ProgressBar.Message = "Saving files...";
 VariablesML = {'ANNs', 'ANNsPerf', 'ModelInfo'};
-save([fold_res_ml_curr,sl,'TrainedANNs.mat'], VariablesML{:})
+saveswitch([fold_res_ml_curr,sl,'TrainedANNs.mat'], VariablesML)
 
 close(ProgressBar) % Fig instead of ProgressBar if in standalone version

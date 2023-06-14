@@ -16,10 +16,16 @@ if lower(string(leg_position)) == "northoutside"
     FigSize([2, 4]) = [FigSize(2)-LegSize(4), FigSize(2)+LegSize(4)];
 elseif lower(string(leg_position)) == "southoutside"
     FigSize([2, 4]) = [FigSize(2)+LegSize(4), FigSize(2)+LegSize(4)];
+    DiffWide = FigSize(3) - LegSize(3);
+    if DiffWide < 0 
+        FigSize([1, 3]) = [FigSize(1)-DiffWide, LegSize(3)];
+    end
 elseif lower(string(leg_position)) == "eastoutside"
     FigSize([1, 3]) = [FigSize(1)-LegSize(3), FigSize(1)+LegSize(3)];
 elseif lower(string(leg_position)) == "westoutside"
     FigSize([1, 3]) = [FigSize(1)+LegSize(3), FigSize(1)+LegSize(3)];
+else
+    warning('Position of legend not recognized! -> Figure not rescaled!')
 end
 
 set(fig_object, 'position',FigSize)
