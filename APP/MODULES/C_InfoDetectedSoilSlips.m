@@ -41,7 +41,7 @@ xLongStudy         = cellfun(@(x,y) x(y)      , xLongAll  , IndexDTMPointsInside
 yLatStudy          = cellfun(@(x,y) x(y)      , yLatAll   , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
 GridPointsStudyCat = cellfun(@(x,y) cat(2,x,y), xLongStudy, yLatStudy                    , 'UniformOutput',false);
 
-yLatMean      = mean(cellfun(@(x) mean(x), yLatStudy));
+yLatMean = mean(cellfun(@(x) mean(x), yLatStudy));
 
 %% Creation of tables - Start of loop
 [InfoDetectedSoilSlips, InfoDetectedSoilSlipsAverage, InfoPointsNearDetectedSoilSlips] = deal(cell(1, length(FilesDetectedSoilSlip)));
@@ -53,10 +53,9 @@ for i1 = 1:length(FilesDetectedSoilSlip)
     EmptyPositions = cellfun(@(x) all(ismissing(x)), DetSSData);
     DetSSData(EmptyPositions) = {'Not specified'};
     
-    Municipalities = DetSSData(2:end,1);
-    Locations = DetSSData(2:end,2);
-    
-    CoordDetSoilSlip = flip( reshape([DetSSData{cellfun(@isnumeric,DetSSData(:,1:5))}], [], 2), 2);
+    Municipalities   = DetSSData(2:end,1);
+    Locations        = DetSSData(2:end,2);
+    CoordDetSoilSlip = [cell2mat(DetSSData(2:end,4)), cell2mat(DetSSData(2:end,3))]; % MAKE THIS LINE AUTOMATIC!!!
     
     %% Pre Processing and Initialization
     ProgressBar.Message = 'Processing...';
@@ -67,8 +66,8 @@ for i1 = 1:length(FilesDetectedSoilSlip)
     Locations        = Locations(IndexPointsInsideStudyArea);
     CoordDetSoilSlip = CoordDetSoilSlip(IndexPointsInsideStudyArea, :);
     
-    if length(IndexPointsInsideStudyArea) ~= length(Municipalities)
-        DeletedPoints = length(Municipalities)-length(IndexPointsInsideStudyArea);
+    if length(IndexPointsInsideStudyArea) ~= length(DetSSData(2:end,1))
+        DeletedPoints = length(DetSSData(2:end,1))-length(IndexPointsInsideStudyArea);
         warning(strcat(string(DeletedPoints),' points were deleted!'))
     end
     
@@ -93,7 +92,7 @@ for i1 = 1:length(FilesDetectedSoilSlip)
                 else
                     error('You have to import the shapefile first (C_DetectedSoilSLips.m script)')
                 end
-                IDsDetSoilSlip = DetSSData(2:end,2);
+                IDsDetSoilSlip = string(Locations);
                 cd(fold_raw_det_ss)
         end
     end
@@ -139,8 +138,10 @@ for i1 = 1:length(FilesDetectedSoilSlip)
                     InfoDetectedSoilSlipsAverage{i1}{1}(i2) = PolTemp;
     
                 case 'ImportPolygons'
-                    CurrID = IDsDetSoilSlip{i2};
-                    IndCurrID = find(strcmp(CurrID, IDsAllUnique));
+                    CurrID = IDsDetSoilSlip(i2);
+                    IndCurrID = find(strcmp(CurrID, string(IDsAllUnique)));
+
+                    if isempty(IndCurrID); error(strcat("The polygon with ID: ",CurrID," was not found!")); end
 
                     PolTemp = IDsPolygonsStudyArea(IndCurrID);
 
