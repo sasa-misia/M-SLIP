@@ -195,7 +195,7 @@ eval([ShortName,'dTRecordings = dTRecordings;'])
 VariablesEvents = {[ShortName,'AmountPerEventInterp'], [ShortName,'MaxPeakPerEventInterp'], ...
                    [ShortName,'RecDatesPerEvent'], [ShortName,'dTRecordings']};
 
-save([ShortName,'Events.mat'], VariablesEvents{:});
+save([ShortName,'Events.mat'], VariablesEvents{:}, '-v7.3');
 cd(fold0)
 
 close(ProgressBar)

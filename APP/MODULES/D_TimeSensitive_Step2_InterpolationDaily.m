@@ -100,7 +100,7 @@ clear('DataDaily')
 VariablesInterpolated = {[ShortName,'Interpolated'], [ShortName,'DateInterpolationStarts']};
 VariablesDates        = {[ShortName,'DateInterpolationStarts'], 'StartDate', 'EndDate', [ShortName,'CumDay']};
 
-save([ShortName,'Interpolated.mat']     , VariablesInterpolated{:});
+save([ShortName,'Interpolated.mat']     , VariablesInterpolated{:}, '-v7.3');
 save([ShortName,'DateInterpolation.mat'], VariablesDates{:});
 cd(fold0)
 

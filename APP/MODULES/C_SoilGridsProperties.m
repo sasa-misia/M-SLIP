@@ -39,7 +39,12 @@ if ~exist(fold_raw_sg_rast, 'dir')
     mkdir(fold_raw_sg_rast)
 end
 
-cellfun(@(x) copyfile(x, fold_raw_sg_rast), FullNamesToCopy);
+PossibleNewFullNames = cellfun(@(x) [fold_raw_sg_rast,sl,x], NamesOfRaseters, 'UniformOutput',false);
+for i1 = 1:length(PossibleNewFullNames)
+    if not(exist(PossibleNewFullNames{i1}, 'file'))
+        cellfun(@(x) copyfile(x, fold_raw_sg_rast), FullNamesToCopy);
+    end
+end
 
 %% Saving...
 ProgressBar.Message = 'Saving...';

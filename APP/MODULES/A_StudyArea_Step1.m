@@ -56,7 +56,7 @@ if SpecificWindow
     ChoiceWindow = 'SingleWindow';
     cd(fold_var)
     if exist('InfoDetectedSoilSlips.mat', 'file')
-        load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips')
+        load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','IndDefInfoDet')
         Options = {'SingleWindow', 'MultiWindows'};
         ChoiceWindow = uiconfirm(Fig, ['Would you like to create a single window or ' ...
                                        'multiple windows based on detected soil slip'], ...
@@ -77,16 +77,17 @@ if SpecificWindow
             StudyAreaPolygon = intersect(StudyAreaPolygon, PolWindow); % Maybe not necessary if you want the entire rectangle. You can write: StudyAreaPolygon = PolWindow;
 
         case 'MultiWindows'
+            xLongDet = [InfoDetectedSoilSlips{IndDefInfoDet}{:,5}];
+            yLatDet  = [InfoDetectedSoilSlips{IndDefInfoDet}{:,6}];
             WindowSide = str2double(inputdlg("Set side of each window (m)", '', 1, {'1200'}));
-            HalfWindowSideDegree = km2deg(WindowSide/1000)/2;
-            xLongDet = [InfoDetectedSoilSlips{:,5}];
-            yLatDet  = [InfoDetectedSoilSlips{:,6}];
+            dLatHalfSide  = rad2deg(WindowSide/2/earthRadius); % /2 to have half of the size from the centre
             PolWindow = repmat(polyshape, 1, length(xLongDet));
             for i1 = 1:length(xLongDet)
-                PolWindow(i1) = polyshape( [xLongDet(i1)-HalfWindowSideDegree, xLongDet(i1)+HalfWindowSideDegree, ...
-                                            xLongDet(i1)+HalfWindowSideDegree, xLongDet(i1)-HalfWindowSideDegree], ...
-                                           [yLatDet(i1)-HalfWindowSideDegree,  yLatDet(i1)-HalfWindowSideDegree, ...
-                                            yLatDet(i1)+HalfWindowSideDegree,  yLatDet(i1)+HalfWindowSideDegree ] );
+                dLongHalfSide = rad2deg(acos( (cos(WindowSide/2/earthRadius)-sind(yLatDet(i1))^2)/cosd(yLatDet(i1))^2 )); % /2 to have half of the size from the centre
+                PolWindow(i1) = polyshape( [xLongDet(i1)-dLongHalfSide, xLongDet(i1)+dLongHalfSide, ...
+                                            xLongDet(i1)+dLongHalfSide, xLongDet(i1)-dLongHalfSide], ...
+                                           [yLatDet(i1)-dLatHalfSide,  yLatDet(i1)-dLatHalfSide, ...
+                                            yLatDet(i1)+dLatHalfSide,  yLatDet(i1)+dLatHalfSide ] );
             end
             StudyAreaPolygon = union(PolWindow);
     end

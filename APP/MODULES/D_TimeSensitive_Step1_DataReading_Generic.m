@@ -346,7 +346,7 @@ ProgressBar.Message = strcat("Saving data...");
 
 NameInterp  = [ShortName, 'Interpolated.mat'];
 NameGeneral = ['General', DataRead, '.mat'];
-AnswerType  = {'AnswerTypeRec', 'AnswerTypeFor'}; % , 'InterpDuration'
+AnswerType  = {'AnswerTypeRec', 'AnswerTypeFor', 'InterpDuration'};
 
 cd(fold_var)
 save('UserTimeSens_Answers.mat', FileNames{:},'AnalysisCase',AnswerType{:});
