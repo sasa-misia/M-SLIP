@@ -3,312 +3,419 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files
                                  'Indeterminate','on');
 drawnow
 
-%% Loading data
-cd(fold_var)
-load('MorphologyParameters.mat',     'AspectAngleAll','ElevationAll','SlopeAll', ...
-                                     'MeanCurvatureAll','OriginallyProjected','SameCRSForAll')
-load('LithoPolygonsStudyArea.mat',   'LithoAllUnique','LithoPolygonsStudyArea')
-load('TopSoilPolygonsStudyArea.mat', 'TopSoilAllUnique','TopSoilPolygonsStudyArea')
-load('LandUsesVariables.mat',        'AllLandUnique','LandUsePolygonsStudyArea')
-load('VegPolygonsStudyArea.mat',     'VegetationAllUnique','VegPolygonsStudyArea')
-load('GridCoordinates.mat',          'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
-load('RainInterpolated.mat',         'RainInterpolated','DateInterpolationStarts')
-load('InfoDetectedSoilSlips.mat',    'InfoDetectedSoilSlips')
-load('StudyAreaVariables.mat',       'StudyAreaPolygon')
-load('TrainedANNs.mat',              'ANNModels','ANNModelsROCTrain','ANNModelsROCTest','RangesForNorm', ...
-                                     'TotPolUncStable','TotPolIndecision','TotPolUnstabPoints', ...
-                                     'CategoricalClasses','AnalysisInformation')
-cd(fold0)
+%% Options
+fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
+% Options = {'Yes', 'No, I want to use the current'};
+% TrainDatasetAns = uiconfirm(Fig, ['Do you want to use the dataset of the entire ' ...
+%                                   'study area created while training the ANNs?'], ...
+%                                  'Train dataset use', 'Options',Options, 'DefaultOption',1);
+% if strcmp(TrainDatasetAns,'Yes'); UseTrainDataset = true; else; UseTrainDataset = false; end
 
-Options = {'Yes', 'No, I want to create a new one'};
-NewDatasetChoice = uiconfirm(Fig, ['Do you want to use the dataset of the entire ' ...
-                                   'study area created while training the ANNs?'], ...
-                                  'New dataset creation', 'Options',Options, 'DefaultOption',1);
-if strcmp(NewDatasetChoice,'Yes'); CreateNewDataset = false; else; CreateNewDataset = true; end
+ParallelizeAns = uiconfirm(Fig, 'Do you want to parallelize prediction computation?', ...
+                                'Parallelize', 'Options',{'Yes', 'No'}, 'DefaultOption',2);
+if strcmp(ParallelizeAns,'Yes'); Parallelize = true; else; Parallelize = false; end
 
-%% Creation of dataset
-if CreateNewDataset
-    %% Extraction of data in study area
-    ProgressBar.Message = "Data extraction in study area..."; 
-    xLongStudy          = cellfun(@(x,y) x(y), xLongAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-    yLatStudy           = cellfun(@(x,y) x(y), yLatAll         , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-    ElevationStudy      = cellfun(@(x,y) x(y), ElevationAll    , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-    SlopeStudy          = cellfun(@(x,y) x(y), SlopeAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-    AspectStudy         = cellfun(@(x,y) x(y), AspectAngleAll  , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-    MeanCurvatureStudy  = cellfun(@(x,y) x(y), MeanCurvatureAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-    
-    xLongStudyTotCat = cat(1, xLongStudy{:});
-    yLatStudyTotCat  = cat(1, yLatStudy{:});
-    
-    yLatMean = mean(yLatTotCat);
-    
-    %% Creation of classes
-    % Matrices initialization
-    if CategoricalClasses
-        LithoStudy   = cellfun(@(x) strings(size(x)), xLongStudy, 'UniformOutput',false);
-        TopSoilStudy = cellfun(@(x) strings(size(x)), xLongStudy, 'UniformOutput',false);
-        LandUseStudy = cellfun(@(x) strings(size(x)), xLongStudy, 'UniformOutput',false);
-        VegStudy     = cellfun(@(x) strings(size(x)), xLongStudy, 'UniformOutput',false);
-    else
-        LithoStudy   = cellfun(@(x) zeros(size(x)), xLongStudy, 'UniformOutput',false);
-        TopSoilStudy = cellfun(@(x) zeros(size(x)), xLongStudy, 'UniformOutput',false);
-        LandUseStudy = cellfun(@(x) zeros(size(x)), xLongStudy, 'UniformOutput',false);
-        VegStudy     = cellfun(@(x) zeros(size(x)), xLongStudy, 'UniformOutput',false);
-    end
-    
-    % Litho classes association
-    ProgressBar.Message = "Associating subsoil classes...";
-    LithoClasses = readcell('ClassesML.xlsx', 'Sheet','Litho');
-    for i1 = 1:size(LithoAllUnique,2)
-        IndClassLitho = find(strcmp(LithoAllUnique{i1}, string(LithoClasses(:,1))));
-        if CategoricalClasses
-            if isempty(IndClassLitho); ClassLitho = ""; else; ClassLitho = string(LithoClasses(IndClassLitho, 1)); end
-        else
-            if isempty(IndClassLitho); ClassLitho = 0; else; ClassLitho = LithoClasses{IndClassLitho, 2}; end
-        end
-        LUPolygon = LithoPolygonsStudyArea(i1);
-        [pp,ee] = getnan2([LUPolygon.Vertices; nan, nan]);
-        for i2 = 1:size(xLongAll,2)  
-            IndexInsideLithoPolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp,ee)==1);
-            LithoStudy{i2}(IndexInsideLithoPolygon) = ClassLitho;
-        end
-    end
-    
-    % Top-soil classes association
-    ProgressBar.Message = "Associating topsoil classes...";
-    TopSoilClasses = readcell('ClassesML.xlsx', 'Sheet','Top Soil');
-    for i1 = 1:size(TopSoilAllUnique,2)
-        IndClassTopSoil = find(strcmp(TopSoilAllUnique{i1}, string(TopSoilClasses(:,1))));
-        if CategoricalClasses
-            if isempty(IndClassTopSoil); ClassTopSoil = ""; else; ClassTopSoil = string(TopSoilClasses(IndClassTopSoil, 1)); end
-        else
-            if isempty(IndClassTopSoil); ClassTopSoil = 0; else; ClassTopSoil = TopSoilClasses{IndClassTopSoil, 2}; end
-        end
-        TSUPolygon = TopSoilPolygonsStudyArea(i1);
-        [pp,ee] = getnan2([TSUPolygon.Vertices; nan, nan]);
-        for i2 = 1:size(xLongAll,2)  
-            IndexInsideTopSoilPolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp,ee)==1);
-            TopSoilStudy{i2}(IndexInsideTopSoilPolygon) = ClassTopSoil;
-        end
-    end
-    
-    % Land use classes association
-    ProgressBar.Message = "Associating land use classes...";
-    LandUseClasses = readcell('ClassesML.xlsx', 'Sheet','Land use');
-    for i1 = 1:size(AllLandUnique,2)
-        IndClassLand = find(strcmp(AllLandUnique{i1}, string(LandUseClasses(:,1))));
-        if CategoricalClasses
-            if isempty(IndClassLand); ClassLandUse = ""; else; ClassLandUse = string(LandUseClasses(IndClassLand, 1)); end
-        else
-            if isempty(IndClassLand); ClassLandUse = 0; else; ClassLandUse = LandUseClasses{IndClassLand, 2}; end
-        end
-        LandUsePolygon = LandUsePolygonsStudyArea(i1);
-        [pp,ee] = getnan2([LandUsePolygon.Vertices; nan, nan]);
-        for i2 = 1:size(xLongAll,2)  
-            IndexInsideLandUsePolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp,ee)==1);
-            LandUseStudy{i2}(IndexInsideLandUsePolygon) = ClassLandUse;
-        end
-    end
-    
-    % Veg classes association
-    ProgressBar.Message = "Associating vegetation classes...";
-    VegClasses = readcell('ClassesML.xlsx', 'Sheet','Veg');
-    for i1 = 1:size(VegetationAllUnique,2)
-        IndClassVeg = find(strcmp(VegetationAllUnique{i1}, string(VegClasses(:,1))));
-        if CategoricalClasses
-            if isempty(IndClassVeg); ClassVeg = ""; else; ClassVeg = string(VegClasses(IndClassVeg, 1)); end
-        else
-            if isempty(IndClassVeg); ClassVeg = 0; else; ClassVeg = VegClasses{IndClassVeg, 2}; end
-        end
-        VUPolygon = VegPolygonsStudyArea(i1);
-        [pp_veg,ee_veg] = getnan2([VUPolygon.Vertices; nan, nan]);
-        for i2 = 1:size(xLongAll,2)  
-            IndexInsideVegPolygon = find(inpoly([xLongStudy{i2},yLatStudy{i2}],pp_veg,ee_veg)==1);
-            VegStudy{i2}(IndexInsideVegPolygon) = ClassVeg;
-        end
-    end
-    
-    %% Table soil creation
-    ProgressBar.Message = "Creating table normalized...";
-    DatasetToPredict = table( cat(1,SlopeStudy{:}), ...
-                              cat(1,AspectStudy{:}), ...
-                              cat(1,ElevationStudy{:}), ...
-                              cat(1,MeanCurvatureStudy{:}), ...
-                              cat(1,LithoStudy{:}), ...
-                              cat(1,TopSoilStudy{:}), ...
-                              cat(1,LandUseStudy{:}), ...
-                              cat(1,VegStudy{:})                 );
-    
-    if CategoricalClasses   
-        DatasetToPredictNorm = table( rescale(cat(1,SlopeStudy{:}),         'InputMin',RangesForNorm(1,1),    'InputMax',RangesForNorm(1,2)), ...
-                                      rescale(cat(1,AspectStudy{:}),        'InputMin',RangesForNorm(2,1),    'InputMax',RangesForNorm(2,2)), ...
-                                      rescale(cat(1,ElevationStudy{:}),     'InputMin',RangesForNorm(3,1),    'InputMax',RangesForNorm(3,2)), ...
-                                      rescale(cat(1,MeanCurvatureStudy{:}), 'InputMin',RangesForNorm(4,1),    'InputMax',RangesForNorm(4,2)), ...
-                                      cat(1,LithoStudy{:}), ...
-                                      cat(1,TopSoilStudy{:}), ...
-                                      cat(1,LandUseStudy{:}), ...
-                                      cat(1,VegStudy{:})                                                                                           );
-    else
-        DatasetToPredictNorm = table( rescale(cat(1,SlopeStudy{:}),         'InputMin',RangesForNorm(1,1),    'InputMax',RangesForNorm(1,2)), ...
-                                      rescale(cat(1,AspectStudy{:}),        'InputMin',RangesForNorm(2,1),    'InputMax',RangesForNorm(2,2)), ...
-                                      rescale(cat(1,ElevationStudy{:}),     'InputMin',RangesForNorm(3,1),    'InputMax',RangesForNorm(3,2)), ...
-                                      rescale(cat(1,MeanCurvatureStudy{:}), 'InputMin',RangesForNorm(4,1),    'InputMax',RangesForNorm(4,2)), ...
-                                      rescale(cat(1,LithoStudy{:}),         'InputMin',RangesForNorm(5,1),    'InputMax',RangesForNorm(5,2)), ...
-                                      rescale(cat(1,TopSoilStudy{:}),       'InputMin',RangesForNorm(6,1),    'InputMax',RangesForNorm(6,2)), ...
-                                      rescale(cat(1,LandUseStudy{:}),       'InputMin',RangesForNorm(7,1),    'InputMax',RangesForNorm(7,2)), ...
-                                      rescale(cat(1,VegStudy{:}),           'InputMin',RangesForNorm(8,1),    'InputMax',RangesForNorm(8,2))      );
-    end
-    
-    DatasetToPredict.Properties.VariableNames     = ConditioningFactorsNames;
-    DatasetToPredictNorm.Properties.VariableNames = ConditioningFactorsNames;
-    
-    %% Categorical vector if you mantain string classes
-    if CategoricalClasses
-        DatasetToPredictNorm.Lithology  = categorical(DatasetToPredictNorm.Lithology, ...
-                                                      string(LithoClasses(:,1)), 'Ordinal',true);
-    
-        DatasetToPredictNorm.TopSoil    = categorical(DatasetToPredictNorm.TopSoil, ...
-                                                      string(TopSoilClasses(:,1)), 'Ordinal',true);
-        
-        DatasetToPredictNorm.Vegetation = categorical(DatasetToPredictNorm.Vegetation, ...
-                                                      string(VegClasses(:,1)), 'Ordinal',true);
-    
-        DatasetToPredictNorm.LandUse    = categorical(DatasetToPredictNorm.LandUse, ...
-                                                      string(LandUseClasses(:,1)), 'Ordinal',true);
-    end
-    % TO CONTINUE!!!!!
+%% Loading files
+load([fold_var,sl,'StudyAreaVariables.mat'],   'StudyAreaPolygon')
+load([fold_var,sl,'GridCoordinates.mat'],      'xLongAll','yLatAll')
+load([fold_var,sl,'MorphologyParameters.mat'], 'OriginallyProjected','SameCRSForAll')
+load([fold_var,sl,'DatasetStudy.mat'],         'DatasetStudyFeats','DatasetStudyFeatsNotNorm', ...
+                                               'DatasetStudyCoords','StablePolygons','UnstablePolygons')
+load([fold_res_ml_curr,sl,'TrainedANNs.mat'],  'ModelInfo','ANNs','ANNsPerf')
+
+if exist([fold_res_ml_curr,sl,'PredictionsStudy.mat'], 'file')
+    load([fold_res_ml_curr,sl,'PredictionsStudy.mat'], 'PredictionProbabilities','LandslidesPolygons')
 else
-    cd(fold_var)
-    load('TrainedANNs.mat', 'DatasetTableStudy','DatasetTableStudyNorm','DatasetCoordinates')
-    cd(fold0)
-
-    DatasetToPredict     = DatasetTableStudy;
-    DatasetToPredictNorm = DatasetTableStudyNorm;
-
-    RainDailyInterpStudy = cellfun(@full, RainInterpolated, 'UniformOutput',false);
-
-    clear('DatasetTableStudy', 'DatasetTableStudyNorm', 'RainInterpolated')
+    PredictionProbabilities = table;
+    LandslidesPolygons      = table;
 end
 
-%% Choose of model to use
-IndexOfNans = find(isnan(TotPolUncStable.Vertices(:,1)));
-EndOfExtPolygons = IndexOfNans(TotPolUncStable.NumRegions);
-[TotPolUncStableLongSplit, TotPolUncStableLatSplit] = polysplit(TotPolUncStable.Vertices(1:EndOfExtPolygons,1), TotPolUncStable.Vertices(1:EndOfExtPolygons,2));
-TotPolUncStableSplitGross = cellfun(@(x, y) polyshape(x, y), TotPolUncStableLongSplit, TotPolUncStableLatSplit, 'UniformOutput',false);
+DatasetToPredCoords       = DatasetStudyCoords;
+DatasetToPredFeats        = DatasetStudyFeats;
+DatasetToPredFeatsNotNorm = DatasetStudyFeatsNotNorm;
 
-TotPolStableSplit    = cellfun(@(x) intersect(x, TotPolUncStable), ...
-                                        TotPolUncStableSplitGross, 'UniformOutput',false);
+FeatsUsed     = ModelInfo{1,'DatasetInfo'}{:}{1,'FeaturesNames'}{:};
+NormData      = ModelInfo{1,'DatasetInfo'}{:}{1,'NormalizedData'};
+TimeSensMode  = ModelInfo.TimeSensMode;
+RangesForNorm = ModelInfo.RangesForNorm{:};
+LandslideDay  = true;
 
-TotPolUnstableSplit  = cellfun(@(x) intersect(x, TotPolUnstabPoints), ...
-                                        TotPolUncStableSplitGross, 'UniformOutput',false);
+clear('DatasetStudyCoords', 'DatasetStudyFeats', 'DatasetStudyFeatsNotNorm')
 
-[IndexOfPointsUnstable, IndexOfPointsStable] = deal(cell(size(TotPolUnstableSplit)));
-for i1 = 1:numel(TotPolUnstableSplit)
-    [pp1, ee1] = getnan2([TotPolUnstableSplit{i1}.Vertices; nan, nan]);
-    IndexOfPointsUnstable{i1} = find(inpoly([DatasetCoordinates.Longitude,DatasetCoordinates.Latitude], pp1,ee1));
+%% Datetime extraction for time sensistive part
+TimeSensExist = any(strcmp('TimeSensitive', ModelInfo{1,'DatasetInfo'}{:}{1,'FeaturesTypes'}{:}));
+if TimeSensExist
+    TimeSensCumulable  = [];
+    [TimeSensitiveParam, TimeSensitiveData, TimeSensitiveDate, ...
+        TimeSensitiveTrigg, TimeSensitivePeaks, TimeSensEventDates] = deal({});
+    
+    % Rainfall
+    if any(contains(FeatsUsed, 'Rainfall'))
+        load([fold_var,sl,'RainInterpolated.mat'], 'RainInterpolated','RainDateInterpolationStarts')
+        TimeSensExist      = true;
+        TimeSensitiveData  = [TimeSensitiveData,  {RainInterpolated}];
+        TimeSensitiveDate  = [TimeSensitiveDate,  {RainDateInterpolationStarts}];
+        TimeSensitiveParam = [TimeSensitiveParam, {'Rainfall'}];
+        TimeSensCumulable  = [TimeSensCumulable,  1];
+        clear('RainInterpolated')
+        if strcmpi(TimeSensMode, 'TriggerCausePeak')
+            load([fold_var,sl,'RainEvents.mat'], 'RainAmountPerEventInterp','RainMaxPeakPerEventInterp','RainRecDatesPerEvent')
+            TimeSensitiveTrigg = [TimeSensitiveTrigg, {RainAmountPerEventInterp} ];
+            TimeSensitivePeaks = [TimeSensitivePeaks, {RainMaxPeakPerEventInterp}];
+            TimeSensEventDates = [TimeSensEventDates, {RainRecDatesPerEvent}     ];
+            clear('RainAmountPerEventInterp', 'RainMaxPeakPerEventInterp', 'RainRecDatesPerEvent')
+        end
+    end
+    
+    % Temperature
+    if any(contains(FeatsUsed, 'Temperature'))
+        load([fold_var,sl,'TempInterpolated.mat'], 'TempInterpolated','TempDateInterpolationStarts')
+        TimeSensExist      = true;
+        TimeSensitiveData  = [TimeSensitiveData,  {TempInterpolated}];
+        TimeSensitiveDate  = [TimeSensitiveDate,  {TempDateInterpolationStarts}];
+        TimeSensitiveParam = [TimeSensitiveParam, {'Temperature'}];
+        TimeSensCumulable  = [TimeSensCumulable,  0];
+        clear('TempInterpolated')
+        if strcmpi(TimeSensMode, 'TriggerCausePeak')
+            load([fold_var,sl,'TempEvents.mat'], 'TempAmountPerEventInterp','TempMaxPeakPerEventInterp','TempRecDatesPerEvent')
+            TimeSensitiveTrigg = [TimeSensitiveTrigg, {TempAmountPerEventInterp} ];
+            TimeSensitivePeaks = [TimeSensitivePeaks, {TempMaxPeakPerEventInterp}];
+            TimeSensEventDates = [TimeSensEventDates, {TempRecDatesPerEvent}     ];
+            clear('TempAmountPerEventInterp', 'TempMaxPeakPerEventInterp', 'TempRecDatesPerEvent')
+        end
+    end
+    
+    % Uniformization of time sensitive part
+    StartDateCommon = max(cellfun(@min, TimeSensitiveDate)); % Start in end dates
+    EndDateCommon   = min(cellfun(@max, TimeSensitiveDate)); % End in end dates
+    
+    if EndDateCommon < StartDateCommon
+        error('Time sensitive part has no datetime in common! Please re-interpolate time sensitive part.')
+    end
+    
+    if length(TimeSensitiveDate) > 1
+        for i1 = 1 : length(TimeSensitiveDate)
+            IndStartCommon = find(StartDateCommon == TimeSensitiveDate{i1}); % You should put an equal related to days and not exact timing
+            IndEventCommon = find(EndDateCommon   == TimeSensitiveDate{i1}); % You should put an equal related to days and not exact timing
+            TimeSensitiveData{i1} = TimeSensitiveData{i1}(IndStartCommon:IndEventCommon,:);
+            TimeSensitiveDate{i1} = TimeSensitiveDate{i1}(IndStartCommon:IndEventCommon);
+        end
+        if length(TimeSensitiveDate)>1 && ~isequal(TimeSensitiveDate{:})
+            error('After uniformization of dates in time sensitive part, number of elements is not consistent! Please check it in the script.')
+        end
+    end
+    
+    TimeSensitiveDate = TimeSensitiveDate{1}; % Taking only the first one since they are identical!
 
-    [pp2, ee2] = getnan2([TotPolStableSplit{i1}.Vertices; nan, nan]);
-    IndexOfPointsStable{i1}   = find(inpoly([DatasetCoordinates.Longitude,DatasetCoordinates.Latitude], pp2,ee2));
+    DaysForTS = ModelInfo{1,'DatasetInfo'}{:}{1,'DaysForTS'};
+    
+    IndEvent  = listdlg('PromptString',{'Select the date to consider for event (start times of 24 h):',''}, ...
+                        'ListString',TimeSensitiveDate(DaysForTS:end), 'SelectionMode','single');
+    EventDate = TimeSensitiveDate(DaysForTS-1+IndEvent);
+    DateUsed  = EventDate;
+
+    figure(Fig)
+    drawnow
+
+    LandslideDayAns = uiconfirm(Fig, 'Is this a landslide day?', ...
+                                     'Landslide day', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
+    if strcmp(LandslideDayAns,'Yes'); LandslideDay = true; else; LandslideDay = false; end
+end
+
+%% Selection of event and adjustment of dataset
+switch TimeSensMode
+    case 'CondensedDays'
+        TimeSensitiveOper = repmat({'Averaged'}, 1, length(TimeSensitiveParam));
+        TimeSensitiveOper(TimeSensCumulable) = {'Cumulated'};
+        FeatsNamesToChange = cellfun(@(x, y) [x,y,num2str(DaysForTS),'d'], TimeSensitiveParam, TimeSensitiveOper, 'UniformOutput',false);
+
+        RowToTake = find(EventDate == TimeSensitiveDate);
+        for i1 = 1:length(TimeSensitiveParam)
+            ColumnToChange = cell(1, size(TimeSensitiveDataInterpStudy{i1}, 2));
+            for i2 = 1:size(TimeSensitiveDataInterpStudy{i1}, 2)
+                if TimeSensCumulable(i1)
+                    ColumnToChange{i2} = sum([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                else
+                    ColumnToChange{i2} = mean([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                end
+            end
+            TSEventTimeNotNorm = cat(1,ColumnToChange{:});
+            if NormData
+                TSEventTime = rescale(TSEventTimeNotNorm, ...
+                                       'InputMin',RangesForNorm{FeatsNamesToChange{i1}, 'Min value'}, ...
+                                       'InputMax',RangesForNorm{FeatsNamesToChange{i1}, 'Max value'});
+            else
+                TSEventTime = TSEventTimeNotNorm;
+            end
+
+            DatasetToPredFeatsNotNorm.(FeatsNamesToChange{i1}) = TSEventTimeNotNorm(IndicesMLDataset);
+            DatasetToPredFeats.(FeatsNamesToChange{i1})        = TSEventTime(IndicesMLDataset);
+        end
+
+    case 'SeparateDays'
+        FeatsNamesToChange = cellfun(@(x) strcat(x,'-',string(1:DaysForTS)','daysBefore'), TimeSensitiveParam, 'UniformOutput',false); % Remember to change this line if you change feats names in datasetstudy_creation function!
+
+        for i1 = 1:length(TimeSensitiveParam)
+            for i2 = 1:DaysForTS
+                RowToTake = find(EventDate == TimeSensitiveDate) - i2 + 1;
+                TSEventTimeNotNorm = cat(1,TimeSensitiveDataInterpStudy{i1}{RowToTake,:});
+                if NormData
+                    TSEventTime = rescale(TSEventTimeNotNorm, ...
+                                           'InputMin',RangesForNorm{FeatsNamesToChange{i1}(i2), 'Min value'}, ...
+                                           'InputMax',RangesForNorm{FeatsNamesToChange{i1}(i2), 'Max value'});
+                else
+                    TSEventTime = TSEventTimeNotNorm;
+                end
+
+                DatasetToPredFeatsNotNorm.(FeatsNamesToChange{i1}(i2)) = TSEventTimeNotNorm(IndicesMLDataset);
+                DatasetToPredFeats.(FeatsNamesToChange{i1}(i2))        = TSEventTime(IndicesMLDataset);
+            end
+        end
+
+    case 'TriggerCausePeak'
+        TimeSensType = ["Trigger"; strcat("Cause",num2str(DaysForTS),"d"); "TriggPeak"];
+        FeatsNamesToChange = cellfun(@(x) strcat(x,TimeSensType), TimeSensitiveParam, 'UniformOutput',false);
+
+        for i1 = 1:length(TimeSensitiveParam)
+            TSEventTimeNotNorm = cell(1, 3); % 3 because you will have Trigger, cause, and peak
+            TSEventTime        = cell(1, 3);
+            if not(exist('StartDateTrigg', 'var'))
+                IndsPossEvents = find(cellfun(@(x) min(abs(EventDate-x)) < days(2), TimeSensEventDates{i1}));
+                if isempty(IndsPossEvents)
+                    error('You have no events in a time window of 2 days around your datetime. Choose another datetime!')
+                elseif IndsPossEvents > 1
+                    PossEventNames = strcat("Event of ", char(cellfun(@(x) min(x), TimeSensEventDates{i1}(IndsPossEvents))), ' (+', ...
+                                            num2str(cellfun(@(x) length(x), TimeSensEventDates{i1}(IndsPossEvents))'), ' h)');
+                    RelIndEvent    = listdlg('PromptString',{'Select the rain event to consider:',''}, ...
+                                             'ListString',PossEventNames, 'SelectionMode','single');
+
+                    figure(Fig)
+                    drawnow
+                elseif IndsPossEvents == 1
+                    RelIndEvent    = 1;
+                end
+                IndEventToTake = IndsPossEvents(RelIndEvent);
+            else
+                IndEventToTake = find(cellfun(@(x) min(abs(StartDateTrigg-x)) < minutes(1), TimeSensEventDates{i1}));
+                if isempty(IndEventToTake) || (numel(IndEventToTake) > 1)
+                    error(['Triggering event is not present in ',TimeSensitiveParam{i1},' or there are multiple possibilities. Please check it!'])
+                end
+            end
+            StartDateTrigg = min(TimeSensEventDates{i1}{IndEventToTake});
+
+            TSEventTimeNotNorm{1} = full(cat(1, TimeSensitiveTrigg{i1}{IndEventToTake,:})); % Pay attention to order! 1st row is Trigger
+
+            CauseMode = ModelInfo{1,'DatasetInfo'}{:}{1,'CauseMode'};
+            switch CauseMode
+                case 'DailyCumulate'
+                    RowToTake = find( abs(TimeSensitiveDate - StartDateTrigg) < days(1), 1 ) - 1; % Overwriting of RowToTake with the first date before your event! I want only the first one. -1 to take the day before the start of the event!
+                    ColumnToAddTemp = cell(1, size(TimeSensitiveDataStudy{i1}, 2));
+                    for i2 = 1:size(TimeSensitiveDataStudy{i1}, 2)
+                        if TimeSensCumulable(i1)
+                            ColumnToAddTemp{i2} = sum([TimeSensitiveDataStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                        else
+                            ColumnToAddTemp{i2} = mean([TimeSensitiveDataStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                        end
+                    end
+                    TSEventTimeNotNorm{2} = cat(1,ColumnToAddTemp{:}); % Pay attention to order! 2nd row is Cause
+
+                case 'EventsCumulate'
+                    StartDateCause  = StartDateTrigg - days(DaysForTS);
+                    IndsCauseEvents = find(cellfun(@(x) any(StartDateCause < x) && all(StartDateTrigg > x), TimeSensEventDates{i1})); % With any(StartDateCause < x) you could go before StartDateCause. change with all if you don't want (that event will be excluded)
+
+                    MinDateEvents = min(cellfun(@min, TimeSensEventDates{i1}));
+                    if StartDateCause < min(MinDateEvents)
+                        warning('Some events could not be included (start date of Cause is before the minimum date of events)')
+                    elseif isempty(IndsCauseEvents)
+                        error('No events in the time period from start cause to start trigger!')
+                    end
+
+                    ColumnToAddTemp = zeros(size(TSEventTimeNotNorm{1},1), length(IndsCauseEvents));
+                    for i2 = 1:length(IndsCauseEvents)
+                        ColumnToAddTemp(:,i2) = full(cat(1, TimeSensitiveTrigg{i1}{IndsCauseEvents(i2),:}));
+                    end
+                    if TimeSensCumulable(i1)
+                        TSEventTimeNotNorm{2} = sum(ColumnToAddTemp, 2); % Pay attention to order! 2nd row is Cause
+                    else
+                        TSEventTimeNotNorm{2} = mean(ColumnToAddTemp, 2); % Pay attention to order! 2nd row is Cause
+                    end
+            end
+
+            TSEventTimeNotNorm{3} = full(cat(1, TimeSensitivePeaks{i1}{IndEventToTake,:})); % Pay attention to order! 3rd row is Peak
+
+            for i2 = 1:length(FeatsNamesToChange{i1})
+                if NormData
+                    TSEventTime{i2} = rescale(TSEventTimeNotNorm{i2}, ...
+                                               'InputMin',RangesForNorm{FeatsNamesToChange{i1}(i2), 'Min value'}, ...
+                                               'InputMax',RangesForNorm{FeatsNamesToChange{i1}(i2), 'Max value'});
+                else
+                    TSEventTime{i2} = TSEventTimeNotNorm{i2};
+                end
+
+                DatasetToPredFeatsNotNorm.(FeatsNamesToChange{i1}(i2)) = TSEventTimeNotNorm{i2};
+                DatasetToPredFeats.(FeatsNamesToChange{i1}(i2))        = TSEventTime{i2};
+            end
+        end
+
+        DateUsed = StartDateTrigg;
+
+    otherwise
+        error('Type of ANN not yet implemented. Please contact developers.')
+end
+
+%% Prediction of dataset
+ProgressBar.Indeterminate = 'off';
+PredictionProbabilitiesCell = cell(1, size(ANNs, 2));
+if Parallelize
+    ProgressBar.Message = 'Predictions of study area with parallelization...';
+    ModelsToUse = [ANNs{'Model',:}];
+    parfor i1 = 1:size(ANNs, 2)
+        CurrMdl = ModelsToUse{i1};
+        [PredictionClassesTemp, PredictionProbabilitiesTemp] = predict(CurrMdl, DatasetToPredFeats);
+        PredictionProbabilitiesCell{i1} = sparse(double(round(PredictionProbabilitiesTemp(:,2), 2)));
+    end
+    ModelSelected = ANNs{'Model',i1}{:};
+else
+    for i1 = 1:size(ANNs, 2)
+        ProgressBar.Message = ['Predictions with model n. ',num2str(i1),' of ',num2str(size(ANNs, 2))];
+        ProgressBar.Value   = i1/size(ANNs, 2);
+    
+        CurrMdl = ANNs{'Model',i1}{:};
+        [PredictionClassesTemp, PredictionProbabilitiesTemp] = predict(CurrMdl, DatasetToPredFeats);
+        PredictionProbabilitiesCell{i1} = sparse(double(round(PredictionProbabilitiesTemp(:,2), 2)));
+    
+        if IndMdlToUse == i1
+            ModelSelected     = CurrMdl;
+            PredClassesMdlSel = PredictionClassesTemp;
+            PredProbsMdlSel   = PredictionProbabilitiesTemp;
+        end
+    end
+end
+ProgressBar.Indeterminate = 'on';
+
+PredictionProbabilities{string(DateUsed), ANNs.Properties.VariableNames} = PredictionProbabilitiesCell;
+LandslidesPolygons{string(DateUsed), {'UnstablePolygons','StablePolygons','LandslideDay'}} = {UnstablePolygons, StablePolygons, LandslideDay};
+
+%% Creation of a dataset for quality
+if numel(UnstablePolygons) > 1
+    StablePolysSplit   = StablePolygons;
+    UnstablePolysSplit = UnstablePolygons;
+elseif numel(UnstablePolygons) == 1
+    IndexOfNans = find(isnan(StablePolygons.Vertices(:,1)));
+    EndOfExtPolygons = IndexOfNans(StablePolygons.NumRegions);
+    [StablePolygonsLongSplit, StablePolygonsLatSplit] = polysplit(StablePolygons.Vertices(1:EndOfExtPolygons,1), StablePolygons.Vertices(1:EndOfExtPolygons,2));
+    StablePolygonsSplitGross = cellfun(@(x, y) polyshape(x, y), StablePolygonsLongSplit, StablePolygonsLatSplit, 'UniformOutput',false);
+
+    StablePolysSplit   = cellfun(@(x) intersect(x, StablePolygons),   StablePolygonsSplitGross);
+    UnstablePolysSplit = cellfun(@(x) intersect(x, UnstablePolygons), StablePolygonsSplitGross);
+end
+
+IndexOfPointsUnstable = cell(size(UnstablePolysSplit));
+for i1 = 1:numel(UnstablePolysSplit)
+    [pp1, ee1] = getnan2([UnstablePolysSplit(i1).Vertices; nan, nan]);
+    IndexOfPointsUnstable{i1} = find(inpoly([DatasetToPredCoords.Longitude,DatasetToPredCoords.Latitude], pp1,ee1));
+end
+
+IndexOfPointsStable = cell(size(StablePolysSplit));
+for i1 = 1:numel(StablePolysSplit)
+    [pp2, ee2] = getnan2([StablePolysSplit(i1).Vertices; nan, nan]);
+    IndexOfPointsStable{i1}   = find(inpoly([DatasetToPredCoords.Longitude,DatasetToPredCoords.Latitude], pp2,ee2));
 end
 
 IndexOfPointsUnstableCat = cat(1, IndexOfPointsUnstable{:});
 IndexOfPointsStableCat   = cat(1, IndexOfPointsStable{:});
 
-DatasetForQualityNorm = [ DatasetToPredictNorm(IndexOfPointsUnstableCat,:)
-                          DatasetToPredictNorm(IndexOfPointsStableCat,:)   ];
+DatasetForQuality = [ DatasetToPredFeats(IndexOfPointsUnstableCat,:)
+                      DatasetToPredFeats(IndexOfPointsStableCat,:)   ];
 
-RealOutput = [ ones(size(IndexOfPointsUnstableCat))
-               zeros(size(IndexOfPointsStableCat))  ];
+if LandslideDay
+    RealOutput = [ ones(size(IndexOfPointsUnstableCat))
+                   zeros(size(IndexOfPointsStableCat))  ];
+else
+    RealOutput = [ zeros(size(IndexOfPointsUnstableCat))
+                   zeros(size(IndexOfPointsStableCat))  ];
+end
 
-LossOfModels = cellfun(@(x) loss(x, DatasetForQualityNorm, RealOutput), ANNModels{1,:});
+%% Quality of model with your dataset and choice of best model
+% LossOfModels = cellfun(@(x) loss(x, DatasetForQuality, RealOutput), ANNs{'Model',:});
 
+[ModelsMSEQ, AUCQ] = deal(zeros(1, size(ANNs, 2)));
 [ProbabilityForQuality, FPR4ROC_ForQuality, TPR4ROC_ForQuality, ...
-        ThresholdsROC_ForQuality, AUC_ForQuality, OptPoint_ForQuality] = deal(cell(1, size(ANNModels, 2)));
-for i1 = 1:size(ANNModels, 2)
-    [~, ProbabilityForQuality{i1}] = predict(ANNModels{1,i1}{:}, DatasetForQualityNorm);
-    [FPR4ROC_ForQuality{i1}, TPR4ROC_ForQuality{i1}, ThresholdsROC_ForQuality{i1}, ...
-            AUC_ForQuality{i1}, OptPoint_ForQuality{i1}] = perfcurve(RealOutput, ProbabilityForQuality{i1}(:,2), 1);
+        ThresholdsROC_ForQuality, OptPoint_ForQuality] = deal(cell(1, size(ANNs, 2)));
+if Parallelize
+    ProgressBar.Message = 'Computing quality for dataset in parallel...';
+    % ProgressParallel = ParforProgressbar(size(ANNs, 2));
+    parfor i1 = 1:size(ANNs, 2)
+        [~, ProbabilityForQuality{i1}] = predict(ANNs{'Model',i1}{:}, DatasetForQuality);
+    
+        ModelsMSEQ(i1) = mse(RealOutput, ProbabilityForQuality{i1}(:,2));
+    
+        [FPR4ROC_ForQuality{i1}, TPR4ROC_ForQuality{i1}, ThresholdsROC_ForQuality{i1}, ...
+                AUCQ(i1), OptPoint_ForQuality{i1}] = perfcurve(RealOutput, ProbabilityForQuality{i1}(:,2), 1);
+
+        % pause(100/size(ANNs, 2));
+        % ProgressParallel.increment();
+    end
+    delete(ProgressParallel);
+else
+    for i1 = 1:size(ANNs, 2)
+        ProgressBar.Message = ['Predicting dataset for quality n. ',num2str(i1),' of ',num2str(size(ANNs, 2))];
+        
+        [~, ProbabilityForQuality{i1}] = predict(ANNs{'Model',i1}{:}, DatasetForQuality);
+    
+        ModelsMSEQ(i1) = mse(RealOutput, ProbabilityForQuality{i1}(:,2));
+    
+        [FPR4ROC_ForQuality{i1}, TPR4ROC_ForQuality{i1}, ThresholdsROC_ForQuality{i1}, ...
+                AUCQ(i1), OptPoint_ForQuality{i1}] = perfcurve(RealOutput, ProbabilityForQuality{i1}(:,2), 1);
+    end
 end
 
 % In terms of loss
-[~, BestModelLossForQuality] = min(LossOfModels);
-[~, BestModelLossForTrained] = min(cell2mat(ANNModels{10,:}));
+[~, BestModelLossForQuality] = min(ModelsMSEQ);
+[~, BestModelLossForTrain  ] = min(ANNsPerf{'Err','Train'}{:}{'Loss',:});
+[~, BestModelLossForTest   ] = min(ANNsPerf{'Err','Test' }{:}{'Loss',:});
 % In terms of AUC
 [~, BestModelAUCForQuality]  = max(cell2mat(AUC_ForQuality));
-[~, BestModelAUCForTrain]    = max(cell2mat(ANNModelsROCTrain{3,:}));
-[~, BestModelAUCForTest]     = max(cell2mat(ANNModelsROCTest{3,:}));
+[~, BestModelAUCForTrain  ]  = max(cell2mat(ANNsPerf{'ROC','Train'}{:}{'AUC',:}));
+[~, BestModelAUCForTest   ]  = max(cell2mat(ANNsPerf{'ROC','Test' }{:}{'AUC',:}));
 
-IndModelSelected = str2double(inputdlg({[ "Which model do you want to use?"
-                                          strcat("From 1 to ", string(size(ANNModels,2)))
-                                          strcat("Best in terms of loss is: ", string(BestModelLossForQuality))
-                                          strcat("Best in terms of AUC is: ", string(BestModelAUCForQuality))   ]}, ...
-                                        '', 1, {num2str(BestModelLossForQuality)}));
+IndMdlToUse = str2double(inputdlg({[ "Which model do you want to use?"
+                                     strcat("From 1 to ", string(size(ANNs,2)))
+                                     strcat("Best in terms of loss is: ", string(BestModelLossForQuality))
+                                     strcat("Best in terms of AUC is: ", string(BestModelAUCForQuality))   ]}, '', 1, ...
+                                     {num2str(BestModelLossForQuality)}));
 
 %% Property extraction of model selected
-MethodBestThreshold = AnalysisInformation.MethodForSelectingOptimalThresholdInROCs;
+MethodBestThreshold = ModelInfo.MethodForOptThreshold;
 switch MethodBestThreshold
     case 'MATLAB'
         % Method integrated in MATLAB
-        IndBestThrForQuality = find(ismember([FPR4ROC_ForQuality{IndModelSelected}, TPR4ROC_ForQuality{IndModelSelected}], OptPoint_ForQuality{IndModelSelected}, 'rows'));
-        BestThresholdForQuality = ThresholdsROC_ForQuality{IndModelSelected}(IndBestThrForQuality);
+        IndBestThrForQuality    = find(ismember([FPR4ROC_ForQuality{IndMdlToUse}, TPR4ROC_ForQuality{IndMdlToUse}], OptPoint_ForQuality{IndMdlToUse}, 'rows'));
+        BestThresholdForQuality = ThresholdsROC_ForQuality{IndMdlToUse}(IndBestThrForQuality);
+
     case 'MaximizeRatio-TPR-FPR'
         % Method max ratio TPR/FPR
-        RatioTPR_FPR_ForQuality = TPR4ROC_ForQuality{IndModelSelected}./FPR4ROC_ForQuality{IndModelSelected};
+        RatioTPR_FPR_ForQuality = TPR4ROC_ForQuality{IndMdlToUse}./FPR4ROC_ForQuality{IndMdlToUse};
         RatioTPR_FPR_ForQuality(isinf(RatioTPR_FPR_ForQuality)) = nan;
-        [~, IndBestThrForQuality]  = max(RatioTPR_FPR_ForQuality);
-        BestThresholdForQuality = ThresholdsROC_ForQuality{IndModelSelected}(IndBestThrForQuality);
+        [~, IndBestThrForQuality] = max(RatioTPR_FPR_ForQuality);
+        BestThresholdForQuality   = ThresholdsROC_ForQuality{IndMdlToUse}(IndBestThrForQuality);
+
     case 'MaximizeArea-TPR-TNR'
         % Method max product TPR*TNR
-        AreaTPR_TNR_ForQuality   = TPR4ROC_ForQuality{IndModelSelected}.*(1-FPR4ROC_ForQuality{IndModelSelected});
-        [~, IndBestThrForQuality]  = max(AreaTPR_TNR_ForQuality);
-        BestThresholdForQuality = ThresholdsROC_ForQuality{IndModelSelected}(IndBestThrForQuality);
+        AreaTPR_TNR_ForQuality    = TPR4ROC_ForQuality{IndMdlToUse}.*(1-FPR4ROC_ForQuality{IndMdlToUse});
+        [~, IndBestThrForQuality] = max(AreaTPR_TNR_ForQuality);
+        BestThresholdForQuality   = ThresholdsROC_ForQuality{IndMdlToUse}(IndBestThrForQuality);
 end
 
-BestThresholdTrain = ANNModelsROCTrain{4,IndModelSelected}{:};
-BestThresholdTest  = ANNModelsROCTest{4,IndModelSelected}{:};
-IndBestThrTrain    = ANNModelsROCTrain{5,IndModelSelected}{:};
-IndBestThrTest     = ANNModelsROCTest{5,IndModelSelected}{:};
-
-%% Selection of event, adjustment of dataset and use
-DateInterpolationStarts.Format = 'dd/MM/yyyy';
-
-Method = AnalysisInformation.RainfallMethod;
-switch Method
-    case 'SingleCumulate'
-        DaysToCumulate = AnalysisInformation.DaysCumulated;
-        VariableName   = ['RainfallCumulated',num2str(DaysToCumulate),'d'];
-
-        DatePossible   = DateInterpolationStarts((DaysToCumulate):end);
-
-        EventChoice = listdlg('PromptString',{'Select the date of your event:',''}, ...
-                              'ListString',DatePossible, 'SelectionMode','single');
-
-        EventInd = find(DatePossible(EventChoice) == DateInterpolationStarts);
-        
-        RainCumulated = cell(1, size(RainDailyInterpStudy, 2));
-        for i1 = 1:size(RainDailyInterpStudy, 2)
-            RainCumulated{i1} = sum([RainDailyInterpStudy{EventInd:-1:(EventInd-DaysToCumulate+1), i1}], 2);
-        end
-        
-        ColumnToOverwrite = cat(1,RainCumulated{:});
-        
-        DatasetToPredict.(VariableName)     = ColumnToOverwrite;
-        DatasetToPredictNorm.(VariableName) = rescale(ColumnToOverwrite, ...
-                                                                     'InputMin',RangesForNorm{VariableName,1}, ...
-                                                                     'InputMax',RangesForNorm{VariableName,2});
-    otherwise
-        error('Type of ANN not yet implemented. Please contact developers.')
-end
-
-ModelSelected = ANNModels{1,IndModelSelected}{:};
-[PredictionClasses, PredictionProbabilities] = predict(ModelSelected, DatasetToPredictNorm);
+BestThresholdTrain = ANNsPerf{'ROC','Train'}{:}{'BestThreshold',IndMdlToUse}{:};
+BestThresholdTest  = ANNsPerf{'ROC','Test' }{:}{'BestThreshold',IndMdlToUse}{:};
+IndBestThrTrain    = ANNsPerf{'ROC','Train'}{:}{'BestThrInd',   IndMdlToUse}{:};
+IndBestThrTest     = ANNsPerf{'ROC','Test' }{:}{'BestThrInd',   IndMdlToUse}{:};
 
 %% Clusterization
 ProgressBar.Message = "Defining clusters for unstab points...";
 if OriginallyProjected && SameCRSForAll
-    cd(fold_var)
-    load('MorphologyParameters.mat', 'OriginalProjCRS')
-    cd(fold0)
+    load([fold_var,sl,'MorphologyParameters.mat'], 'OriginalProjCRS')
 
     ProjCRS = OriginalProjCRS;
 else
@@ -319,15 +426,15 @@ else
     ProjCRS = projcrs(EPSG);
 end
 
-[xPlanCoord, yPlanCoord] = projfwd(ProjCRS, ...
-                                   DatasetCoordinates{:,2}, DatasetCoordinates{:,1});
+[xPlanCoord, yPlanCoord] = projfwd(ProjCRS, DatasetToPredCoords{:,2}, DatasetToPredCoords{:,1});
 
-IndPointsUnstablePredicted = find(round(PredictionProbabilities(:,2),4) >= BestThresholdForQuality); % Indices referred to the database!
+IndPointsUnstablePredicted = find(round(PredProbsMdlSel(:,2),4) >= BestThresholdForQuality); % Indices referred to the database!
 
 dLat  = abs(yLatAll{1}(1)-yLatAll{1}(2));
-dYmin = deg2rad(dLat)*earthRadius + 1; % This will be the radius constructed around every point to create clusters. +1 for an extra boundary
-MinPointsForEachCluster = 3; % CHOICE TO USER!
-ClustersUnstable = dbscan([xPlanCoord(IndPointsUnstablePredicted), yPlanCoord(IndPointsUnstablePredicted)], dYmin, MinPointsForEachCluster); % Coordinates, min dist, min n. of point for each core point
+dYmin = 2*deg2rad(dLat)*earthRadius*1.1; % This will be the radius constructed around every point to create clusters. *1.1 for an extra boundary. CHOICE TO USER!!
+MinPointsForEachCluster = 6; % CHOICE TO USER!
+ClustersUnstable = dbscan([xPlanCoord(IndPointsUnstablePredicted), ...
+                           yPlanCoord(IndPointsUnstablePredicted)], dYmin, MinPointsForEachCluster); % Coordinates, min dist, min n. of point for each core point
 
 IndNoisyPoints = (ClustersUnstable == -1);
 IndPointsUnstablePredictedClean = IndPointsUnstablePredicted(not(IndNoisyPoints));
@@ -337,7 +444,7 @@ ClassesClustUnstClean           = unique(ClustersUnstableClean);
 [IndClustersClasses, ClustersCoordinates] = deal(cell(1, length(ClassesClustUnstClean)));
 for i1 = 1:length(ClassesClustUnstClean)
     IndClustersClasses{i1}  = IndPointsUnstablePredicted( ClustersUnstable == ClassesClustUnstClean(i1) );
-    ClustersCoordinates{i1} = [DatasetCoordinates{IndClustersClasses{i1},1}, DatasetCoordinates{IndClustersClasses{i1},2}];
+    ClustersCoordinates{i1} = [DatasetToPredCoords{IndClustersClasses{i1},1}, DatasetToPredCoords{IndClustersClasses{i1},2}];
 end
 
 PlotColors = arrayfun(@(x) rand(1, 3), ClassesClustUnstClean', 'UniformOutput',false);
@@ -349,12 +456,15 @@ fig_check1 = figure(1);
 ax_check1  = axes(fig_check1);
 hold(ax_check1,'on')
 
-% % Too slow
-% PlotClusters = cellfun(@(x,z) scatter(x(:,1), x(:,2), 2, 'Marker','o', 'MarkerFaceColor',z, ...
-%                                             'MarkerEdgeColor','none', 'MarkerFaceAlpha',0.7, 'Parent',ax_check1), ...
-%                                       ClustersCoordinates, PlotColors, 'UniformOutput',false);
+ClusterCoordsCat = cat(1, ClustersCoordinates{:});
+PlotColorsCat    = cellfun(@(x,y) repmat(y, size(x,1), 1), ClustersCoordinates, PlotColors, 'UniformOutput',false);
+PlotColorsCat    = cat(1, PlotColorsCat{:});
+PixelSize        = 2;
 
-fastscatter(DatasetCoordinates{IndPointsUnstablePredictedClean,1}, DatasetCoordinates{IndPointsUnstablePredictedClean,2}, ClustersUnstableClean);
+PlotClusters = scatter(ClusterCoordsCat(:,1), ClusterCoordsCat(:,2), PixelSize, ...
+                                PlotColorsCat, 'Filled', 'Marker','s', 'Parent',ax_check1);
+
+% fastscatter(DatasetToPredCoords{IndPointsUnstablePredictedClean,1}, DatasetToPredCoords{IndPointsUnstablePredictedClean,2}, ClustersUnstableClean);
 
 plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5);
 
@@ -367,22 +477,22 @@ AreaMode = 'IndividualWindows'; % CHOICE TO USER!
 switch AreaMode
     case 'IndividualWindows'
         %% Results in all the area delimeted by the polygons
-        DatasetReduced            = [ DatasetToPredict(IndexOfPointsUnstableCat,:)
-                                      DatasetToPredict(IndexOfPointsStableCat,:)   ];
+        DatasetReduced                 = [ DatasetToPredFeatsNotNorm(IndexOfPointsUnstableCat,:)
+                                           DatasetToPredFeatsNotNorm(IndexOfPointsStableCat,:)   ];
 
-        DatasetReducedNorm        = [ DatasetToPredictNorm(IndexOfPointsUnstableCat,:)
-                                      DatasetToPredictNorm(IndexOfPointsStableCat,:)   ];
+        DatasetReducedNorm             = [ DatasetToPredFeats(IndexOfPointsUnstableCat,:)
+                                           DatasetToPredFeats(IndexOfPointsStableCat,:)   ];
 
-        DatasetCoordinatesReduced = [ DatasetCoordinates(IndexOfPointsUnstableCat,:)
-                                      DatasetCoordinates(IndexOfPointsStableCat,:)   ];
+        DatasetToPredCoordsReduced     = [ DatasetToPredCoords(IndexOfPointsUnstableCat,:)
+                                           DatasetToPredCoords(IndexOfPointsStableCat,:)   ];
 
-        PredictionClassesReduced       = [ PredictionClasses(IndexOfPointsUnstableCat,:)
-                                           PredictionClasses(IndexOfPointsStableCat,:)   ];
+        PredClassesMdlSelReduced       = [ PredClassesMdlSel(IndexOfPointsUnstableCat,:)
+                                           PredClassesMdlSel(IndexOfPointsStableCat,:)   ];
 
-        PredictionProbabilitiesReduced = [ PredictionProbabilities(IndexOfPointsUnstableCat,:)
-                                           PredictionProbabilities(IndexOfPointsStableCat,:)   ];
+        PredProbsMdlSelReduced = [ PredProbsMdlSel(IndexOfPointsUnstableCat,:)
+                                           PredProbsMdlSel(IndexOfPointsStableCat,:)   ];
 
-        if EventInd == length(DateInterpolationStarts)
+        if LandslideDay
             RealOutputReduced = [ ones(size(IndexOfPointsUnstableCat))
                                   zeros(size(IndexOfPointsStableCat))   ];
         else
@@ -393,23 +503,23 @@ switch AreaMode
         Loss_Reduced = loss(ModelSelected, DatasetReducedNorm, RealOutputReduced);
 
         [FPR4ROC_Reduced, TPR4ROC_Reduced, ThresholdsROC_Reduced, ...
-                AUC_Reduced, OptPoint_Reduced] = perfcurve(RealOutputReduced, PredictionProbabilitiesReduced(:,1), 0);
+                AUC_Reduced, OptPoint_Reduced] = perfcurve(RealOutputReduced, PredProbsMdlSelReduced(:,1), 0);
 
         %% Results splitted based on polygons
-        PointsCoordUnstable = cellfun(@(x) table2array(DatasetCoordinates(x,:)), IndexOfPointsUnstable, 'UniformOutput',false);
-        PointsCoordStable   = cellfun(@(x) table2array(DatasetCoordinates(x,:)), IndexOfPointsStable,   'UniformOutput',false);
+        PointsCoordUnstable = cellfun(@(x) table2array(DatasetToPredCoords(x,:)), IndexOfPointsUnstable, 'UniformOutput',false);
+        PointsCoordStable   = cellfun(@(x) table2array(DatasetToPredCoords(x,:)), IndexOfPointsStable,   'UniformOutput',false);
 
-        PointsAttributesUnstable = cellfun(@(x) DatasetToPredict(x,:), IndexOfPointsUnstable, 'UniformOutput',false);
-        PointsAttributesStable   = cellfun(@(x) DatasetToPredict(x,:), IndexOfPointsStable,   'UniformOutput',false);
+        PointsAttributesUnstable = cellfun(@(x) DatasetToPredFeatsNotNorm(x,:), IndexOfPointsUnstable, 'UniformOutput',false);
+        PointsAttributesStable   = cellfun(@(x) DatasetToPredFeatsNotNorm(x,:), IndexOfPointsStable,   'UniformOutput',false);
 
-        PointsAttributesUnstableNorm = cellfun(@(x) DatasetToPredictNorm(x,:), IndexOfPointsUnstable, 'UniformOutput',false);
-        PointsAttributesStableNorm   = cellfun(@(x) DatasetToPredictNorm(x,:), IndexOfPointsStable,   'UniformOutput',false);
+        PointsAttributesUnstableNorm = cellfun(@(x) DatasetToPredFeats(x,:), IndexOfPointsUnstable, 'UniformOutput',false);
+        PointsAttributesStableNorm   = cellfun(@(x) DatasetToPredFeats(x,:), IndexOfPointsStable,   'UniformOutput',false);
 
-        PredictedClassesEachPolyUnstable = cellfun(@(x) PredictionClasses(x,:), IndexOfPointsUnstable, 'UniformOutput',false);
-        PredictedClassesEachPolyStable   = cellfun(@(x) PredictionClasses(x,:), IndexOfPointsStable,   'UniformOutput',false);
+        PredictedClassesEachPolyUnstable = cellfun(@(x) PredClassesMdlSel(x,:), IndexOfPointsUnstable, 'UniformOutput',false);
+        PredictedClassesEachPolyStable   = cellfun(@(x) PredClassesMdlSel(x,:), IndexOfPointsStable,   'UniformOutput',false);
 
-        PredictedProbabilitiesEachPolyUnstable = cellfun(@(x) PredictionProbabilities(x,:), IndexOfPointsUnstable, 'UniformOutput',false);
-        PredictedProbabilitiesEachPolyStable   = cellfun(@(x) PredictionProbabilities(x,:), IndexOfPointsStable,   'UniformOutput',false);
+        PredictedProbabilitiesEachPolyUnstable = cellfun(@(x) PredProbsMdlSel(x,:), IndexOfPointsUnstable, 'UniformOutput',false);
+        PredictedProbabilitiesEachPolyStable   = cellfun(@(x) PredProbsMdlSel(x,:), IndexOfPointsStable,   'UniformOutput',false);
 
         AttributesNames      = {'PolygonsStable', 'PolygonsUnstable', 'PointsCoordStable', 'PointsCoordUnstable', ...
                                 'PointsAttributesStable', 'PointsAttributesUnstable', ...
@@ -419,7 +529,7 @@ switch AreaMode
                                 'PredictedClassesEachPolyStable', 'PredictedProbabilitiesEachPolyStable', ...
                                 'PredictedClassesEachPolyUnstable', 'PredictedProbabilitiesEachPolyUnstable'};
 
-        AttributesInPolygons = cell2table({TotPolStableSplit, TotPolUnstableSplit, PointsCoordStable, PointsCoordUnstable, ...
+        AttributesInPolygons = cell2table({StablePolysSplit, UnstablePolysSplit, PointsCoordStable, PointsCoordUnstable, ...
                                            PointsAttributesStable, PointsAttributesUnstable, ...
                                            PointsAttributesStableNorm, PointsAttributesUnstableNorm}, 'VariableNames',AttributesNames);
 
@@ -475,12 +585,11 @@ switch AreaMode
 
         RatioLatLong = dLat1Meter/dLong1Meter;
         daspect([1, RatioLatLong, 1])
-
-        %% Saving
-        cd(fold_var)
-        VariablesANNResults = {'AttributesInPolygons', 'ResultsInPolygons'};
-        save('ANNResults.mat', VariablesANNResults{:})
-        cd(fold0)
 end
+
+%% Saving
+ProgressBar.Message = "Saving files...";
+VariablesPredictions = {'PredictionProbabilities', 'LandslidesPolygons'};
+saveswitch([fold_res_ml_curr,sl,'PredictionsStudy.mat'], VariablesPredictions)
 
 close(ProgressBar) % Fig instead of ProgressBar if in standalone version
