@@ -15,16 +15,18 @@ if length(FilesDetectedSoilSlip) == 1
 else
     IndDetToUse = listdlg('PromptString',{'Choose dataset you want to use: ',''}, ...
                           'ListString',FilesDetectedSoilSlip, 'SelectionMode','single');
+
+    figure(Fig)
+    drawnow
 end
 
 DatasetStudyInfo = table;
+RangesForNorm    = table;
 LandslideDay     = true;
 CriticalSlope    = nan;
 EventDate        = nan;
 DaysForTS        = nan;
 TimeSensMode     = nan;
-UseRanges        = false;
-RangesForNorm    = nan;
 CauseMode        = nan;
 
 %% Pre existing DatasetML check
@@ -36,11 +38,11 @@ if exist([fold_var,sl,'DatasetML.mat'], 'file')
                                   'Merge datasets', 'Options',Options, 'DefaultOption',1);
     if strcmp(MergeDataAns, 'Yes, add this to the old one.')
         AddToExistingDataset = true;
-        UseRanges            = true;
 
         load([fold_var,sl,'DatasetStudy.mat'], 'DatasetStudyInfo','RangesForNorm')
         load([fold_var,sl,'DatasetML.mat'],    'DatasetMLInfo','DatasetMLCoords','DatasetMLFeats', ...
                                                'DatasetMLFeatsNotNorm','DatasetMLClasses','DatasetMLDates')
+        DatasetStudyInfoOld      = DatasetStudyInfo;
         DatasetMLInfoOld         = DatasetMLInfo;
         DatasetMLCoordsOld       = DatasetMLCoords;
         DatasetMLFeatsOld        = DatasetMLFeats;
@@ -52,6 +54,12 @@ if exist([fold_var,sl,'DatasetML.mat'], 'file')
         OldSettingsAns = uiconfirm(Fig, 'Do you want to mantain settings of the old one?', ...
                                         'Dataset settings', 'Options',Options, 'DefaultOption',1);
         if strcmp(OldSettingsAns, 'Yes, please'); OldSettings = true; end
+    else
+        UseOldRanges = uiconfirm(Fig, 'Do you want to use old ranges?', ...
+                                      'Old ranges', 'Options',{'Yes','No'}, 'DefaultOption',1);
+        if strcmp(UseOldRanges, 'Yes')
+            load([fold_var,sl,'DatasetStudy.mat'], 'RangesForNorm')
+        end
     end
 end
 
@@ -59,7 +67,7 @@ end
 ProgressBar.Message = "Dataset options...";
 
 if AddToExistingDataset
-    FeaturesChosed = DatasetStudyInfo.Parameters;
+    FeaturesChosed = DatasetStudyInfo.Parameters{:};
 else
     FeaturesOptions = {'Elevation', 'Slope', 'Aspect Angle', 'Mean Curvature', 'Profile Curvature', ...
                        'Planform Curvature', 'Contributing Area (log)', 'TWI', 'Clay Content', ...
@@ -68,6 +76,9 @@ else
     IndFeatsChosed  = listdlg('PromptString',{'Select features to use:',''}, ...
                               'ListString',FeaturesOptions, 'SelectionMode','multiple');
     FeaturesChosed  = FeaturesOptions(IndFeatsChosed);
+
+    figure(Fig)
+    drawnow
 end
 
 TimeSensExist = false;
@@ -119,10 +130,10 @@ if AddToExistingDataset && OldSettings
     if strcmp(StablePointsApproach, 'SlopeOutsideUnstable')
         CriticalSlope = DatasetStudyInfo.CriticalSlope;
     end
-    InpBufferSizes = DatasetStudyInfo.InputBufferSizes;
+    InpBufferSizes = DatasetStudyInfo.InputBufferSizes{:};
     ModifyRatio    = DatasetStudyInfo.ModifyRatioClasses;
     if ModifyRatio
-        RatioInputs   = table2array(DatasetStudyInfo.RatioClasses);
+        RatioInputs   = table2array(DatasetStudyInfo.RatioClasses{:})';
         RatioToImpose = RatioInputs(1)/RatioInputs(2);
         ResampleMode  = DatasetStudyInfo.ResampleModeDatasetML;
         if exist('MultipleDayAnalysis', 'var') && MultipleDayAnalysis && strcmp(ResampleMode,'Undersampling')
@@ -259,9 +270,12 @@ if TimeSensExist
                        'ListString',TimeSensitiveDate, 'SelectionMode','single');
     EventDate = TimeSensitiveDate(IndEvent);
 
+    figure(Fig)
+    drawnow
+
     LandslideDayAns = uiconfirm(Fig, 'Is this a landslide day?', ...
                                      'Landslide day', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
-    if strcmp(LandslideDayAns,'No'); LandslideDay = false; end
+    if strcmp(LandslideDayAns,'Yes'); LandslideDay = true; else; LandslideDay = false; end
 
     % User choice about days to consider
     MaxDaysPossible = IndEvent;
@@ -339,6 +353,36 @@ if TimeSensExist
     DatasetStudyInfo.DaysForTS = DaysForTS;
 end
 
+%% Check for changes compared to eventual old dataset
+if AddToExistingDataset
+    VariablesToCheck = {'UnstablePolygonsMode', 'StableAreaApproach', 'InputBufferSizes', 'ModifyRatioClasses', 'RatioClasses', 'ResampleModeDatasetML', 'LandslideEvent', 'MultipleDayAnalysis'};
+    CheckVars = false(size(DatasetMLInfoOld, 1), length(VariablesToCheck));
+    for i1 = 1:length(VariablesToCheck)
+        for i2 = 1:size(DatasetMLInfoOld, 1)
+            CheckVars(i2, i1) = isequal(DatasetStudyInfo.(VariablesToCheck{i1}), DatasetMLInfoOld{i2, VariablesToCheck{i1}});
+        end
+    end
+    CheckVars = any(all(CheckVars, 2));
+
+    [~, NewDetSSName] = fileparts(DatasetStudyInfo.FullPathInfoDetUsed);
+    [~, OldDetSSName] = fileparts(cellstr(DatasetMLInfoOld.FullPathInfoDetUsed));
+
+    CheckNames = any(strcmp(NewDetSSName, OldDetSSName));
+
+    CheckTime = any(abs(hours(DatasetStudyInfo.EventDate - DatasetMLInfoOld.EventDate)) < 72);
+
+    IdenticalDataset = CheckTime && CheckNames && CheckVars;
+    if IdenticalDataset
+        error(['Dataset that you are trying to add is already inside the old one ' ...
+               '(or it is too similar)! Please overwrite it or change event to add.'])
+    elseif not(IdenticalDataset) && CheckTime
+        warning(['Dataset that you want is not exactly identical but the date you ' ...
+                 'chosed is very near to another already inside!'])
+    end
+
+    % CheckTotal = isequal(DatasetStudyInfo, DatasetStudyInfoOld);
+end
+
 %% Datasets creation
 [DatasetStudyFeats, DatasetStudyCoords, RangesForNorm, TimeSensPart, DatasetStudyFeatsNotNorm, ...
         FeaturesType, ClassPolys] = datasetstudy_creation( fold0, 'Features',FeaturesChosed, ...
@@ -349,7 +393,6 @@ end
                                                                   'DaysForTS',DaysForTS, ...
                                                                   'TimeSensMode',TimeSensMode, ...
                                                                   'CauseMode',CauseMode, ...
-                                                                  'UseRanges',UseRanges, ...
                                                                   'Ranges',RangesForNorm);
 
 FeaturesNames = DatasetStudyFeats.Properties.VariableNames;
@@ -430,6 +473,8 @@ end
 DatasetStudyStats = table({TempNormStats}, {TempNotNormStats}, 'VariableNames',{'Normalized', 'NotNormalized'});
 
 %% Creation of landslides, indecision, and stable polygons
+ProgressBar.Message = "Creation of polygons...";
+
 [UnstablePolygons, StablePolygons, ...
         IndecisionPolygons] = polygons_landslides(fold0, 'StableMode',PolyStableMode, ...
                                                          'UnstableMode',PolyUnstableMode, ...
@@ -443,6 +488,8 @@ IndecisPolyMrgd  = union(IndecisionPolygons);
 StablePolyMrgd   = union(StablePolygons);
 
 %% Rebalance of dataset
+ProgressBar.Message = "Indexing of dataset...";
+
 [IndicesMLDataset, ExpectedOut] = datasetml_indexing(DatasetStudyCoords, DatasetStudyFeatsNotNorm, ...
                                                      UnstablePolyMrgd, StablePolyMrgd, 'StableMethod',StableMethod, ...
                                                                                        'ModifyRatio',ModifyRatio, ...
@@ -538,7 +585,7 @@ elseif MultipleDayAnalysis
                     [HoursDiff, IndStableToTake] = min(cellfun(@(x) abs(DesiredDateStableTrigg-min(x)), TimeSensEventDates{i1}));
                     if HoursDiff >= hours(1)
                         warning(['There is a difference of ',num2str(hours(HoursDiff)), ...
-                                 ' between data you chosed and the start of the stable event!', ...
+                                 ' hours between data you chosed and the start of the stable event!', ...
                                  ' Stable event date will be overwrite.'])
                     end
                 else
@@ -656,7 +703,9 @@ elseif MultipleDayAnalysis
                 RelIndsMLDatasetToUse = [IndsUnstableRepeated; IndsNumsStable];
 
                 RatioAfterResampling = numel(IndsUnstableRepeated)/numel(IndsNumsStable);
-                if (not(isempty(intersect(IndsUnstableRepeated,IndsNumsStable)))) || (round(RatioToImpose, 1) ~= round(RatioAfterResampling, 1))
+                if ( (not(isempty(intersect(IndsUnstableRepeated,IndsNumsStable)))) || ...
+                        (round(RatioToImpose, 1) ~= round(RatioAfterResampling, 1)) || ...
+                        (numel(IndsUnstableRepeated) <= numel(IndsNumsUnstable))           )
                     error("Something went wrong in re-attributing the correct ratio between positive and negative outputs!")
                 end
         end
@@ -708,7 +757,7 @@ VariablesDatasetStudy = {'DatasetStudyInfo', 'UnstablePolygons', 'IndecisionPoly
 VariablesDatasetML = {'DatasetMLInfo', 'DatasetMLCoords', 'DatasetMLFeats', 'DatasetMLFeatsNotNorm', ...
                       'DatasetMLClasses', 'DatasetMLDates', 'RangesForNorm'};
 
-save([fold_var,sl,'DatasetStudy.mat'], VariablesDatasetStudy{:})
-save([fold_var,sl,'DatasetML.mat'],    VariablesDatasetML{:})
+saveswitch([fold_var,sl,'DatasetStudy.mat'], VariablesDatasetStudy)
+saveswitch([fold_var,sl,'DatasetML.mat'],    VariablesDatasetML)
 
 close(ProgressBar) % Fig instead of ProgressBar if in standalone version
