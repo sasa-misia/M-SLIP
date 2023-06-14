@@ -4,8 +4,7 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files
 drawnow
 
 %% Loading data
-fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
-load([fold_res_ml_curr,sl,'TrainedANNs.mat'], 'R2ForDatasetFeatsStudyNorm','R2ForDatasetFeatsStudyNotNorm')
+load([fold_var,sl,'DatasetStudy.mat'], 'R2ForDatasetStudyFeats','R2ForDatasetStudyFeatsNotNorm')
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize')
@@ -22,9 +21,9 @@ DatasetChoice = uiconfirm(Fig, 'What dataset do you want to use?', ...
                                'Dataset choice', 'Options',Options, 'DefaultOption',2);
 
 if strcmp(DatasetChoice, 'Normalized')
-    R2DatasetToUse = R2ForDatasetFeatsStudyNorm;
+    R2DatasetToUse = R2ForDatasetStudyFeats;
 else
-    R2DatasetToUse = R2ForDatasetFeatsStudyNotNorm;
+    R2DatasetToUse = R2ForDatasetStudyFeatsNotNorm;
 end
 
 FeaturesNames = R2DatasetToUse.Properties.VariableNames;
@@ -69,7 +68,7 @@ daspect([1, 1.1, 1])
 
 if strcmp(CorrValuesChoice, 'Normal')
     ColBarLims  = [-1, 1];
-    TicksValues = [-1, -0.75, -0.4, -0.2, 0, 0.2, 0.4 0.75, 1];
+    TicksValues = [-1, -0.75, -0.4, -0.2, 0, 0.2, 0.4, 0.75, 1];
     TicksLabels = ["Perfect inv. corr.", ...
                    "High inv. corr.", ...
                    "Moderate inv. corr.", ...
@@ -82,7 +81,7 @@ if strcmp(CorrValuesChoice, 'Normal')
     colormap(ax_r2, jet)
 else
     ColBarLims  = [0, 1];
-    TicksValues = [0, 0.2, 0.4 0.75, 1];
+    TicksValues = [0, 0.2, 0.4, 0.75, 1];
     TicksLabels = ["No correlation", ...
                    "Low correlation", ...
                    "Moderate correlation", ...

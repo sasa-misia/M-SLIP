@@ -87,7 +87,7 @@ for i1 = 1:length(IndGoodMdls)
     text(xBarPos, yBarPos, BarLbls, 'HorizontalAlignment','center', 'VerticalAlignment','bottom')
 
     if UpYLimDyn
-        UpYLim = ceil(1.10*max(ImportanceInPerc));
+        UpYLim = min(ceil(1.10*max(ImportanceInPerc)), 100);
     else
         UpYLim = 100;
     end
