@@ -1,6 +1,6 @@
 % Fig = uifigure; % Remember to comment if in app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Reading of files', ...
-                                 'Message','Reading file', 'Cancelable','on', ...
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
+                                 'Message','Reading files...', 'Cancelable','on', ...
                                  'Indeterminate','on');
 drawnow
 
@@ -41,8 +41,8 @@ switch DataRead
 end
 
 %% Initialization
-VariablesRecorded = {};
-FileNames = {};
+VariablesRecorded  = {};
+VariablesFilenames = {};
 
 %% Data Recording
 if AnswerTypeRec == 1
@@ -57,27 +57,46 @@ if AnswerTypeRec == 1
     Files         = {dir('*.xlsx').name};
     ChoiceRec     = listdlg('PromptString',{'Choose a file:',''}, ...
                             'ListString',Files, 'SelectionMode','single');
-    FileName_DataRec = string(Files(ChoiceRec)); 
-    FileNames        = {'FileName_DataRec'};
+    FileName_DataRec   = string(Files(ChoiceRec)); 
+    VariablesFilenames = {'FileName_DataRec'};
 
     drawnow % Remember to remove if in Standalone version
     figure(Fig) % Remember to remove if in Standalone version
-
-    Ans2 = uiconfirm(Fig, ['Have you put stations in the correct order ' ...
-                           'in <Stations table> sheet? (see guidelines)'], ...
-                          'Reminder', 'Options','Yes, I have done it!');
     
-    Sheet_Stations = readcell(FileName_DataRec, 'Sheet','Stations table'); % REMEMBER: in this sheet you must put stations in the same order of Data table!
-    Sheet_DataRec  = readcell(FileName_DataRec, 'Sheet','Data table');
+    Sheet_StationsRaw = readcell(FileName_DataRec, 'Sheet','Stations table'); % REMEMBER: in this sheet you should put stations in the same order of Data table!
+    Sheet_DataRec     = readcell(FileName_DataRec, 'Sheet','Data table');
     cd(fold0)
 
-    xLongSta = [Sheet_Stations{2:end,8}]';
-    yLatSta  = [Sheet_Stations{2:end,9}]';
+    % Reordering of stations
+    StationsRaw = string(Sheet_StationsRaw(2:end,1));
+
+    IndStrPartDataSheet = cellfun(@(x) any(strcmp(class(x), {'char','string'})), Sheet_DataRec);
+    StringPartDataSheet = string(Sheet_DataRec(IndStrPartDataSheet));
+
+    IndStaInDataSheet   = zeros(size(StationsRaw));
+    for i1 = 1:length(StationsRaw)
+        IndStaInDataSheet(i1) = find(contains(StringPartDataSheet, StationsRaw(i1), 'IgnoreCase',true));
+    end
+
+    [~, CorrectStaOrd] = sort(IndStaInDataSheet);
+    CorrectStaOrd = [1; CorrectStaOrd+1]; % First 1 is because Sheet have the titles of the columns in first position, +1 is to take into account this first row
+
+    % Stations ordered
+    Sheet_Stations    = Sheet_StationsRaw(CorrectStaOrd, :);
 
     Stations          = string(Sheet_Stations(2:end,1));
     StationsNumber    = length(Stations);
+
+    xLongSta          = [Sheet_Stations{2:end,8}]';
+    yLatSta           = [Sheet_Stations{2:end,9}]';
+    
     CoordinatesGauges = [xLongSta, yLatSta];
     Gauges            = {Stations, CoordinatesGauges};
+
+    if not(isequal(Sheet_StationsRaw, Sheet_Stations))
+        warning(['Station table sheet in excel was automatically reordered because ' ...
+                 'did not match order in Data table sheet. Please analyze it and avoid automatic reordering!'])
+    end
 
     %% Check for consistency in excel
     HeaderLine   = find(cellfun(@isdatetime, Sheet_DataRec), 1); % Automatically recognize excel file header line
@@ -142,9 +161,13 @@ if AnswerTypeRec == 1
     %% Adjustment of dates
     dTRecsRaw = RecDatesStartsPerSta{1}(2)-RecDatesStartsPerSta{1}(1);
     if dTRecsRaw < minutes(59)
-        ShiftApprox = 'minutes';
+        ShiftApprox = 'minute';
+    elseif dTRecsRaw < hours(23) && dTRecsRaw >= minutes(59)
+        ShiftApprox = 'hour';
+    elseif dTRecsRaw >= hours(23)
+        ShiftApprox = 'day';
     else
-        ShiftApprox = 'hours';
+        error('Time discretization of excel not recognized!')
     end
 
     RecDatesStartsPerStaShifted = cellfun(@(x) dateshift(x, 'start',ShiftApprox, 'nearest'), RecDatesStartsPerSta, 'UniformOutput',false);
@@ -171,10 +194,12 @@ if AnswerTypeRec == 1
     GeneralDatesEnd   = RecDatesEndsPerStaShifted{1}(IndIntersecated{1}); % Taking only the firs one
 
     RecDatesEndCommon = GeneralDatesEnd;
-    if strcmp(ShiftApprox, 'hours')
-        RecDatesEndCommon.Format = 'dd/MM/yyyy HH:mm';
-    elseif strcmp(ShiftApprox, 'minutes')
+    if strcmp(ShiftApprox, 'minute')
         RecDatesEndCommon.Format = 'dd/MM/yyyy HH:mm:ss';
+    elseif strcmp(ShiftApprox, 'hour')
+        RecDatesEndCommon.Format = 'dd/MM/yyyy HH:mm';
+    elseif strcmp(ShiftApprox, 'day')
+        RecDatesEndCommon.Format = 'dd/MM/yyyy';
     end
 
     %% Numeric data writing
@@ -224,8 +249,8 @@ if AnswerTypeFor == 1
     end
     cd(fold0)
 
-    VariablesRecorded = [VariablesRecorded, {'ForecastData', 'GridForecastModel'}];
-    FileNames = [FileNames, {'FileNameForecast'}];
+    VariablesRecorded  = [VariablesRecorded, {'ForecastData', 'GridForecastModel'}];
+    VariablesFilenames = [VariablesFilenames, {'FileNameForecast'}];
 end
 
 %% Analysis type
@@ -349,7 +374,7 @@ NameGeneral = ['General', DataRead, '.mat'];
 AnswerType  = {'AnswerTypeRec', 'AnswerTypeFor', 'InterpDuration'};
 
 cd(fold_var)
-save('UserTimeSens_Answers.mat', FileNames{:},'AnalysisCase',AnswerType{:});
+save('UserTimeSens_Answers.mat', VariablesFilenames{:},'AnalysisCase',AnswerType{:});
 if exist(NameInterp, 'file')
     save(NameInterp, VariablesInterpolation{:}, '-append');
 else
