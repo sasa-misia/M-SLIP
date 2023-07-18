@@ -7,10 +7,26 @@ drawnow
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
 load([fold_res_ml_curr,sl,'TrainedANNs.mat'], 'ANNs','ANNsPerf', 'ModelInfo')
 
+NormData = ModelInfo.DatasetInfo{:}{1,'NormalizedData'};
+
 %% Feature importance choice
 Options = {'FeaturePermutation', 'Weights'};
 FeatImpChoice = uiconfirm(Fig, 'Which method do you want to use?', ...
                                'Feature importance', 'Options',Options, 'DefaultOption',1);
+
+if strcmp(FeatImpChoice, 'FeaturePermutation')
+    Options = {'Permutation', 'AllRange'};
+    PermType = uiconfirm(Fig, 'How do you want to change values of a feature?', ...
+                              'Permutation type', 'Options',Options, 'DefaultOption',1);
+
+    if not(NormData) && strcmp(PermType, 'AllRange')
+        error('You can not use AllRange permutation if your dataset is not normalized!')
+    end
+
+    NumOfTimeToRand = int64(str2double(inputdlg("How many times do you want to permute values: ", '', 1, {'5'})));
+
+    ValsInRngToUse  = linspace(0, 1, NumOfTimeToRand);
+end
 
 Options = {'Only Train', 'Only Test', 'Train + Test'};
 DatasetChoice = uiconfirm(Fig, 'What dataset do you want to use to define feature importance?', ...
@@ -56,14 +72,25 @@ switch FeatImpChoice
             CurrMSE  = mse(ExpOutsToUse, CurrPredProb);
             
             rng(17) % To control the randomization process
-            NumOfTimeToRand = 5;
-            IndRand  = zeros(size(DatasetToUse, 1), NumOfTimeToRand);
+            [IndRand,  RngVals] = deal(zeros(size(DatasetToUse, 1), NumOfTimeToRand));
             [PermLoss, PermMSE] = deal(zeros(NumOfTimeToRand, length(CurrFeats)));
             for i1 = 1:NumOfTimeToRand
-                IndRand(:,i1) = randperm(size(DatasetToUse, 1));
+                switch PermType
+                    case 'Permutation'
+                        IndRand(:,i1) = randperm(size(DatasetToUse, 1));
+
+                    case 'AllRange'
+                        RngVals(:,i1) = repmat(ValsInRngToUse(i1), size(DatasetToUse, 1), 1);
+                end
                 for i2 = 1:length(CurrFeats)
                     DatasetPerm = DatasetToUse;
-                    DatasetPerm{:,CurrFeats{i2}} = DatasetPerm{IndRand(:,i1),CurrFeats{i2}};
+                    switch PermType
+                        case 'Permutation'
+                            DatasetPerm{:,CurrFeats{i2}} = DatasetPerm{IndRand(:,i1),CurrFeats{i2}};
+
+                        case 'AllRange'
+                            DatasetPerm{:,CurrFeats{i2}} = RngVals(:,i1);
+                    end
             
                     [~, PredProbPerm] = predict(CurrModel, DatasetPerm);
                     PredProbPerm = PredProbPerm(:,2);

@@ -62,7 +62,7 @@ yticklabels(flip(FeaturesNames))
 xtickangle(ax_r2, 90)
 
 xlim(ax_r2, [0.5, size(R2DatasetToUse{:,:},2)+0.5])
-ylim(ax_r2, [0.5, size(R2DatasetToUse{:,:},2)+0.5])
+ylim(ax_r2, [0.5, size(R2DatasetToUse{:,:},1)+0.5])
 
 daspect([1, 1.1, 1])
 

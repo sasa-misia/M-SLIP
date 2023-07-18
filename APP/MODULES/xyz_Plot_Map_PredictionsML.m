@@ -25,7 +25,8 @@ else
 end
 
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
-load([fold_res_ml_curr,sl,'PredictionsStudy.mat'],  'PredictionProbabilities','LandslidesPolygons')
+load([fold_res_ml_curr,sl,'PredictionsStudy.mat'],  'PredictionProbabilities','LandslidesPolygons', ...
+                                                    'EventsInfo','EventsMSE','EventsAUC','EventsBT')
 load([fold_res_ml_curr,sl,'TrainedANNs.mat'],       'ANNs','ANNsPerf')
 
 %% Options
@@ -34,14 +35,16 @@ ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
                            'Show Plots', 'Options',Options, 'DefaultOption',2);
 if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
 
-DatetimesPredicted = PredictionProbabilities.Properties.RowNames;
+DatetimesPredicted = [EventsInfo{'PredictionDate',:}{:}];
 if length(DatetimesPredicted) == 1
     DatetimeChosed = DatetimesPredicted;
+    EventNameChosed = EventsInfo.Properties.VariableNames;
 else
     IndDate = listdlg('PromptString',{'Choose the date you want to plot: ',''}, ...
                       'ListString',DatetimesPredicted, 'SelectionMode','single');
 
-    DatetimeChosed = DatetimesPredicted(IndDate);
+    DatetimeChosed  = DatetimesPredicted(IndDate);
+    EventNameChosed = EventsInfo.Properties.VariableNames(IndDate);
 end
 
 Options  = {'Yes', 'No'};
@@ -113,9 +116,9 @@ if ~exist(fold_fig_curr, 'dir')
     mkdir(fold_fig_curr)
 end
 
-LandslideDay     = LandslidesPolygons{DatetimeChosed, 'LandslideDay'}{:};
-UnstablePolygons = LandslidesPolygons{DatetimeChosed, 'UnstablePolygons'}{:};
-StablePolygons   = LandslidesPolygons{DatetimeChosed, 'StablePolygons'}{:};
+LandslideDay     = LandslidesPolygons{EventNameChosed, 'LandslideDay'}{:};
+UnstablePolygons = LandslidesPolygons{EventNameChosed, 'UnstablePolygons'}{:};
+StablePolygons   = LandslidesPolygons{EventNameChosed, 'StablePolygons'}{:};
 if length(UnstablePolygons) > 1
     UnstablePolygons = union(UnstablePolygons);
 end
@@ -133,7 +136,7 @@ end
 for i1 = IndModels
     ProgressBar.Message = ['Plotting fig. ',num2str(i1)];
 
-    if isempty(PredictionProbabilities{DatetimeChosed, i1}{:}) || not(GoodMdl(i1))
+    if isempty(PredictionProbabilities{EventNameChosed, i1}{:}) || not(GoodMdl(i1))
         continue % To skip the cycle in case there are no predictions
     end
 
@@ -142,15 +145,15 @@ for i1 = IndModels
     set(fig_curr, 'visible','off')
     hold(ax_curr,'on')
 
-    EventString   = strrep(DatetimeChosed{:}, '/', ' ');
+    EventString   = strrep(char(DatetimeChosed), '/', ' ');
     EventString   = strrep(EventString, ':', ' ');
     filename_curr = ['Risk map - ',EventString,' - ANN Model n',num2str(i1)];
 
-    CurrentLoss      = ANNsPerf{'Err','Test'}{:}{'Loss',i1};
-    CurrentTestAUC   = ANNsPerf{'ROC','Test'}{:}{'AUC',i1}{:};
-    StructOfLayers   = ANNs{'Model',i1}{:}.LayerSizes;
+    CurrentMSE  = EventsMSE{EventNameChosed,i1};
+    CurrentAUC  = EventsAUC{EventNameChosed,i1};
+    LayerStruct = ANNs{'Model',i1}{:}.LayerSizes;
 
-    ProbsScatter = full(PredictionProbabilities{DatetimeChosed, i1}{:});
+    ProbsScatter = full(PredictionProbabilities{EventNameChosed, i1}{:});
 
     ProbsFun = scatteredInterpolant(DatasetStudyCoords.Longitude, ...
                                     DatasetStudyCoords.Latitude, ...
@@ -186,7 +189,7 @@ for i1 = IndModels
     fig_settings(fold0)
 
     title('Risk map', 'FontName',SelectedFont, 'FontSize',1.5*SelectedFontSize)
-    subtitle(['Loss: ',num2str(CurrentLoss),'; Test AUC: ',num2str(CurrentTestAUC),'; Struct: [',strjoin({num2str(StructOfLayers)}),']'], ...
+    subtitle(['Event MSE: ',num2str(CurrentMSE),'; Event AUC: ',num2str(CurrentAUC),'; ANN Struct: [',strjoin({num2str(LayerStruct)}),']'], ...
               'FontName',SelectedFont, 'FontSize',SelectedFontSize)
 
     axis off

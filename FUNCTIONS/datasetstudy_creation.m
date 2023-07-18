@@ -402,9 +402,13 @@ if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
     [AssSubSoilClass, AssSubSoilNum] = deal(cell(size(LithoAllUnique)));
     for i1 = 1:length(LithoAllUnique)
         RowToTake = strcmp(LithoAllUnique{i1}, string(Sheet_SubSoilClasses(:,ColWithRawClasses)));
+        if not(any(RowToTake))
+            warning(['Raw sub soil class "',LithoAllUnique{i1},'" will be skipped (no row found in excel)'])
+            continue
+        end
         NumOfSubSoilClass = Sheet_SubSoilClasses{RowToTake, ColWithAss};
         if isempty(NumOfSubSoilClass) || ismissing(NumOfSubSoilClass)
-            warning(['Raw class "',LithoAllUnique{i1},'" will be skipped (no association)'])
+            warning(['Raw sub soil class "',LithoAllUnique{i1},'" will be skipped (no association)'])
             continue
         end
 
@@ -476,6 +480,10 @@ if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
     [AssTopSoilClass, AssTopSoilNum] = deal(cell(size(TopSoilAllUnique)));
     for i1 = 1:length(TopSoilAllUnique)
         RowToTake = strcmp(TopSoilAllUnique{i1}, string(Sheet_TopSoilClasses(:,ColWithRawClasses)));
+        if not(any(RowToTake))
+            warning(['Raw top soil class "',TopSoilAllUnique{i1},'" will be skipped (no row found in excel)'])
+            continue
+        end
         NumOfTopSoilClass = Sheet_TopSoilClasses{RowToTake, ColWithAss};
         if isempty(NumOfTopSoilClass) || ismissing(NumOfTopSoilClass)
             warning(['Raw top soil class "',TopSoilAllUnique{i1},'" will be skipped (no association)'])
@@ -550,6 +558,10 @@ if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
     [AssLandUseClass, AssLandUseNum] = deal(cell(size(AllLandUnique)));
     for i1 = 1:length(AllLandUnique)
         RowToTake = strcmp(AllLandUnique{i1}, string(Sheet_LandUseClasses(:,ColWithRawClasses)));
+        if not(any(RowToTake))
+            warning(['Raw land use class "',AllLandUnique{i1},'" will be skipped (no row found in excel)'])
+            continue
+        end
         NumOfLandUseClass = Sheet_LandUseClasses{RowToTake, ColWithAss};
         if isempty(NumOfLandUseClass) || ismissing(NumOfLandUseClass)
             warning(['Raw land use class "',AllLandUnique{i1},'" will be skipped (no association)'])
@@ -624,6 +636,10 @@ if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
     [AssVegetClass, AssVegetNum] = deal(cell(size(VegetationAllUnique)));
     for i1 = 1:length(VegetationAllUnique)
         RowToTake = strcmp(VegetationAllUnique{i1}, string(Sheet_VegetClasses(:,ColWithRawClasses)));
+        if not(any(RowToTake))
+            warning(['Raw vegetation class "',VegetationAllUnique{i1},'" will be skipped (no row found in excel)'])
+            continue
+        end
         NumOfVegetClass = Sheet_VegetClasses{RowToTake, ColWithAss};
         if isempty(NumOfVegetClass) || ismissing(NumOfVegetClass)
             warning(['Raw vegetation class "',VegetationAllUnique{i1},'" will be skipped (no association)'])

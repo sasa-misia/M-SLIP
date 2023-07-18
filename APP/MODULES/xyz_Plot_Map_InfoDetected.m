@@ -346,7 +346,11 @@ for i1 = 1:length(PolWindow)
     PixelSize = .1/RatioRef;
 
     % CTR Preliminary operation
-    IndexCTRInPolWin = find(inpoly([xLongCTRTot, yLatCTRTot], ppWin, eeWin)==1);
+    if isempty(xLongCTRTot)
+        IndexCTRInPolWin = [];
+    else
+        IndexCTRInPolWin = find(inpoly([xLongCTRTot, yLatCTRTot], ppWin, eeWin)==1);
+    end
     if ~isempty(IndexCTRInPolWin)
 
         OverlapDTMs = true; % GIVE THE CHOICE TO USER
@@ -467,7 +471,7 @@ for i1 = 1:length(PolWindow)
             
             legend('AutoUpdate','off')
 
-            fig_rescaler(ax_ind1, hleg1, LegendPosition) % Before was fig_class. Please fix sizes!
+            fig_rescaler(fig_class, hleg1, LegendPosition) % Before was fig_class. Please fix sizes!
         end
     
         if ShowPlots

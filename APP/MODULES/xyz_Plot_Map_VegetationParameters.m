@@ -15,35 +15,6 @@ else
     LegendPosition = 'Best';
 end
 
-% if AnswerAttributionSoilParameter == 1 || AnswerAttributionSoilParameter == 2
-%     load('VegPolygonsStudyArea.mat')
-%     load('VUDVCMapParameters.mat')
-%     
-%     [n_us, Index4Color_n]     = unique(DSCParameters{1});
-%     [phi_us, Index4Color_phi] = unique(DSCParameters{2});
-%     [c_us, Index4Color_c]     = unique(DSCParameters{3});
-%     [A_us, Index4Color_A]     = unique(DSCParameters{4});
-%     [kt_us, Index4Color_k]    = unique(DSCParameters{5});
-% 
-%     color_polygons = LU_DSCPlotColor{1}./255;
-% 
-%     color_c   = LU_DSCPlotColor{2}(Index4Color_c,:)./255;
-%     color_phi = LU_DSCPlotColor{2}(Index4Color_phi,:)./255;
-%     color_kt  = LU_DSCPlotColor{2}(Index4Color_k,:)./255;
-%     color_A   = LU_DSCPlotColor{2}(Index4Color_A,:)./255;
-% else
-%     n_us   = unique(nAll{1});
-%     phi_us = unique(PhiAll{1});
-%     c_us   = unique(CohesionAll{1});
-%     A_us   = unique(AAll{1});
-%     kt_us  = unique(KtAll{1});
-%     
-%     color_c   = [0 0 255]./255;
-%     color_phi = [0 0 255]./255;
-%     color_kt  = [0 0 255]./255;
-%     color_A   = [0 0 255]./255;
-% end
-
 InfoDetectedExist = false;
 if exist('InfoDetectedSoilSlips.mat', 'file')
     load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','IndDefInfoDet')
@@ -91,9 +62,9 @@ if AnswerAttributionVegetationParameter==0
     
     color_parametersCr = deal([255 222 173]./255);
 else
-    load('VegPolygonsStudyArea.mat');
-    load('VUDVCMapParameters.mat');
-    
+    load('VegPolygonsStudyArea.mat')
+    load('VUDVCMapParameters.mat')
+        
     % cr_uv = (DVCParameters{1});
     [CrUniqueUV, PosCrUniqueUV] = unique(DVCParameters{1});
 
@@ -142,7 +113,6 @@ end
 
 %% Plot based on option choosed
 switch NumFigPlot
-
     case 1
         if AnswerAttributionVegetationParameter == 0
             warning('Vegetation is uniform!')
@@ -328,13 +298,6 @@ switch NumFigPlot
                 LegendCaption1 = [LegendCaption1; {"Points Analyzed"}];
             end
 
-%             LegendObjects = [hbetastar, hbetastarUV];
-%             ValuesBeta = round(BetaUnique,2);
-%             ValuesBetaUV = round(BetaUniqueUV,2);
-%             LegendCaption = [strcat(string(ValuesBeta(1:end-1)), " - ", string(ValuesBeta(2:end)))
-%                              "1"
-%                              string(ValuesBetaUV)];
-
             leg1 = legend(ax_ind3, ...
                           [LegendObjects1{:}], ...
                           LegendCaption1, ...
@@ -441,5 +404,4 @@ switch NumFigPlot
         
         cd(fold_fig)
         exportgraphics(f4, strcat(filename4,'.png'), 'Resolution',600);
-
 end
