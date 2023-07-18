@@ -141,9 +141,14 @@ for i1 = 1:length(FilesDetectedSoilSlip)
                     CurrID = IDsDetSoilSlip(i2);
                     IndCurrID = find(strcmp(CurrID, string(IDsAllUnique)));
 
-                    if isempty(IndCurrID); error(strcat("The polygon with ID: ",CurrID," was not found!")); end
-
-                    PolTemp = IDsPolygonsStudyArea(IndCurrID);
+                    if isempty(IndCurrID)
+                        error(strcat("The polygon with ID: ",CurrID," was not found!")); 
+                    elseif numel(IndCurrID) == 1
+                        PolTemp = IDsPolygonsStudyArea(IndCurrID);
+                    elseif numel(IndCurrID) > 1
+                        PolTemp = union(IDsPolygonsStudyArea(IndCurrID));
+                        warning(strcat("The polygon with ID: ",CurrID," has ",string(numel(IndCurrID))," matches. These polygons were merged!")); 
+                    end
 
                     InfoDetectedSoilSlipsAverage{i1}{1}(i2) = PolTemp;
             end

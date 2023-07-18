@@ -126,6 +126,3 @@ if IndRoad
     exportgraphics(f2,strcat(filename2,'.png'),'Resolution',600);
 
 end
-
-
-

@@ -23,7 +23,7 @@ if (VegAttribution ~= 0)
     load('UserVeg_Answers.mat', 'AnswerAttributionVegetationParameter')
 end
 
-if AnswerAttributionVegetationParameter ~= 0
+if all(AnswerAttributionVegetationParameter ~= [-1, 0])
     load('VegPolygonsStudyArea.mat', 'VegetationAllUnique','VegPolygonsStudyArea')
 end
 

@@ -81,7 +81,7 @@ switch DataRead
         
         ColsRecsPerEventRaw = arrayfun(@(x,y) x:y, ColsOfStarts, ColsOfEnds, 'UniformOutput',false);
         RecDatesPerEventRaw = cellfun(@(x) RecDatesEndCommon(x), ColsRecsPerEventRaw, 'UniformOutput',false);
-        DurationPerEventRaw = cellfun(@(x) x(end)-x(1), RecDatesPerEventRaw);
+        DurationPerEventRaw = cellfun(@(x) x(end)-x(1)+dTRecordings, RecDatesPerEventRaw); % +dTRecordings because if you think just at one date, remember that that one is the end of a period that last for dTRecordings
         dTBetweenEvents  = duration(strings(1, length(DurationPerEventRaw)-1));
         for i1 = 1:length(dTBetweenEvents)
             dTBetweenEvents(i1) = RecDatesPerEventRaw{i1+1}(1) - RecDatesPerEventRaw{i1}(end);
@@ -93,10 +93,12 @@ switch DataRead
         IndToNotMerge = 1:length(ColsRecsPerEventRaw);
         IndToNotMerge(ismember(IndToNotMerge, IndToMerge)) = [];
         
-        DiffIndToMerge   = diff(IndToMerge);
-        ColToMergeEnds   = [IndToMerge(DiffIndToMerge > 1), IndToMerge(end)];
-        ColToMergeStarts = [IndToMerge(1), IndToMerge(find(DiffIndToMerge > 1) + 1)];
-        IndToMerge       = arrayfun(@(x,y) x:y, ColToMergeStarts, ColToMergeEnds, 'UniformOutput',false);
+        if not(isempty(IndToMerge))
+            DiffIndToMerge   = diff(IndToMerge);
+            ColToMergeEnds   = [IndToMerge(DiffIndToMerge > 1), IndToMerge(end)];
+            ColToMergeStarts = [IndToMerge(1), IndToMerge(find(DiffIndToMerge > 1) + 1)];
+            IndToMerge       = arrayfun(@(x,y) x:y, ColToMergeStarts, ColToMergeEnds, 'UniformOutput',false);
+        end
         
         IndsEventsNew = [num2cell(IndToNotMerge), IndToMerge];
         
@@ -109,17 +111,17 @@ switch DataRead
         ColsRecsPerEvent = ColsRecsPerEventReord(EventsToMantain);
         ColsRecsPerEvent = cellfun(@(x) min(x) : max(x), ColsRecsPerEvent, 'UniformOutput',false); % To fill holes in datetime
         RecDatesPerEvent = cellfun(@(x) RecDatesEndCommon(x), ColsRecsPerEvent, 'UniformOutput',false);
-        DurationPerEvent = cellfun(@(x) x(end)-x(1), RecDatesPerEvent);
+        DurationPerEvent = cellfun(@(x) x(end)-x(1)+dTRecordings, RecDatesPerEvent);
         
-        EventsToReduce = DurationPerEvent > MaxHours;
+        EventsToReduce = DurationPerEvent > hours(MaxHours);
         if any(EventsToReduce)
             warning('Some events contain more than 120 hours. They will be automatically cutted to 120!')
         
-            ColsRecsPerEvent(EventsToReduce) = cellfun(@(x) x(1 : MaxColsNumForEvent+1), ColsRecsPerEvent(EventsToReduce), 'UniformOutput',false);
+            ColsRecsPerEvent(EventsToReduce) = cellfun(@(x) x(1 : MaxColsNumForEvent), ColsRecsPerEvent(EventsToReduce), 'UniformOutput',false);
             RecDatesPerEvent = cellfun(@(x) RecDatesEndCommon(x), ColsRecsPerEvent, 'UniformOutput',false);
-            DurationPerEvent = cellfun(@(x) x(end)-x(1), RecDatesPerEvent);
+            DurationPerEvent = cellfun(@(x) x(end)-x(1)+dTRecordings, RecDatesPerEvent);
             
-            if any(DurationPerEvent > MaxHours)
+            if any(DurationPerEvent > hours(MaxHours))
                 error('After cutting events to max 120 hours, something went wrong! Please Check...')
             end
         end

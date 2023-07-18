@@ -62,11 +62,11 @@ for i1 = 1:length(IndGoodMdls)
     curr_fig = figure(i1);
     ax_curr  = axes(curr_fig, 'FontName',SelectedFont, 'FontSize',SelectedFontSize);
     set(curr_fig, 'visible','off')
-    set(curr_fig, 'Name',filename);
+    set(curr_fig, 'Name',filename)
 
     ImportanceInPerc = ANNs{'FeatsImportance',i1}{:}{'PercentagesMSE',:}*100;
     FeaturesNames    = categorical(ANNs{'FeatsConsidered',i1}{:});
-    % FeaturesNames    = reordercats(FeaturesNames, ANNs{'ConditioningFactorsNames',i1}{:});
+    FeaturesNames    = reordercats(FeaturesNames, ANNs{'FeatsConsidered',i1}{:}); % DON'T DELETE THIS ROW!!! Is necessary even if FeaturesNames is already in the correct order!
     CurrentLoss      = ANNsPerf{'Err','Test'}{:}{'Loss',i1};
     CurrentTestAUC   = ANNsPerf{'ROC','Test'}{:}{'AUC',i1}{:};
     StructOfLayers   = ANNs{'Model',i1}{:}.LayerSizes;

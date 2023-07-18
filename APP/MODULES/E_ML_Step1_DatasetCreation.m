@@ -208,7 +208,7 @@ switch StablePointsApproach
 end
 
 %% Writing DatasetStudyInfo
-DatasetStudyInfo.FullPathInfoDetUsed  = [fold_raw_det_ss,sl,char(FilesDetectedSoilSlip(IndDetToUse))];
+DatasetStudyInfo.FullPathInfoDetUsed  = string([fold_raw_det_ss,sl,char(FilesDetectedSoilSlip(IndDetToUse))]);
 DatasetStudyInfo.Parameters           = {FeaturesChosed};
 DatasetStudyInfo.NormalizedData       = NormData;
 DatasetStudyInfo.CategoricalClasses   = CategsExist;
