@@ -67,14 +67,18 @@ StudyBounds = polyshape([xLongMin, xLongMax, xLongMax, xLongMin], ...
 IndOfPointsWithVal = find( (RastValues(:) ~= NoDataValue) & ...
                            (inpoly([xLongRaster(:), yLatRaster(:)], pp1,ee1)) );
 
-InterpFunValues = scatteredInterpolant(xLongRaster(IndOfPointsWithVal), ...
-                                       yLatRaster(IndOfPointsWithVal), ...
-                                       double(RastValues(IndOfPointsWithVal)), ...
-                                       InterpMethod);
-
-InterpolatedRaster = cellfun(@(x) zeros(size(x)), xLongAll, 'UniformOutput',false);
-for i1 = 1:length(xLongAll)
-    InterpolatedRaster{i1}(:) = InterpFunValues(xLongAll{i1}(:), yLatAll{i1}(:));
+if isempty(IndOfPointsWithVal) || numel(IndOfPointsWithVal) < 3
+    InterpolatedRaster = cell(size(xLongAll));
+else
+    InterpFunValues = scatteredInterpolant(xLongRaster(IndOfPointsWithVal), ...
+                                           yLatRaster(IndOfPointsWithVal), ...
+                                           double(RastValues(IndOfPointsWithVal)), ...
+                                           InterpMethod);
+    
+    InterpolatedRaster = cellfun(@(x) zeros(size(x)), xLongAll, 'UniformOutput',false);
+    for i1 = 1:length(xLongAll)
+        InterpolatedRaster{i1}(:) = InterpFunValues(xLongAll{i1}(:), yLatAll{i1}(:));
+    end
 end
 
 end
