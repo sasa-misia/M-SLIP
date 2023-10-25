@@ -73,7 +73,7 @@ if AnswerTypeRec == 1
     IndStrPartDataSheet = cellfun(@(x) any(strcmp(class(x), {'char','string'})), Sheet_DataRec);
     StringPartDataSheet = string(Sheet_DataRec(IndStrPartDataSheet));
 
-    IndStaInDataSheet   = zeros(size(StationsRaw));
+    IndStaInDataSheet = zeros(size(StationsRaw));
     for i1 = 1:length(StationsRaw)
         IndStaInDataSheet(i1) = find(contains(StringPartDataSheet, StationsRaw(i1), 'IgnoreCase',true));
     end
@@ -149,8 +149,54 @@ if AnswerTypeRec == 1
                                strjoin(string(ProblematicRowsInExcel), ', ')))
             end
         end
-        error(['Please, adjust your excel inconsistency problems, ' ...
-               'based on indications received above!'])
+    end
+
+    for i1 = 1:length(RecNumDataPerSta) % To replace missing values
+        if strcmp(DataRead,'Rainfall')
+            RecNumDataPerSta{i1}(not(IsDataNumeric{i1})) = {0};
+
+        elseif strcmp(DataRead,'Temperature') % REMEMBER TO IMPLLEMENT IT!
+            error('Value replacing for temperature not yet implemented, please fill empty rows specified above manually!')
+            % THIS IS TAKEN FROM MODEL A, ADAPT IT CONSIDERING THAT YOU
+            % WILL NOT HAVE OTHER YEARS IN THIS CASE!
+            % RowsEmpty = find(any(not(IsDataNumeric{i1}), 2));
+            % for i2 = 1:length(RowsEmpty)
+            %     DateEnd  = RecDatesEndsPerSta{i1}{RowsEmpty(i2)};
+            %     DateMnth = month(DateEnd);
+            %     DateDay  = day(DateEnd);
+            % 
+            %     MatchMnth = (DateMnth == month([RecDatesEndsPerSta{i1}{:}]))';
+            %     MatchDay  = (DateDay  == day([RecDatesEndsPerSta{i1}{:}])  )';
+            % 
+            %     CellsToUse = repmat(MatchMnth & MatchDay, 1, 3) & IsDataNumeric{i1};
+            % 
+            %     RowToWrt  = RowsEmpty(i2);
+            %     ColsToWrt = find(not(IsDataNumeric{i1}(RowsEmpty(i2),:)));
+            % 
+            %     AvgValues = zeros(size(ColsToWrt));
+            %     for i3 = 1:length(AvgValues)
+            %         AvgValues(i3) = mean([RecNumDataPerSta{i1}{CellsToUse(:,ColsToWrt(i3)), ColsToWrt(i3)}]);
+            %     end
+            %     RecNumDataPerSta{i1}(RowToWrt,ColsToWrt) = num2cell(AvgValues);
+            % end
+
+        else
+            error('Type of recording not recognized while trying to replace missing values!')
+        end
+    end
+
+    IsDataNumericNew = cellfun(@(x) cellfun(@isnumeric, x), RecNumDataPerSta, 'UniformOutput',false);
+
+    AreAllDataNumericPerStaNew = cellfun(@all, IsDataNumericNew);
+    
+    DataIsConsistentNew = all([AreAllDatetimeStartsPerSta; AreAllDatetimeEndsPerSta; AreAllDataNumericPerStaNew]);
+    
+    if not(DataIsConsistent) && DataIsConsistentNew
+        warning(['Stations with inconsistent numeric data were overwritten (0 value) ' ...
+                 'in rows that did not contain numbers.'])
+    elseif not(DataIsConsistentNew)
+        error(['After trying to replace with 0 rows that did not contain numbers, something went wrong. ' ...
+               'Maybe Dates in 1st and 2nd columns.'])
     end
 
     % Extraction of data in single cells and shifting of datetime
