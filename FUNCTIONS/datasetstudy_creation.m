@@ -337,6 +337,24 @@ if any(contains([FeatsToUse{:}], ["distance", "allfeats"]))
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
 
+% Vegetation Probabilities
+if any(contains([FeatsToUse{:}], ["veg", "allfeats"]))
+    load([fold_var,sl,'SoilGrids.mat'], 'VgPrAll')
+
+    VegVarNames = VgPrAll.Properties.RowNames;
+    for i1 = 1:numel(VegVarNames)
+        VegPrTmp = cellfun(@(x,y) x(y), VgPrAll{i1,:}, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+        DatasetFeaturesStudy.(VegVarNames{i1}) = cat(1,VegPrTmp{:});
+        clear('VegPrTmp')
+    end
+
+    Prmpt4Fts = [Prmpt4Fts, string(VegVarNames')];
+    FeatsType = [FeatsType, repmat("Numerical", 1, numel(VegVarNames))];
+    RngsToAdd = [min(DatasetFeaturesStudy{:,VegVarNames}, [], 'all'), ...
+                 max(DatasetFeaturesStudy{:,VegVarNames}, [], 'all')];
+    if NormData; SuggRanges = [SuggRanges; repmat(RngsToAdd, numel(VegVarNames), 1)]; end
+end
+
 % Random
 if any(contains([FeatsToUse{:}], ["random", "allfeats"]))
     RandomStudy = cellfun(@(x,y) rand(size(x)), IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
@@ -807,8 +825,7 @@ if any(contains([FeatsToUse{:}], ["rain", "temp", "allfeats"]))
         RowToTake = find( abs(TimeSensitiveDate - EventDay) < minutes(1) );
         if isempty(RowToTake); error('The date you chosed as input does not exist in your merged data!'); end
     else
-        RowToTake = listdlg('PromptString',{'Select the date to consider (start times of 24 h):',''}, ...
-                            'ListString',TimeSensitiveDate, 'SelectionMode','single');
+        RowToTake = listdlg2('Start time of 24 h:', TimeSensitiveDate, 'OutType','NumInd');
         figure(Fig)
         drawnow
     end
@@ -873,8 +890,7 @@ if any(contains([FeatsToUse{:}], ["rain", "temp", "allfeats"]))
                 elseif IndsPossEvents > 1
                     PossEventNames = strcat("Event of ", char(cellfun(@(x) min(x), TimeSensEventDates{i1}(IndsPossEvents))), ' (+', ...
                                             num2str(cellfun(@(x) length(x), TimeSensEventDates{i1}(IndsPossEvents))'), ' h)');
-                    RelIndEvent    = listdlg('PromptString',{'Select the rain event to consider :',''}, ...
-                                             'ListString',PossEventNames, 'SelectionMode','single');
+                    RelIndEvent    = listdlg2('Rain event to consider :', PossEventNames, 'OutType','NumInd');
                     figure(Fig)
                     drawnow
                 elseif IndsPossEvents == 1
@@ -931,6 +947,7 @@ if any(contains([FeatsToUse{:}], ["rain", "temp", "allfeats"]))
         end
 
     else
+
         error('Something went wrong in selecting the mode for time sensitive, please check "datasetstudy_creation"')
     end
 end
@@ -942,9 +959,8 @@ FeatsDataset = DatasetFeaturesStudy.Properties.VariableNames;
 if NormData
     if CreateRngs
         PromptForRanges = strcat("Ranges for ", Prmpt4Fts');
-        RangesInputs = inputdlg( PromptForRanges, '', 1, ...
-                                 strcat("[",num2str(round(SuggRanges(:,1),3,'significant'), '%.2e'),", ", ...
-                                            num2str(round(SuggRanges(:,2),3,'significant'), '%.2e'),"]")      );
+        RangesInputs = inputdlg2( PromptForRanges, 'DefInp',strcat("[",num2str(round(SuggRanges(:,1),3,'significant'), '%.2e'),", ", ...
+                                                            num2str(round(SuggRanges(:,2),3,'significant'), '%.2e'),"]"));
 
         TSCount = 1;
         CurrRow = 1;
