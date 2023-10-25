@@ -31,6 +31,7 @@ cd(fold_raw_ctr)
 Files = sort(string([{dir('*.tif').name}, ...
                      {dir('*.tfw').name}, ...
                      {dir('*.asc').name}, ...
+                     {dir('*.ecw').name}, ...
                      {dir('*.img').name}, ...
                      {dir('*.txt').name}, ...
                      {dir('*.png').name}, ...
@@ -48,7 +49,7 @@ if any(contains(FileNameCTR,'tif', 'IgnoreCase',true)) && any(contains(FileNameC
     CTRType = 0;
 elseif all(contains(FileNameCTR,'tif', 'IgnoreCase',true))
     CTRType = 1;
-elseif all(contains(FileNameCTR,'img', 'IgnoreCase',true))
+elseif all(contains(FileNameCTR,'img', 'IgnoreCase',true)) % all(contains(FileNameCTR,'ecw', 'IgnoreCase',true))
     CTRType = 2;
 elseif any(contains(FileNameCTR,'jpg', 'IgnoreCase',true))
     CTRType = 3;
@@ -161,7 +162,12 @@ if ~SkipCTRProcessing
                 else
                     R = worldfileread(NameFile2(i1), 'planar', size(A));
                 end
-    
+        end
+
+        if size(A, 3) == 3 && isequal(A(:, :, 1), A(:, :, 2), A(:, :, 3))
+            A = A(:, :, 1);
+        elseif size(A, 3) == 3 && ~isequal(A(:, :, 1), A(:, :, 2), A(:, :, 3))
+            A = rgb2gray(A);
         end
     
         if string(R.CoordinateSystemType)=="planar" && isempty(R.ProjectedCRS) && i1==1
@@ -304,11 +310,13 @@ switch ColorComb
 end
 
 TransparencyValues = inputdlg({'Indicate transparency of background (from 0 to 1):'
-                               'Indicate transparency of top layer (from 0 to 1):'},'', ...
-                               1, {'0.8', '0.5'});
+                               'Indicate transparency of top layer (from 0 to 1):'
+                               'Indicate the size of pixels for background:'},'', 1, ...
+                               {'0.8', '0.5', '0.5'});
 
-BTrans = eval(TransparencyValues{1});
-TTrans = eval(TransparencyValues{2});
+BTrans  = eval(TransparencyValues{1});
+TTrans  = eval(TransparencyValues{2});
+CTRPxSz = eval(TransparencyValues{3});
 
 drawnow % Remember to remove if in Standalone version
 figure(Fig) % Remember to remove if in Standalone version
@@ -334,7 +342,6 @@ warning('off')
 ProgressBar.Indeterminate = 'off';
 
 for i1 = 1:length(PolWindow)
-
     ProgressBar.Message = strcat("Creation of figure n. ",num2str(i1)," of ", num2str(length(PolWindow)));
     ProgressBar.Value = i1/length(PolWindow);
 
@@ -384,6 +391,7 @@ for i1 = 1:length(PolWindow)
                 yLatCTRToPlot  = yLatCTRPar(~logical(GrayScaleCTRPar));
             case "GrayNotScaled"
                 GrayScaleUniqueCTR = num2cell(unique(GrayScaleCTRPar));
+                GrayScaleUniqueCTR(end) = []; % The last term is the white -> Not necessary!
                 IndexToPlot = cellfun(@(x) find(x == GrayScaleCTRPar), GrayScaleUniqueCTR, 'UniformOutput',false);
             case "GrayScaled"
                 error('Not yet implemented')
@@ -418,10 +426,10 @@ for i1 = 1:length(PolWindow)
         if ~isempty(IndexCTRInPolWin)
             switch ColorType
                 case "BW"
-                    PlotCTR1 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
+                    PlotCTR1 = scatter(xLongCTRToPlot, yLatCTRToPlot, CTRPxSz, 'Marker','s', 'MarkerFaceColor','k', ...
                                        'MarkerEdgeColor','none', 'MarkerFaceAlpha',BTrans, 'Parent',ax_ind1);
                 case {"GrayNotScaled", "GrayScaled"}
-                    PlotCTR1 = cellfun(@(x,z) scatter(xLongCTRPar(x), yLatCTRPar(x), 0.9, ...
+                    PlotCTR1 = cellfun(@(x,z) scatter(xLongCTRPar(x), yLatCTRPar(x), CTRPxSz, ...
                                                       'Marker','s', 'MarkerFaceColor',single([z, z, z])./255, ...
                                                       'MarkerEdgeColor','none', 'MarkerFaceAlpha',BTrans, 'Parent',ax_ind1), ...
                                               IndexToPlot, GrayScaleUniqueCTR, 'UniformOutput',false);
@@ -504,10 +512,10 @@ for i1 = 1:length(PolWindow)
         if ~isempty(IndexCTRInPolWin)
             switch ColorType
                 case "BW"
-                    PlotCTR2 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
+                    PlotCTR2 = scatter(xLongCTRToPlot, yLatCTRToPlot, CTRPxSz, 'Marker','s', 'MarkerFaceColor','k', ...
                                            'MarkerEdgeColor','none', 'MarkerFaceAlpha',BTrans, 'Parent',ax_ind2);
                 case {"GrayNotScaled", "GrayScaled"}
-                    PlotCTR2 = cellfun(@(x,z) scatter(xLongCTRPar(x), yLatCTRPar(x), 0.9, ...
+                    PlotCTR2 = cellfun(@(x,z) scatter(xLongCTRPar(x), yLatCTRPar(x), CTRPxSz, ...
                                                       'Marker','s', 'MarkerFaceColor',single([z, z, z])./255, ...
                                                       'MarkerEdgeColor','none', 'MarkerFaceAlpha',BTrans, 'Parent',ax_ind2), ...
                                               IndexToPlot, GrayScaleUniqueCTR, 'UniformOutput',false);
@@ -569,10 +577,10 @@ for i1 = 1:length(PolWindow)
         if ~isempty(IndexCTRInPolWin)
             switch ColorType
                 case "BW"
-                    PlotCTR3 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
+                    PlotCTR3 = scatter(xLongCTRToPlot, yLatCTRToPlot, CTRPxSz, 'Marker','s', 'MarkerFaceColor','k', ...
                                            'MarkerEdgeColor','none', 'MarkerFaceAlpha',BTrans, 'Parent',ax_ind3);
                 case {"GrayNotScaled", "GrayScaled"}
-                    PlotCTR3 = cellfun(@(x,z) scatter(xLongCTRPar(x), yLatCTRPar(x), 0.9, ...
+                    PlotCTR3 = cellfun(@(x,z) scatter(xLongCTRPar(x), yLatCTRPar(x), CTRPxSz, ...
                                                       'Marker','s', 'MarkerFaceColor',single([z, z, z])./255, ...
                                                       'MarkerEdgeColor','none', 'MarkerFaceAlpha',BTrans, 'Parent',ax_ind3), ...
                                               IndexToPlot, GrayScaleUniqueCTR, 'UniformOutput',false);
@@ -635,10 +643,10 @@ for i1 = 1:length(PolWindow)
         if ~isempty(IndexCTRInPolWin)
             switch ColorType
                 case "BW"
-                    PlotCTR4 = scatter(xLongCTRToPlot, yLatCTRToPlot, 0.5, 'Marker','s', 'MarkerFaceColor','k', ...
+                    PlotCTR4 = scatter(xLongCTRToPlot, yLatCTRToPlot, CTRPxSz, 'Marker','s', 'MarkerFaceColor','k', ...
                                            'MarkerEdgeColor','none', 'MarkerFaceAlpha',BTrans, 'Parent',ax_ind4);
                 case {"GrayNotScaled", "GrayScaled"}
-                    PlotCTR4 = cellfun(@(x,z) scatter(xLongCTRPar(x), yLatCTRPar(x), 0.9, ...
+                    PlotCTR4 = cellfun(@(x,z) scatter(xLongCTRPar(x), yLatCTRPar(x), CTRPxSz, ...
                                                       'Marker','s', 'MarkerFaceColor',single([z, z, z])./255, ...
                                                       'MarkerEdgeColor','none', 'MarkerFaceAlpha',BTrans, 'Parent',ax_ind4), ...
                                               IndexToPlot, GrayScaleUniqueCTR, 'UniformOutput',false);
@@ -689,6 +697,6 @@ for i1 = 1:length(PolWindow)
         close(fig_aspect)
     end
 end
-close(ProgressBar) % Fig instead of ProgressBar if in Standalone Version
+% close(ProgressBar) % Fig instead of ProgressBar if in Standalone Version
 cd(fold0)
 warning('on')

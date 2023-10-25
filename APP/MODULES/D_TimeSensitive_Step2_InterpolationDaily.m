@@ -24,7 +24,7 @@ load([fold_var,sl,'GridCoordinates.mat'], 'IndexDTMPointsInsideStudyArea','xLong
 ProgressBar.Message = "Selection od dates...";
 [xLongSta, yLatSta] = deal(Gauges{2}(:,1), Gauges{2}(:,2));
 
-EndDateInd = listdlg('PromptString',{'Select the date of your event:',''}, ...
+EndDateInd = listdlg('PromptString',{'Select the last date you want to interpolate (suggested to select 00:00):',''}, ...
                      'ListString',RecDatesEndCommon, 'SelectionMode','single');
 
 drawnow % Remember to remove if in Standalone version

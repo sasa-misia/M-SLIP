@@ -1,4 +1,4 @@
-% Fig = uifigure; % Remember to comment this line if is app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
                                  'Indeterminate','on');
 drawnow
@@ -13,8 +13,7 @@ load([fold_var,sl,'StudyAreaVariables.mat'],    'StudyAreaPolygon')
 if length(FilesDetectedSoilSlip) == 1
     IndDetToUse = 1;
 else
-    IndDetToUse = listdlg('PromptString',{'Choose dataset you want to use: ',''}, ...
-                          'ListString',FilesDetectedSoilSlip, 'SelectionMode','single');
+    IndDetToUse = listdlg2('Choose dataset you want to use: ', FilesDetectedSoilSlip, 'OutType','NumInd');
 
     figure(Fig)
     drawnow
@@ -72,10 +71,8 @@ else
     FeaturesOptions = {'Elevation', 'Slope', 'Aspect Angle', 'Mean Curvature', 'Profile Curvature', ...
                        'Planform Curvature', 'Contributing Area (log)', 'TWI', 'Clay Content', ...
                        'Sand Content', 'NDVI', 'Sub Soil', 'Top Soil', 'Land Use', 'Vegetation', ...
-                       'Distance To Roads', 'Random', 'Rainfall', 'Temperature'};
-    IndFeatsChosed  = listdlg('PromptString',{'Select features to use:',''}, ...
-                              'ListString',FeaturesOptions, 'SelectionMode','multiple');
-    FeaturesChosed  = FeaturesOptions(IndFeatsChosed);
+                       'Distance To Roads', 'Random', 'Rainfall', 'Temperature', 'Veg Probs'};
+    FeaturesChosed  = checkbox2(FeaturesOptions, 'Title',{'Select features to use:'});
 
     figure(Fig)
     drawnow
@@ -147,17 +144,17 @@ else
                                            'Stable Area', 'Options',Options, 'DefaultOption',3);
 
     if strcmp(StablePointsApproach, 'SlopeOutsideUnstable')
-        CriticalSlope  = str2double(inputdlg({"Choose the critical slope below which you have stable points."}, '', 1, {'8'}));
+        CriticalSlope  = str2double(inputdlg2({"Critical slope (below you have stable points)"}, 'DefInp',{'8'}));
     end
     
     if strcmp(PolyUnstableMode, 'PolygonsOfInfoDetected')
-        PromptBuffer = ["Size of the buffer to define indecision area [m]"
-                        "Size of the buffer to define stable area [m]"    ];
+        PromptBuffer = ["Buffer of indecision area [m]"
+                        "Buffer of stable area [m]"    ];
         SuggBuffVals = {'100', '250'};
     else
-        PromptBuffer = ["Size of the window side where are located unstable points"
-                        "Size of the window side to define indecision area"
-                        "Size of the window side to define stable area"            ];
+        PromptBuffer = ["Window side of unstable points"
+                        "Window side of indecision area"
+                        "Window side of stable area"    ];
         SuggBuffVals = {'45', '200', '300'};
     end
     
@@ -166,7 +163,7 @@ else
         SuggBuffVals(end) = [];
     end
     
-    InpBufferSizes = str2double(inputdlg(PromptBuffer, '', 1, SuggBuffVals));
+    InpBufferSizes = str2double(inputdlg2(PromptBuffer, 'DefInp',SuggBuffVals));
     
     Options = {'Yes', 'No'};
     ModifyRatioChoice  = uiconfirm(Fig, 'Do you want to modify ratio of positive and negative points?', ...
@@ -174,7 +171,7 @@ else
     if strcmp(ModifyRatioChoice,'Yes'); ModifyRatio = true; else; ModifyRatio = false; end
     
     if ModifyRatio
-        RatioInputs = str2double(inputdlg(["Choose part of unstable: ", "Choose part of stable: "], '', 1, {'1', '2'}));
+        RatioInputs = str2double(inputdlg2(["Part of unstable: ", "Part of stable: "], 'DefInp',{'1', '2'})');
         RatioToImpose = RatioInputs(1)/RatioInputs(2);
     
         Options = {'Undersampling', 'Oversampling'};
@@ -208,7 +205,7 @@ switch StablePointsApproach
 end
 
 %% Writing DatasetStudyInfo
-DatasetStudyInfo.FullPathInfoDetUsed  = string([fold_raw_det_ss,sl,char(FilesDetectedSoilSlip(IndDetToUse))]);
+DatasetStudyInfo.FullPathInfoDetUsed  = string(FilesDetectedSoilSlip(IndDetToUse)); % Before was string([fold_raw_det_ss,sl,char(FilesDetectedSoilSlip(IndDetToUse))]); or you should modify at row 13, mantaining only names and not full path and put it again!
 DatasetStudyInfo.Parameters           = {FeaturesChosed};
 DatasetStudyInfo.NormalizedData       = NormData;
 DatasetStudyInfo.CategoricalClasses   = CategsExist;
@@ -224,6 +221,8 @@ if ModifyRatio
     DatasetStudyInfo.ResampleModeDatasetML = ResampleMode;
     if MultipleDayAnalysis && strcmp(ResampleMode,'Undersampling')
         DatasetStudyInfo.UnstablePointsMantainedInDayOfStable = MantainPointsUnstab;
+    else
+        DatasetStudyInfo.UnstablePointsMantainedInDayOfStable = true;
     end
 end
 
@@ -266,8 +265,7 @@ if TimeSensExist
     
     TimeSensitiveDate = TimeSensitiveDate{1}; % Taking only the first one since they are identical!
     
-    IndEvent = listdlg('PromptString',{'Select the date to consider for event (start times of 24 h):',''}, ...
-                       'ListString',TimeSensitiveDate, 'SelectionMode','single');
+    IndEvent  = listdlg2('Date of event (start time of 24 h):', TimeSensitiveDate, 'OutType','NumInd');
     EventDate = TimeSensitiveDate(IndEvent);
 
     figure(Fig)
@@ -289,10 +287,8 @@ if TimeSensExist
                        num2str(-IndEvent+DaysBeforeEventWhenStable),' more days in recs!'])
             end
         else
-            DaysBeforeEventWhenStable = str2double(inputdlg({["Please specify how many days before the event you want "
-                                                              "to consider all points as stable."
-                                                              strcat("(You have ",string(IndEvent), ...
-                                                                     " days of cumulate rainfalls to your event)")]}, '', 1, {'10'}));
+            DaysBeforeEventWhenStable = str2double(inputdlg2({['Days before event, when all points are stable. (', ...
+                                                               num2str(IndEvent),' days of cum rain to your event)']}, 'DefInp',{'10'}));
 
             if (IndEvent-DaysBeforeEventWhenStable) <= 0
                 error(['You have to select another day for stable points, ', ...
@@ -317,16 +313,13 @@ if TimeSensExist
     else
         switch TimeSensMode
             case 'SeparateDays'
-                DaysForTS = str2double(inputdlg({['Please specify the max number of day (max ', ...
-                                                  num2str(MaxDaysPossible),') you want to consider:']}, '', 1, {num2str(MaxDaysPossible)}));
+                DaysForTS = str2double(inputdlg2({['Num of days (max ',num2str(MaxDaysPossible),') to consider:']}, 'DefInp',{num2str(MaxDaysPossible)}));
         
             case 'CondensedDays'
-                DaysForTS = str2double(inputdlg({[ "Please specify how many days you want to cumulate (or average): "
-                                                   strcat("(Max possible:  ",string(MaxDaysPossible)," days") ]}, '', 1, {num2str(MaxDaysPossible)}));
+                DaysForTS = str2double(inputdlg2({['Days to cumulate/average (max ',num2str(MaxDaysPossible),')']}, 'DefInp',{num2str(MaxDaysPossible)}));
 
             case 'TriggerCausePeak'
-                DaysForTS = str2double(inputdlg({[ "Please specify how many days you want to consider for cause rainfall amount: "
-                                                   strcat("(Max possible:  ",string(MaxDaysPossible-2)," days") ]}, '', 1, {num2str(MaxDaysPossible-2)})); % -2 because script is set to search an event in a time window of max 2 days before or after
+                DaysForTS = str2double(inputdlg2({['Days for cause rain (max ',num2str(MaxDaysPossible-2),')']}, 'DefInp',{num2str(MaxDaysPossible-2)})); % -2 because script is set to search an event in a time window of max 2 days before or after
 
                 Options   = {'DailyCumulate', 'EventsCumulate'};
                 CauseMode = uiconfirm(Fig, 'How do you want to define cause rainfall?', ...
@@ -347,8 +340,11 @@ if TimeSensExist
     end
     DatasetStudyInfo.MultipleDayAnalysis = MultipleDayAnalysis;
     if MultipleDayAnalysis
-        DatasetStudyInfo.BeforeEventDate = BeforeEventDate;
+        DatasetStudyInfo.BeforeEventDate               = BeforeEventDate;
         DatasetStudyInfo.DayBeforeEventForStablePoints = DaysBeforeEventWhenStable;
+    else
+        DatasetStudyInfo.BeforeEventDate               = NaT;
+        DatasetStudyInfo.DayBeforeEventForStablePoints = NaN;
     end
     DatasetStudyInfo.DaysForTS = DaysForTS;
 end
@@ -601,12 +597,12 @@ elseif MultipleDayAnalysis
                 switch CauseMode
                     case 'DailyCumulate'
                         RowToTake = find( abs(TimeSensitiveDate - StartDateNoTrigg) < days(1), 1 ) - 1; % Overwriting of RowToTake with the first date before your event! I want only the first one. -1 to take the day before the start of the event!
-                        ColumnToAddTemp = cell(1, size(TimeSensitiveDataStudy{i1}, 2));
-                        for i2 = 1:size(TimeSensitiveDataStudy{i1}, 2)
+                        ColumnToAddTemp = cell(1, size(TimeSensitiveDataInterpStudy{i1}, 2));
+                        for i2 = 1:size(TimeSensitiveDataInterpStudy{i1}, 2)
                             if CumulableParam(i1)
-                                ColumnToAddTemp{i2} = sum([TimeSensitiveDataStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                                ColumnToAddTemp{i2} = sum([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
                             else
-                                ColumnToAddTemp{i2} = mean([TimeSensitiveDataStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                                ColumnToAddTemp{i2} = mean([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
                             end
                         end
                         TSStableTimeNotNorm{2} = cat(1,ColumnToAddTemp{:}); % Pay attention to order! 2nd row is Cause

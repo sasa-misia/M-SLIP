@@ -142,7 +142,7 @@ switch TimeSensMode
 
         RowToTake = find(EventDate == TimeSensitiveDate);
         for i1 = 1:length(TimeSensitiveParam)
-            ColumnToChange = cell(1, size(TimeSensitiveDataInterpStudy{i1}, 2));
+            ColumnToChange = cell(1, size(TimeSensitiveDataInterpStudy{i1}, 2)); % YOU MUST FIX THIS TimeSensitiveDataInterpStudy (apparently is not defined)!
             for i2 = 1:size(TimeSensitiveDataInterpStudy{i1}, 2)
                 if TimeSensCumulable(i1)
                     ColumnToChange{i2} = sum([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
@@ -159,8 +159,8 @@ switch TimeSensMode
                 TSEventTime = TSEventTimeNotNorm;
             end
 
-            DatasetToPredFeatsNotNorm.(FeatsNamesToChange{i1}) = TSEventTimeNotNorm(IndicesMLDataset);
-            DatasetToPredFeats.(FeatsNamesToChange{i1})        = TSEventTime(IndicesMLDataset);
+            DatasetToPredFeatsNotNorm.(FeatsNamesToChange{i1}) = TSEventTimeNotNorm; % TSEventTimeNotNorm(IndicesMLDataset);
+            DatasetToPredFeats.(FeatsNamesToChange{i1})        = TSEventTime; % TSEventTime(IndicesMLDataset);
         end
 
     case 'SeparateDays'
@@ -178,8 +178,8 @@ switch TimeSensMode
                     TSEventTime = TSEventTimeNotNorm;
                 end
 
-                DatasetToPredFeatsNotNorm.(FeatsNamesToChange{i1}(i2)) = TSEventTimeNotNorm(IndicesMLDataset);
-                DatasetToPredFeats.(FeatsNamesToChange{i1}(i2))        = TSEventTime(IndicesMLDataset);
+                DatasetToPredFeatsNotNorm.(FeatsNamesToChange{i1}(i2)) = TSEventTimeNotNorm; % TSEventTimeNotNorm(IndicesMLDataset);
+                DatasetToPredFeats.(FeatsNamesToChange{i1}(i2))        = TSEventTime; % TSEventTime(IndicesMLDataset);
             end
         end
 
@@ -310,7 +310,7 @@ end
 ProgressBar.Indeterminate = 'on';
 
 %% Creation (or update) of tables
-SuggFoldName = ['Ev-',num2str(size(EventsInfo, 1)+1)];
+SuggFoldName = ['Ev-',num2str(size(EventsInfo, 2)+1)];
 EventName    = {char(inputdlg({'Choose an event name:'}, '', 1, {SuggFoldName} ))};
 ModelsName   = ANNs.Properties.VariableNames;
 

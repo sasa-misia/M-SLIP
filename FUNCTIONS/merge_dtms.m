@@ -125,7 +125,7 @@ for i1 = 1:length(NameFileIntersecated)
 end
 
 ProgressBar.Indeterminate = 'on';
-ProgressBar.Message = "Searching for points inside study area scaled...";
+ProgressBar.Message = "Searching for points inside study area buffered...";
 [IndexDTMPointsInsideStudyAreaScaled, IndexDTMPointsInsideBBEBPoly, ...
     xLongStudyAreaScaled, yLatStudyAreaScaled, ElevationStudyAreaScaled] = deal(cell(1,length(xLongAll)));
 for i1 = 1:length(xLongAll)

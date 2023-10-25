@@ -309,9 +309,10 @@ switch TimeSensMode
                 PredProbsTest  = PredProbsTest(:,2);
             
                 TrainLoss(i3) = loss(Model, DatasetTrain, ExpectedOutputsTrain);
-                TrainMSE(i3)  = mse(ExpectedOutputsTrain, PredProbsTrain);
                 TestLoss(i3)  = loss(Model, DatasetTest, ExpectedOutputsTest);
-                TestMSE(i3)   = mse(ExpectedOutputsTest, PredProbsTest);
+
+                TrainMSE(i3)  = mse(PredProbsTrain, ExpectedOutputsTrain);
+                TestMSE(i3)   = mse(PredProbsTest , ExpectedOutputsTest );
             
                 ANNs{ANNsRows, i3} = {Model; FeatsConsidered; LayerSize{i1}}; % Pay attention to the order!
                 ANNsRes{ANNsResRows, i3} = {PredProbsTrain; PredProbsTest}; % Pay attention to the order!
@@ -412,9 +413,10 @@ switch TimeSensMode
             PredProbsTest  = PredProbsTest(:,2);
         
             TrainLoss(i1) = loss(Model, DatasetTrain, ExpectedOutputsTrain);
-            TrainMSE(i1)  = mse(ExpectedOutputsTrain, PredProbsTrain);
             TestLoss(i1)  = loss(Model, DatasetTest, ExpectedOutputsTest);
-            TestMSE(i1)   = mse(ExpectedOutputsTest, PredProbsTest);
+
+            TrainMSE(i1)  = mse(PredProbsTrain, ExpectedOutputsTrain);
+            TestMSE(i1)   = mse(PredProbsTest , ExpectedOutputsTest );
         
             ANNs{ANNsRows, i1} = {Model; FeaturesNames; LayerSize{i1}}; % Pay attention to the order!
             ANNsRes{ANNsResRows, i1} = {PredProbsTrain; PredProbsTest}; % Pay attention to the order!
@@ -555,7 +557,10 @@ if PlotCheck
         InfoDetNameToTake = strcat(InfoDetName,InfoDetExt);
     end
 
-    IndDetToUse = strcmp(FilesDetectedSoilSlip, InfoDetNameToTake);
+    IndDetToUse = contains(FilesDetectedSoilSlip, InfoDetNameToTake);
+    if sum(IndDetToUse) > 1 || sum(IndDetToUse) == 0
+        error('No match with index to take in InfoDetected!')
+    end
     InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDetToUse};
     
     fig_check = figure(3);

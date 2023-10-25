@@ -5,8 +5,9 @@ function plot_settings(varargin)
 curr_path = pwd;
 if isempty(varargin); save_path = curr_path; else save_path = varargin{1}; end
 
+MenuColor   = [0.97, 0.73, 0.58];
 FigSettings = uifigure('Name','Plot Settings', 'WindowStyle','modal', ...
-                       'Color',[0.97, 0.73, 0.58], 'Position',[800, 300, 400, 400]);
+                       'Color',MenuColor, 'Position',[800, 300, 400, 400]);
 
 FigDimensions = FigSettings.Position(3:4);
 
@@ -27,22 +28,22 @@ ConfirmButton = uibutton(FigSettings, 'Text','Confirm', ...
 
 %% Panel objects
 PanelFont = uipanel(FigSettings, 'Title','Font settings', 'FontSize',12, ...
-                                 'BackgroundColor',[0.97, 0.73, 0.58], ...
+                                 'BackgroundColor',MenuColor, ...
                                  'Position',[(FigDimensions(1)-300)/2, 320, 300, 60]);
 
 PanelLgnd = uipanel(FigSettings, 'Title','Legend settings', 'FontSize',12, ...
-                                 'BackgroundColor',[0.97, 0.73, 0.58], ...
+                                 'BackgroundColor',MenuColor, ...
                                  'Position',[(FigDimensions(1)-300)/2, 250, 300, 60]);
 
 PanelScBar = uipanel(FigSettings, 'Title','ScaleBar settings', 'FontSize',12, ...
-                                  'BackgroundColor',[0.97, 0.73, 0.58], ...
+                                  'BackgroundColor',MenuColor, ...
                                   'Position',[(FigDimensions(1)-300)/2, 180, 300, 60]);
 
 PanelCmpRose = uipanel(FigSettings, 'Title','Compass rose settings', 'FontSize',12, ...
-                                    'BackgroundColor',[0.97, 0.73, 0.58], ...
+                                    'BackgroundColor',MenuColor, ...
                                     'Position',[(FigDimensions(1)-300)/2, 110, 300, 60]);
 
-PanelTickAx = uipanel(FigSettings, 'BackgroundColor',[0.97, 0.73, 0.58], ...
+PanelTickAx = uipanel(FigSettings, 'BackgroundColor',MenuColor, ...
                                    'Position',[(FigDimensions(1)-150)/2, 70, 150, 30]);
 
 %% Label objects
@@ -75,38 +76,38 @@ ScBarPosDD = uidropdown(PanelScBar, 'Items',LocationsRed, 'Position',[180, 11, 1
 
 CmpRosePosDD = uidropdown(PanelCmpRose, 'Items',LocationsRed, 'Position',[180, 11, 100, 22]);
 
-    %% Callback functions
-    function confirm
-        FigSettingsInputs = {};
-        Font = FontDD.Value;
-        FontSize = eval(FontSizeDD.Value);
-        VariablesSettings = {'Font', 'FontSize', 'FigSettingsInputs'};
+%% Callback functions
+function confirm
+    FigSettingsInputs = {};
+    Font = FontDD.Value;
+    FontSize = eval(FontSizeDD.Value);
+    VariablesSettings = {'Font', 'FontSize', 'FigSettingsInputs'};
 
-        if ChBoxLgnd.Value
-            LegendPosition = LgndPosDD.Value;
-            VariablesSettings = [VariablesSettings, {'LegendPosition'}];
-        end
-
-        if ChBoxScBar.Value
-            ScaleBarPosition = ScBarPosDD.Value;
-            VariablesSettings = [VariablesSettings, {'ScaleBarPosition'}];
-            FigSettingsInputs = [FigSettingsInputs, {'ScaleBar', 'PositionScaleBar', ScaleBarPosition}];
-        end
-
-        if ChBoxCmpRose.Value
-            CompassRosePosition = CmpRosePosDD.Value;
-            VariablesSettings = [VariablesSettings, {'CompassRosePosition'}];
-            FigSettingsInputs = [FigSettingsInputs, {'CompassRose', 'PositionCompassRose', CompassRosePosition}];
-        end
-
-        if ChBoxTickAx.Value
-            FigSettingsInputs = [FigSettingsInputs, {'AxisTick'}];
-        end
-
-        cd(save_path)
-        save('PlotSettings.mat', VariablesSettings{:})
-        cd(curr_path)
-        close(FigSettings)
+    if ChBoxLgnd.Value
+        LegendPosition = LgndPosDD.Value;
+        VariablesSettings = [VariablesSettings, {'LegendPosition'}];
     end
+
+    if ChBoxScBar.Value
+        ScaleBarPosition = ScBarPosDD.Value;
+        VariablesSettings = [VariablesSettings, {'ScaleBarPosition'}];
+        FigSettingsInputs = [FigSettingsInputs, {'ScaleBar', 'PositionScaleBar', ScaleBarPosition}];
+    end
+
+    if ChBoxCmpRose.Value
+        CompassRosePosition = CmpRosePosDD.Value;
+        VariablesSettings = [VariablesSettings, {'CompassRosePosition'}];
+        FigSettingsInputs = [FigSettingsInputs, {'CompassRose', 'PositionCompassRose', CompassRosePosition}];
+    end
+
+    if ChBoxTickAx.Value
+        FigSettingsInputs = [FigSettingsInputs, {'AxisTick'}];
+    end
+
+    cd(save_path)
+    save('PlotSettings.mat', VariablesSettings{:})
+    cd(curr_path)
+    close(FigSettings)
+end
 
 end
