@@ -55,14 +55,22 @@ else
     CurrPreds = predict(Model, Dataset);
 end
 
+OutOfRng = any(CurrPreds < 0) | any(CurrPreds > 1);
+if OutOfRng
+    CurrPreds = min(max(CurrPreds, 0), 1);
+    warning('Some values of the prediction were cutted out because out of range 0-1')
+end
+
+FrstPreds = CurrPreds(:,1);
+OrigSize  = 1;
 if size(CurrPreds, 2) > 1
-    FrstPreds = CurrPreds(:,1);
+    OrigSize  = size(CurrPreds, 2);
     CurrPreds = CurrPreds(:,2:end);
 end
 
 if SnglCol
     CurrPreds = sum(CurrPreds, 2); % Correct only in case of softmax as last layer!
-    if not(isequal(single(1-round(FrstPreds, 2)), single(round(CurrPreds, 2))))
+    if OrigSize > 1 && not(isequal(single(1-round(FrstPreds, 2)), single(round(CurrPreds, 2))))
         warning(['Summed probabilities are not equal to the first class! ' ...
                  'Please check with predict function!'])
     end
