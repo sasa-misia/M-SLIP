@@ -1,4 +1,4 @@
-% Fig = uifigure; % Remember to comment this line if is app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
                                  'Indeterminate','on');
 drawnow
@@ -8,7 +8,10 @@ rng(10) % For reproducibility of the model
 %% Loading data, extraction and initialization of variables
 load([fold_var,sl,'DatasetML.mat'],    'DatasetMLInfo','DatasetMLCoords','DatasetMLFeats', ...
                                        'DatasetMLClasses','DatasetMLDates','RangesForNorm')
-load([fold_var,sl,'DatasetStudy.mat'], 'UnstablePolygons','IndecisionPolygons','StablePolygons')
+
+UnstablePolygons   = cat(1, DatasetMLInfo.PolysUnstable{:});
+IndecisionPolygons = cat(1, DatasetMLInfo.PolysIndecision{:});
+StablePolygons     = cat(1, DatasetMLInfo.PolysStable{:});
 
 TimeSensMode  = 'NoTimeSens';
 TimeSensExist = any(strcmp('TimeSensitive', DatasetMLInfo{1,'FeaturesTypes'}{:}));
@@ -42,7 +45,7 @@ end
 
 switch TestMode
     case 'RandomSplit'
-        TrainPerc = str2double(inputdlg("Specify the percentage to be used for training (0 - 1) : ", '', 1, {'0.8'}));
+        TrainPerc = str2double(inputdlg2('Percentage for training (0 - 1): ', 'DefInp',{'0.8'}));
         if TrainPerc <= 0 || TrainPerc >= 1
             error('You have to specify a number between 0 and 1! (extremes not included)')
         end
@@ -52,10 +55,7 @@ switch TestMode
             error(['You can not apply this approach with your polygons ' ...
                    '(they should be multi-polys and same numbers between Stables and Unstables)!'])
         end
-        IndsTestPolys = listdlg('PromptString',{'Choose polygons to use for test dataset: ',''}, ...
-                                'ListString',string(1:numel(UnstablePolygons)), 'SelectionMode','multiple');
-        IndsLogicTestPolys = false(1, numel(UnstablePolygons));
-        IndsLogicTestPolys(IndsTestPolys) = true;
+        IndsLogicTestPolys = checkbox2(string(1:numel(UnstablePolygons)), 'Title','Polygons for test dataset:', 'OutType','LogInd');
 
         figure(Fig)
         drawnow
@@ -73,8 +73,7 @@ switch TimeSensMode
         Options = {'With Validation Data', 'With Loss Function', 'Cross Validation (K-Fold) [slow]', 'Cross Validation (Polygons)'};
 end
 
-ANNMode = uiconfirm(Fig, 'How do you want to train your neural network?', ...
-                         'Neural network choice', 'Options',Options, 'DefaultOption',1);
+ANNMode = listdlg2('Type of train?', Options);
 
 if not(strcmp(ANNMode, 'Auto'))
     Options = {'sigmoid', 'relu', 'tanh', 'none'};
@@ -86,10 +85,10 @@ if not(strcmp(ANNMode, 'Auto'))
                                     'Standardize', 'Options',Options, 'DefaultOption',1);
     if strcmp(StandardizeAns,'Yes'); Standardize = true; else; Standardize = false; end
     
-    StructureInput = inputdlg(["Max number of hiddens: "
-                               "Max number of nuerons in each hidden: "
-                               "Increase of neurons for each model: "], '', 1, ...
-                              {'6', '[100, 200, 100, 50, 20, 10]', '10'});
+    StructureInput = inputdlg2({'Max num of hiddens:', ...
+                                'Max neurons per layer:', ...
+                                'Neuron increase step:'}, ...
+                                'DefInp',{'6', '[100, 200, 100, 50, 20, 10]', '10'});
     
     MaxNumOfHiddens   = str2double(StructureInput{1});
     MaxNumOfNeurons   = str2num(StructureInput{2});
@@ -527,18 +526,16 @@ if PlotCheck
     
     [~, BestModelForTest]  = max(cell2mat(ANNsPerf{'ROC','Test'}{:}{'AUC',:}));
     [~, BestModelForTrain] = max(cell2mat(ANNsPerf{'ROC','Train'}{:}{'AUC',:}));
-    ModelToPlot = str2double(inputdlg({["Which model do you want to plot?"
-                                        strcat("From 1 to ", string(NumberOfANNs))
-                                        strcat("Best for Test is: ", string(BestModelForTest))
-                                        strcat("Best for Train is: ", string(BestModelForTrain))]}, '', 1, ...
-                                       {num2str(BestModelForTest)}));
+    ModelToPlot = str2double(inputdlg2({['Model to plot? From 1 to ',num2str(NumberOfANNs), ...
+                                         ' (Best for Test: ',num2str(BestModelForTest), ...
+                                         '. Best for Train: ',num2str(BestModelForTrain),')']}, ...
+                                         'DefInp',{num2str(BestModelForTest)}));
     
     PlotOption = 1;
     if MultipleDayAnalysis
-        PossibleDatetimes = unique(DatasetMLDates.Datetime);
-        DateChosedInd     = listdlg('PromptString',{'Select the event to plot :',''}, ...
-                                    'ListString',PossibleDatetimes, 'SelectionMode','single');
-        DateChosed = PossibleDatetimes(DateChosedInd);
+        PossibleDates = unique(DatasetMLDates.Datetime);
+        DateChosedInd = listdlg2('Event to plot:', PossibleDates, 'OutType','NumInd');
+        DateChosed    = PossibleDates(DateChosedInd);
 
         figure(Fig)
         drawnow
@@ -670,7 +667,7 @@ end
 cd(fold_res_ml)
 EventDates.Format = 'dd-MM-yyyy';
 SuggestedFoldName = ['ML-ANNs-TrainEvents-',strjoin(cellstr(char(EventDates)), '_')];
-MLFolderName = char(inputdlg({'Choose folder name (in Results->ML Models and Predictions):'}, '', 1, {SuggestedFoldName} ));
+MLFolderName = char(inputdlg2({'Choose folder name (in Results->ML Models and Predictions):'}, 'DefInp',{SuggestedFoldName}));
 
 if exist(MLFolderName, 'dir')
     Options = {'Yes, thanks', 'No, for God!'};

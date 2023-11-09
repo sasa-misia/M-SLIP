@@ -483,6 +483,11 @@ UnstablePolyMrgd = union(UnstablePolygons);
 IndecisPolyMrgd  = union(IndecisionPolygons);
 StablePolyMrgd   = union(StablePolygons);
 
+%% Continuing to write DatasetStudyInfo
+DatasetStudyInfo.PolysUnstable   = {UnstablePolygons};
+DatasetStudyInfo.PolysIndecision = {IndecisionPolygons};
+DatasetStudyInfo.PolysStable     = {StablePolygons};
+
 %% Rebalance of dataset
 ProgressBar.Message = "Indexing of dataset...";
 

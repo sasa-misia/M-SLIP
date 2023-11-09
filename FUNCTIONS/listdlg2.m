@@ -84,7 +84,7 @@ SaveOut = false;     % Default
 SavePth = CurrPth;   % Default
 NameOut = 'LstOut';  % Default
 Extndbl = false;     % Default
-OutType = 'CellStr'; % Default
+OutType = 'cellstr'; % Default
 
 FntSize = 12;         % Default
 PosWind = [800, 300, ...
@@ -107,13 +107,13 @@ if ~isempty(varargin)
     InputExtndbl  = find(cellfun(@(x) all(strcmpi(x, "extendable")), vararginCopy));
     InputOutType  = find(cellfun(@(x) all(strcmpi(x, "outtype"   )), vararginCopy));
 
-    if InputPairLbls; RnmLbls = varargin{InputPairLbls+1}    ; end
-    if InputSaveOut ; SaveOut = varargin{InputSaveOut+1 }    ; end
-    if InputSavePath; SavePth = varargin{InputSavePath+1}    ; end
-    if InputPosition; PosWind = varargin{InputPosition+1}    ; end
-    if InputNameOut ; NameOut = varargin{InputNameOut+1 }    ; end
-    if InputExtndbl ; Extndbl = varargin{InputExtndbl+1 }    ; end
-    if InputOutType ; OutType = vararginCopy{InputOutType+1 }; end
+    if InputPairLbls; RnmLbls = varargin{InputPairLbls+1   }; end
+    if InputSaveOut ; SaveOut = varargin{InputSaveOut+1    }; end
+    if InputSavePath; SavePth = varargin{InputSavePath+1   }; end
+    if InputPosition; PosWind = varargin{InputPosition+1   }; end
+    if InputNameOut ; NameOut = varargin{InputNameOut+1    }; end
+    if InputExtndbl ; Extndbl = varargin{InputExtndbl+1    }; end
+    if InputOutType ; OutType = vararginCopy{InputOutType+1}; end
 end
 
 if RnmLbls && not(any(InputPosition))
@@ -129,7 +129,7 @@ end
 
 %% Initialization
 MenuColor = '#F7BA94';
-FigSettgs = uifigure('Name','Plot Settings', 'WindowStyle','modal', ...
+FigSettgs = uifigure('Name','List Window', 'WindowStyle','modal', ...
                        'Color',MenuColor, 'Position',PosWind);
 FigDims   = FigSettgs.Position(3:4);
 
@@ -209,7 +209,7 @@ function confirm
     if strcmp(OutType,'cellstr')
         OutVals = cellfun(@(x) x.Value, PnlDD, 'UniformOutput',false);
     elseif strcmp(OutType,'numind')
-        OutVals = cellfun(@(x,y) find(strcmp(x.Value, y)), PnlDD, Values);
+        OutVals = cellfun(@(x,y) find(strcmp(x.Value, y), 1), PnlDD, Values);
     else
         error('OutType not recognized!')
     end

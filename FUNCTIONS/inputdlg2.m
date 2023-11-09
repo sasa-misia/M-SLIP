@@ -63,7 +63,7 @@ end
 
 %% Initialization
 MenuColor = '#F7BA94';
-FigSettgs = uifigure('Name','Plot Settings', 'WindowStyle','modal', ...
+FigSettgs = uifigure('Name','Input Window', 'WindowStyle','modal', ...
                      'Color',MenuColor, 'Position',PosWind);
 FigDims   = FigSettgs.Position(3:4);
 

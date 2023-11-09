@@ -14,6 +14,12 @@ function [OutVals] = checkbox2(Values, varargin)
 %   
 %   - 'Position', num array : is to assign the position> If no array is
 %   specified, then [800, 300, 300, numel(Values)*150+50] will be used!
+%   
+%   - 'OutType', char : is to define what type of output you want. 'CellStr' 
+%   if you want a cellstring containing the value chosen, or 'NumInd' if
+%   you want the numerical index (referred to the possibilities for that
+%   field), or 'LogInd' if you want a logical array. If no value is specified, 
+%   then 'CellStr' will be taken as default!
 
 %% Input Check
 if not(iscell(Values)) && not(isstring(Values)) && not(ischar(Values))
@@ -25,42 +31,44 @@ Values = cellstr(Values); % Independently from the original input, now is a cell
 
 % Default sizes in y dimension
 Bff = 25;
-yPn = numel(Values)*25;
+yHd = 22;
+yPn = numel(Values)*25+yHd;
 yCn = 60;
-yHg = yPn+yCn;
+yHg = yPn+yCn+2*Bff;
 xOb = 1;
 xPn = 200;
 xWd = xOb*xPn+2*Bff;
 
 %% Settings
-Title  = 'Select: '; % Default
-BoxNum = 1;          % Default
+Title   = 'Select:'; % Default
+BoxNum  = 1;         % Default
+OutType = 'cellstr'; % Default
 
 FntSize = 12;          % Default
 PosWind = [800, 300, ...
            xWd, yHg];  % Default
 CnfBtSz = [100, 22];   % Default
-PnlSize = [xPn, yHg-2* ...
-           Bff-yCn];   % Default
+PnlSize = [xPn, yPn];  % Default
 CBSize  = [xPn-5, 22]; % Default
 
 if ~isempty(varargin)
     StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
-    varargin(StringPart) = cellfun(@(x) lower(string(x)), varargin(StringPart), 'Uniform',false);
 
-    vararginCopy = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
-    vararginCopy(StringPart) = varargin(StringPart);
+    vararginCp = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
+    vararginCp(StringPart) = cellfun(@(x) lower(string(x)), varargin(StringPart),  'Uniform',false);
 
-    InputTitle    = find(cellfun(@(x) all(strcmpi(x, "title"   )), vararginCopy));
-    InputPosition = find(cellfun(@(x) all(strcmpi(x, "position")), vararginCopy));
+    InputTitle    = find(cellfun(@(x) all(strcmpi(x, "title"   )), vararginCp));
+    InputPosition = find(cellfun(@(x) all(strcmpi(x, "position")), vararginCp));
+    InputOutType  = find(cellfun(@(x) all(strcmpi(x, "outtype" )), vararginCp));
 
-    if InputTitle   ; Title   = varargin{InputTitle+1   }; end
-    if InputPosition; PosWind = varargin{InputPosition+1}; end
+    if InputTitle   ; Title   = varargin{InputTitle+1    }; end
+    if InputPosition; PosWind = varargin{InputPosition+1 }; end
+    if InputOutType ; OutType = vararginCp{InputOutType+1}; end
 end
 
 %% Initialization
 MenuColor = '#F7BA94';
-FigSettgs = uifigure('Name','Plot Settings', 'WindowStyle','modal', ...
+FigSettgs = uifigure('Name','Checkbox Window', 'WindowStyle','modal', ...
                      'Color',MenuColor, 'Position',PosWind);
 FigDims   = FigSettgs.Position(3:4);
 
@@ -80,13 +88,13 @@ SelAllButton = uibutton(FigSettgs, 'Text','Select all', ...
 %% Panel objects
 Panels = cell(1, BoxNum);
 for i1 = 1:BoxNum
-    PnlPos = [(FigDims(1)-PnlSize(1))/2, yCn+yPn*(i1-1)+(yPn-PnlSize(2))/2, PnlSize(1), PnlSize(2)];
+    PnlPos = [(FigDims(1)-PnlSize(1))/2, yCn+Bff*i1+yPn*(i1-1), PnlSize(1), PnlSize(2)];
     Panels{i1} = uipanel(FigSettgs, 'Title',Title, 'FontSize',FntSize, ...
                                     'BackgroundColor',MenuColor, 'Position',PnlPos);
 end
 
 %% Checkbox objects
-ExCBSz = (PnlSize(2)-22)/numel(Values);
+ExCBSz = (PnlSize(2)-yHd)/numel(Values);
 PnlCB  = cell(1, numel(Values));
 for i1 = 1:BoxNum
     for i2 = 1:numel(Values)
@@ -107,7 +115,21 @@ end
 %% Callback functions
 function confirm
     Ind2Take = cellfun(@(x) x.Value, PnlCB);
-    OutVals  = Values(Ind2Take);
+
+    switch OutType
+        case 'cellstr'
+            OutVals = Values(Ind2Take);
+
+        case 'numind'
+            OutVals = find(Ind2Take);
+
+        case 'logind'
+            OutVals = Ind2Take;
+
+        otherwise
+            error('OutType not recognized!')
+    end
+
     close(FigSettgs)
     return
 end
