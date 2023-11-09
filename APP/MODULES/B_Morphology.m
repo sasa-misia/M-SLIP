@@ -1,4 +1,4 @@
-% Fig = uifigure; % Remember to comment if in app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Processing DTM of Study Area', ...
                                  'Message','Reading file', 'Cancelable','on', ...
                                  'Indeterminate','on');
@@ -7,7 +7,7 @@ drawnow
 %% Import and elaboration of data
 tic
 cd(fold_var)
-load('StudyAreaVariables.mat', 'StudyAreaPolygon','StudyAreaPolygonExcluded')
+load('StudyAreaVariables.mat', 'StudyAreaPolygon','StudyAreaPolygonExcluded','MaxExtremes','MinExtremes')
 
 cd(fold_raw_dtm)
 % Import tif and tfw file names
@@ -35,7 +35,6 @@ for i1 = 1:length(NameFile1)
             RasterData = imread(NameFile1(i1));
             RasterInfo = worldfileread(NameFile2(i1), 'planar', size(RasterData));
         case 1
-            % [A,R] = readgeoraster(NameFile1(i1), 'OutputType','double');
             [RasterData,RasterInfo] = readgeoraster(NameFile1(i1), 'OutputType','native');
         case 2
             [RasterData,RasterInfo] = readgeoraster(NameFile1(i1), 'OutputType','double');
@@ -43,10 +42,7 @@ for i1 = 1:length(NameFile1)
         
     if strcmp(RasterInfo.CoordinateSystemType,"planar")
         if isempty(RasterInfo.ProjectedCRS) && i1==1
-            EPSG = str2double(inputdlg({["Set DTM EPSG"
-                                         "For Example:"
-                                         "Sicily -> 32633"
-                                         "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
+            EPSG = str2double(inputdlg2({'DTM EPSG (Sicily -> 32633, Emilia Romagna -> 25832):'}, 'DefInp',{'25832'}));
             RasterInfo.ProjectedCRS = projcrs(EPSG);
         elseif isempty(RasterInfo.ProjectedCRS) && i1>1
             RasterInfo.ProjectedCRS = projcrs(EPSG);
@@ -88,7 +84,6 @@ for i1 = 1:length(NameFile1)
         RastInfoGeo.GeographicCRS = RasterInfo.ProjectedCRS.GeographicCRS;
 
     elseif strcmp(RasterInfo.CoordinateSystemType,"geographic")
-
         xLong = xScaled;
         yLat  = yScaled;
         RastInfoGeo  = RasterInfo;
@@ -176,67 +171,89 @@ toc
 if OrthophotoAnswer
     ProgressBar.Message = 'Creation of Ortophoto...';
 
-    cd(fold_raw_sat)
-    FileID = fopen('UrlMap.txt','r');
-    UrlMap = fscanf(FileID,'%s');
-    fclose(FileID);
+    UrFlEx = exist([fold_raw_sat,sl,'UrlMap.txt'], 'file');
+    if (UrFlEx)
+        FileID = fopen([fold_raw_sat,sl,'UrlMap.txt'],'r');
+        UrlMaps = cell(1, 12);
+        for i1 = 1:numel(UrlMaps)
+            TmpLne = fgetl(FileID);
+            if TmpLne == -1; break; end
+            UrlMaps{i1} = TmpLne;
+        end
+        fclose(FileID);
+        EmptyInd = cellfun(@isempty, UrlMaps);
+        UrlMaps(EmptyInd) = [];
 
-    if isempty(UrlMap)
-        Choice = inputdlg({'Enter WMS Url:'},'',1,{''});
-        UrlMap = string(Choice{1});
+        UrlMap = char(listdlg2('Ortophoto source:', UrlMaps));
+    end
+
+    if not(UrFlEx) || isempty(UrlMap)
+        UrlMap = char(inputdlg2({'Enter WMS Url:'}));
     end
 
     ServerMap  = WebMapServer(UrlMap);
     Info       = wmsinfo(UrlMap);
-    OrthoLayer = Info.Layer(1);
+    LayerNames = {Info.Layer(:).LayerName};
+    IndLyr     = 1;
+    if numel(LayerNames) > 1
+        IndLyr = listdlg2('Layer to use:', LayerNames, 'OutType','NumInd');
+    end
+    OrthoLayer = Info.Layer(IndLyr);
     
-    LimMap    = cellfun(@(x) [x.LongitudeLimits; x.LatitudeLimits], RasterInfoGeoAll, 'UniformOutput',false);
-    LimLatMap = cellfun(@(x) x(2,:), LimMap, 'UniformOutput',false);
-    LimLonMap = cellfun(@(x) x(1,:), LimMap, 'UniformOutput',false);
-    
-    SamplesPerInterval = [km2deg(0.005), km2deg(0.005)] ;
+    LimLatMap = [MinExtremes(2), MaxExtremes(2)];
+    LimLonMap = [MinExtremes(1), MaxExtremes(1)];
 
-    [ZOrtho, ROrtho] = cellfun(@(x,y) wmsread(OrthoLayer, 'LatLim',x, 'LonLim',y, ...
-                                      'CellSize',SamplesPerInterval),...
-                                      LimLatMap, LimLonMap, 'UniformOutput',false);
+    yLatMean = mean([MinExtremes(2), MaxExtremes(2)]);
+    dyMetLat = deg2rad(diff(LimLatMap))*earthRadius; % diff of lat in meters
+    dxMetLon = acos(cosd(diff(LimLonMap))*cosd(yLatMean)^2 + sind(yLatMean)^2)*earthRadius; % diff of lon in meters
+    RtLatLon = dyMetLat/dxMetLon;
+
+    if RtLatLon <= 1
+        ImWidth  = 2048;
+        ImHeight = int64(ImWidth*RtLatLon);
+    elseif RtLatLon > 1
+        ImHeight = 2048;
+        ImWidth  = int64(ImHeight/RtLatLon);
+    end
+
+    [ZOrtho, ROrtho] = arrayfun(@(x,y) wmsread(OrthoLayer, 'LatLim',LimLatMap, ...
+                                                           'LonLim',LimLonMap, ...
+                                                           'ImageHeight',x, ...
+                                                           'ImageWidth',y), ...
+                                           ImHeight, ImWidth, 'UniformOutput',false);
 
     fig_ortho = figure(1);
-    ax_ortho  = axes('Parent',fig_ortho); 
+    ax_ortho  = axes('Parent',fig_ortho);
     hold(ax_ortho,'on');
 
-    % cellfun(@(x,y) geoshow(x,y),ZOrtho,ROrtho);
-
-    LatGridOrtho = cellfun(@(x) x.LatitudeLimits(2)-x.CellExtentInLatitude/2 : ...
-                           -x.CellExtentInLatitude : ...
-                           x.LatitudeLimits(1)+x.CellExtentInLatitude/2, ...
-                           ROrtho, 'UniformOutput',false);
-
-    LongGridOrtho = cellfun(@(x) x.LongitudeLimits(1)+x.CellExtentInLongitude/2 : ...
-                            x.CellExtentInLongitude : ...
-                            x.LongitudeLimits(2)-x.CellExtentInLongitude/2, ...
-                            ROrtho, 'UniformOutput',false);
-
-    [xLongOrtho, yLatOrtho] = cellfun(@(x,y) meshgrid(x,y), ...
-                                      LongGridOrtho, LatGridOrtho, ...
-                                      'UniformOutput',false);
-
-    OrthoRGB = cellfun(@(x) reshape(x(:), [size(x,1)*size(x,2), 3]), ...
-                       ZOrtho, 'UniformOutput',false);
-
-    IndexOrthoPointsInsideStudyArea = cell(1,length(xLongOrtho));
-    for i2 = 1:length(xLongOrtho)
-        [pp,ee] = getnan2([StudyAreaPolygon.Vertices; nan nan]);
-        IndexOrthoPointsInsideStudyArea{i2} = find(inpoly([xLongOrtho{i2}(:),yLatOrtho{i2}(:)],pp,ee)==1);
+    [pp, ee] = getnan2([StudyAreaPolygon.Vertices; nan nan]);
+    [xLongOrtho, yLatOrtho, OrthoRGB, IndOrthoInStudyArea] = deal(cell(size(ZOrtho)));
+    for i1 = 1:numel(ZOrtho)
+        LatGridOrtho = ROrtho{i1}.LatitudeLimits(2)-ROrtho{i1}.CellExtentInLatitude/2 : ...
+                       -ROrtho{i1}.CellExtentInLatitude : ...
+                       ROrtho{i1}.LatitudeLimits(1)+ROrtho{i1}.CellExtentInLatitude/2;
+    
+        LonGridOrtho = ROrtho{i1}.LongitudeLimits(1)+ROrtho{i1}.CellExtentInLongitude/2 : ...
+                       ROrtho{i1}.CellExtentInLongitude : ...
+                       ROrtho{i1}.LongitudeLimits(2)-ROrtho{i1}.CellExtentInLongitude/2;
+    
+        [xLongOrtho{i1}, yLatOrtho{i1}] = meshgrid(LonGridOrtho, LatGridOrtho);
+    
+        OrthoRGB{i1} = double(reshape(ZOrtho{i1}(:), [size(ZOrtho{i1},1)*size(ZOrtho{i1},2), 3]));
+    
+        IndOrthoInStudyArea{i1} = find(inpoly([xLongOrtho{i1}(:),yLatOrtho{i1}(:)], pp, ee)==1);
+    
+        scatter(xLongOrtho{i1}(IndOrthoInStudyArea{i1}), ...
+                yLatOrtho{i1}(IndOrthoInStudyArea{i1}), 2, ...
+                double(OrthoRGB{i1}(IndOrthoInStudyArea{i1},:))./255, 's', 'filled', ...
+                                                                      'MarkerEdgeColor','none', ...
+                                                                      'Parent',ax_ortho) % , 'MarkerFaceAlpha',0.5)
     end
 
-    for i = 1:length(xLongOrtho)
-        scatter(xLongOrtho{i}(IndexOrthoPointsInsideStudyArea{i}), ...
-                yLatOrtho{i}(IndexOrthoPointsInsideStudyArea{i}), ...
-                2, double(OrthoRGB{i}(IndexOrthoPointsInsideStudyArea{i},:))./255, ... % Note that it is important to convert OrthoRGB in double!
-                's', 'filled', 'MarkerEdgeColor','none') % , 'MarkerFaceAlpha',0.5)
-        % hold on
-    end
-    daspect([1, 1, 1])
+    plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1);
+
+    title('Ortophoto')
+    fig_settings(fold0, 'AxisTick');
 end
 
 %% Plot to check the Study Area
@@ -259,7 +276,6 @@ if ~isempty(StudyAreaPolygonExcluded.Vertices)
 end
 
 title('Study Area Polygon Check')
-
 fig_settings(fold0, 'AxisTick');
 
 %% Creation of empty parameter matrices
@@ -286,7 +302,7 @@ VariablesAnswerMorph = {'AnswerChangeDTMResolution', 'DTMType', 'FileName_DTM', 
                         'OrthophotoAnswer', 'ScaleFactorX', 'ScaleFactorY', 'NameFileIntersecated'};
 if AnswerChangeDTMResolution == 1; VariablesAnswerMorph = [VariablesAnswerMorph, {'NewDx', 'NewDy'}]; end
 if OrthophotoAnswer; VariablesOrtho = {'ZOrtho', 'ROrtho', 'xLongOrtho', 'yLatOrtho', ...
-                                       'OrthoRGB', 'IndexOrthoPointsInsideStudyArea'}; end
+                                       'OrthoRGB', 'IndOrthoInStudyArea'}; end
 
 VegAttribution = false;
 VariablesAnswerVeg = {'VegAttribution'};
