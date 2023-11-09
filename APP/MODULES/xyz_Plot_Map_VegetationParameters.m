@@ -23,12 +23,7 @@ if exist('InfoDetectedSoilSlips.mat', 'file')
 end
 
 %% For scatter dimension
-RefStudyArea = 0.0417;
-ExtentStudyArea = area(StudyAreaPolygon);
-% ExtentStudyArea = prod(MaxExtremes-MinExtremes);
-RatioRef = ExtentStudyArea/RefStudyArea;
-PixelSize = .028/RatioRef;
-DetPixelSize = 7.5*PixelSize;
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon);
 
 %% Extraction of points inside study area
 xLongStudyArea          = cellfun(@(x,y) x(y), xLongAll, ...

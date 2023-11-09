@@ -29,12 +29,7 @@ end
 cd(fold0)
 
 %% For scatter dimension
-RefStudyArea = 0.035;
-% ExtentStudyArea = area(StudyAreaPolygon);
-ExtentStudyArea = prod(MaxExtremes-MinExtremes);
-RatioRef = ExtentStudyArea/RefStudyArea;
-PixelSize = .028/RatioRef;
-DetPixelSize = 7.5*PixelSize;
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon, 'RefArea',.035, 'Extremes',true);
 
 %% Loading Excel
 MunColors = zeros(length(MunPolygon),3);

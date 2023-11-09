@@ -357,11 +357,7 @@ ColorRain = [ 228, 229, 224
 %% Figure preliminary settings
 ProgressBar.Message = 'Preliminary settings for figures...';
 
-RefStudyArea = 0.0417;
-ExtentStudyArea = area(StudyAreaPolygon);
-RatioRef = ExtentStudyArea/RefStudyArea;
-PixelSize = .05/RatioRef;
-DetPixelSize = 7.5*PixelSize;
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon, 'FinScale',.05);
 
 ShowBox   = false;
 ShowTitle = false;

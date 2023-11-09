@@ -1,4 +1,4 @@
-% Fig = uifigure; % Remember to comment if in app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Reading data', ...
                                  'Message','Reading files...', 'Cancelable','off', ...
                                  'Indeterminate','on');
@@ -321,8 +321,6 @@ CTRPxSz = eval(TransparencyValues{3});
 drawnow % Remember to remove if in Standalone version
 figure(Fig) % Remember to remove if in Standalone version
 
-RefStudyArea = 0.035;
-
 xLongCTRTot      = cat(1,xLongCTRStudy{:});
 yLatCTRTot       = cat(1,yLatCTRStudy{:});
 GrayScaleCTRTot  = cat(1,GrayScaleCTRStudy{:});
@@ -346,11 +344,10 @@ for i1 = 1:length(PolWindow)
     ProgressBar.Value = i1/length(PolWindow);
 
     %% Preliminary operations
-    ExtentStudyArea = area(PolWindow(i1));
-    ExtremesPlot = PolWindow(i1).Vertices;
-    [ppWin, eeWin] = getnan2([PolWindow(i1).Vertices; nan, nan]);
-    RatioRef = ExtentStudyArea/RefStudyArea;    
-    PixelSize = .1/RatioRef;
+    ExtremesPlot    = PolWindow(i1).Vertices;
+    [ppWin, eeWin]  = getnan2([PolWindow(i1).Vertices; nan, nan]);
+
+    PixelSize = pixelsize(PolWindow(i1), 'RefArea',.035, 'FinScale',.1);
 
     % CTR Preliminary operation
     if isempty(xLongCTRTot)

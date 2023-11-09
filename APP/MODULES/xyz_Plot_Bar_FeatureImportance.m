@@ -1,4 +1,4 @@
-% Fig = uifigure; % Remember to comment this line if is app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
                                  'Indeterminate','on');
 drawnow
@@ -40,11 +40,13 @@ if strcmp(AllMdls,'Yes'); AllMdls = true; else; AllMdls = false; end
 if AllMdls
     IndGoodMdls = true(size(TestMSE));
 else
-    MaxLoss = str2double(inputdlg({["Choose the max MSE for models to plot : "
-                                    strcat("Max MSE is ",string(max(TestMSE))," and min is ",string(min(TestMSE)))]}, ...
-                                    '', 1, {num2str(min(TestMSE)*5)}));
+    MaxLoss = str2double(inputdlg2(['Max MSE (Max is ',num2str(max(TestMSE)),', min is ',num2str(min(TestMSE)),'):'], ...
+                                    'DefInp',{num2str(min(TestMSE)*5)}));
     IndGoodMdls = TestMSE <= MaxLoss;
 end
+
+AllFeats = ModelInfo.DatasetInfo{1}.FeaturesNames{:};
+FtsToUse = checkbox2(AllFeats, 'Title','Select features to plot:');
 
 %% Plot
 [~, AnalysisFoldName] = fileparts(fold_res_ml_curr);
@@ -54,7 +56,6 @@ if ~exist(fold_fig_curr, 'dir')
     mkdir(fold_fig_curr)
 end
 
-cd(fold_fig_curr)
 for i1 = 1:length(IndGoodMdls)
     if not(IndGoodMdls(i1)); continue; end % To skip cycle if not good model
 
@@ -64,16 +65,16 @@ for i1 = 1:length(IndGoodMdls)
     set(curr_fig, 'visible','off')
     set(curr_fig, 'Name',filename)
 
-    ImportanceInPerc = ANNs{'FeatsImportance',i1}{:}{'PercentagesMSE',:}*100;
-    FeaturesNames    = categorical(ANNs{'FeatsConsidered',i1}{:});
-    FeaturesNames    = reordercats(FeaturesNames, ANNs{'FeatsConsidered',i1}{:}); % DON'T DELETE THIS ROW!!! Is necessary even if FeaturesNames is already in the correct order!
+    ImportanceInPerc = ANNs{'FeatsImportance',i1}{:}{'PercentagesMSE',FtsToUse}*100;
+    FeaturesNames    = categorical(FtsToUse);
+    FeaturesNames    = reordercats(FeaturesNames, FtsToUse); % DON'T DELETE THIS ROW!!! Is necessary even if FeaturesNames is already in the correct order!
     CurrentLoss      = ANNsPerf{'Err','Test'}{:}{'Loss',i1};
     CurrentTestAUC   = ANNsPerf{'ROC','Test'}{:}{'AUC',i1}{:};
     StructOfLayers   = ANNs{'Model',i1}{:}.LayerSizes;
 
     BarPlot = bar(ax_curr, FeaturesNames, ImportanceInPerc);
 
-    IndRandFeat = contains(ANNs{'FeatsConsidered',i1}{:}, 'Random');
+    IndRandFeat = contains(FtsToUse, 'Random');
     if any(IndRandFeat)
         yRandFeat = yline(ax_curr, ImportanceInPerc(IndRandFeat), '--', 'Color','r', 'LineWidth',1);
     end
@@ -108,7 +109,6 @@ for i1 = 1:length(IndGoodMdls)
         pause
     end
 
-    exportgraphics(curr_fig, strcat(filename,'.png'), 'Resolution',600);
+    exportgraphics(curr_fig, [fold_fig_curr,sl,filename,'.png'], 'Resolution',600);
     close(curr_fig)
 end
-cd(fold0)

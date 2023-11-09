@@ -52,12 +52,7 @@ if exist('InfoDetectedSoilSlips.mat', 'file')
 end
 
 %% For scatter dimension
-RefStudyArea = 0.0417;
-ExtentStudyArea = area(StudyAreaPolygon);
-% ExtentStudyArea = prod(MaxExtremes-MinExtremes);
-RatioRef = ExtentStudyArea/RefStudyArea;
-PixelSize = .028/RatioRef;
-DetPixelSize = 7.5*PixelSize;
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon);
 
 %% Creation of Study Area Matrices
 xLongStudy = cellfun(@(x,y) x(y), xLongAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);

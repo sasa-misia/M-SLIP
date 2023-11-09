@@ -42,13 +42,8 @@ ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
                            'Show Plots', 'Options',Options, 'DefaultOption',2);
 if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
 
-RefStudyArea = 0.0417;
-ExtentStudyArea = area(StudyAreaPolygon);
-% ExtentStudyArea = prod(MaxExtremes-MinExtremes);
-RatioRef     = ExtentStudyArea/RefStudyArea;
-PixelSize    = .028/RatioRef;
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon);
 PixelSizeEnt = PixelSize;
-DetPixelSize = 7.5*PixelSize;
 LineExtSize  = 1.5;
 
 rng(13) % Change the seed to have different colors

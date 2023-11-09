@@ -1,4 +1,4 @@
-% Fig = uifigure; % Remember to comment if in app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
                                  'Message','Reading files...', 'Cancelable','off', ...
                                  'Indeterminate','on');
@@ -27,12 +27,12 @@ if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
 end
 
 %% For scatter dimension
-RefStudyArea = 0.0417;
-ExtentStudyArea = area(StudyAreaPolygon);
-% ExtentStudyArea = prod(MaxExtremes-MinExtremes);
-RatioRef = ExtentStudyArea/RefStudyArea;
-PixelSize = .028/RatioRef;
-DetPixelSize = 20*PixelSize;
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon);
+
+%% Options
+ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
+                           'Show Plots', 'Options',{'Yes','No'}, 'DefaultOption',2);
+if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
 
 %% Merge DTMs
 ProgressBar.Message = "Merging DTMs...";
@@ -42,10 +42,7 @@ if OriginallyProjected && SameCRSForAll
 
     ProjCRS = OriginalProjCRS;
 else
-    EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate flow)"
-                                 "For Example:"
-                                 "Sicily -> 32633"
-                                 "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
+    EPSG = str2double(inputdlg2({'Set DTM EPSG (Sicily -> 32633, Emilia Romagna -> 25832)'}, 'DefInp',{'25832'}));
     ProjCRS = projcrs(EPSG);
 end
 
@@ -88,61 +85,55 @@ Temp = dem(mean(xPlanMerged, 1), mean(yPlanMerged, 2), ElevationMerged, 'Azimuth
 ShdColorsMerged = Temp.rgb;
 clear('Temp')
 
-IndColorsMdl = scatteredInterpolant(xPlanMerged(:), yPlanMerged(:), (1:numel(xPlanMerged))', 'nearest'); % You could also use directly ShdColorsMerged but in this way you will have consistency (waiting a little bit ;) )
-
 RedTemp   = ShdColorsMerged(:,:,1);
 GreenTemp = ShdColorsMerged(:,:,2);
 BlueTemp  = ShdColorsMerged(:,:,3);
 
-[ShdColorsAll, RedColAll, GreenColAll, BlueColAll] = deal(cell(size(xLongAll)));
+IndColorsMdl = scatteredInterpolant(xPlanMerged(:), yPlanMerged(:), (1:numel(xPlanMerged))', 'nearest'); % You could also use directly ShdColorsMerged but in this way you will have consistency (waiting a little bit ;) )
+
+[yLatMerged, xLongMerged] = projinv(ProjCRS, xPlanMerged, yPlanMerged);
+
+[pp1, ee1] = getnan2([StudyAreaPolygon.Vertices; nan, nan]);
+IndPointsInSA = inpoly([xLongMerged(:), yLatMerged(:)], pp1, ee1);
+
+RedTemp(not(IndPointsInSA))   = 1;
+GreenTemp(not(IndPointsInSA)) = 1;
+BlueTemp(not(IndPointsInSA))  = 1;
+
+ShdColorsMerged(:,:,1) = RedTemp;
+ShdColorsMerged(:,:,2) = GreenTemp;
+ShdColorsMerged(:,:,3) = BlueTemp;
+
+ShdColorsAll = deal(cell(size(xLongAll)));
 for i1 = 1:length(xLongAll)
     IdxToUse = IndColorsMdl(xPlanAll{i1}(:), yPlanAll{i1}(:));
 
     ShdColorsAll{i1}    = zeros(size(xLongAll{i1}, 1), size(xLongAll{i1}, 2), 3);
-    ShdColorsAll{i1}(:) = [RedTemp(IdxToUse); GreenTemp(IdxToUse); BlueTemp(IdxToUse)]; % It is not necessary but for plot is more representative than ContributingArea
-
-    RedColAll{i1}   = ShdColorsAll{i1}(:,:,1);
-    GreenColAll{i1} = ShdColorsAll{i1}(:,:,2);
-    BlueColAll{i1}  = ShdColorsAll{i1}(:,:,3);
+    ShdColorsAll{i1}(:) = [RedTemp(IdxToUse); GreenTemp(IdxToUse); BlueTemp(IdxToUse)];
 end
-
-%% Data extraction
-ProgressBar.Message = "Extraction of data in Study Area...";
-
-xLongStudy = cellfun(@(x,y) x(y), xLongAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-clear('xLongAll')
-
-yLatStudy = cellfun(@(x,y) x(y), yLatAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-clear('yLatAll')
-
-ShdColorsStudy = cellfun(@(x,y,z,i) [x(i), y(i), z(i)], RedColAll, GreenColAll, BlueColAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-clear('RedColAll', 'GreenColAll', 'BlueColAll', 'ShdColorsAll')
-
-%% Concatenation of values
-xLongStudyCat     = cat(1, xLongStudy{:});
-yLatStudyCat      = cat(1, yLatStudy{:});
-ShdColorsStudyCat = cat(1, ShdColorsStudy{:});
 
 %% Plot
 ProgressBar.Message = "Plotting...";
 
 filename1 = 'Hillshade';
-curr_fig = figure('Visible','off');
-curr_ax  = axes('Parent',curr_fig); 
+curr_fig  = figure('Visible','off');
+curr_ax   = axes('Parent',curr_fig); 
 hold(curr_ax,'on'); 
 
-set(gcf, 'Name',filename1); 
+set(curr_fig, 'Name',filename1);
 
-hShd = scatter(xLongStudyCat, yLatStudyCat, PixelSize, ...
-                    ShdColorsStudyCat, 'Filled', 'Marker','s', 'Parent',curr_ax);
+for i1 = 1:length(xLongAll)
+    imagesc(curr_ax, xLongAll{i1}(:), yLatAll{i1}(:), ShdColorsAll{i1});
+end
 
 plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5, 'Parent',curr_ax)
+% plot(MunPolygon,       'FaceColor','none', 'LineWidth',1,   'Parent',curr_ax) % ASK FOR IT!
 
 fig_settings(fold0)
 
 if InfoDetectedExist
     hDet = cellfun(@(x,y) scatter(x, y, DetPixelSize, 'MarkerFaceColor','#A2142F', ...
-                                                      'Marker','o', 'MarkerEdgeColor','flat', ...
+                                                      'Marker','o', 'MarkerEdgeColor','#A2142F', ...
                                                       'Parent',curr_ax), ...
                                       InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
     uistack(hDet,'top')
@@ -168,14 +159,20 @@ if exist('LegendPosition', 'var')
     legend('AutoUpdate','off');
     hLeg.ItemTokenSize(1) = 5;
     
-    % title(hLeg, 'Elevation [m]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
+    title(hLeg, 'Hillshade plot', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
 
     fig_rescaler(curr_fig, hLeg, LegendPosition)
 
 end
 
-set(gca, 'visible','off')
+set(curr_ax, 'visible','off')
 
+if ShowPlots
+    set(curr_fig, 'visible','on');
+    pause
+end
+
+%% Saving
 ProgressBar.Message = "Saving...";
 
 exportgraphics(curr_fig, [fold_fig,sl,filename1,'.png'], 'Resolution',600);
