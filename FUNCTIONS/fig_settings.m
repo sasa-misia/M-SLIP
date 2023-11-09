@@ -126,8 +126,8 @@ if any( [varargin{:}] == "scalebar" )
                               [yPoint1 yPoint1 yPoint2 yPoint2]);
 
     if any( [varargin{:}] == "scalebarbox" )
-        dbox = 2.2*dScaleBarY;
-        dboxdx = 8*dScaleBarY;
+        dbox    = 2.2*dScaleBarY;
+        dboxdx  = 8*dScaleBarY;
         pol_box = polyshape([xPoint1-dbox/2,            xPoint3+dbox/2+dboxdx,     xPoint3+dbox/2+dboxdx, xPoint1-dbox/2],...
                             [yPoint1-dbox/2-dScaleBarY, yPoint1-dbox/2-dScaleBarY, yPoint2+dbox/2,        yPoint2+dbox/2]);
         plot(pol_box,'FaceColor',[1 1 1],'EdgeColor','k','FaceAlpha',1,'LineWidth',0.7)
@@ -148,11 +148,11 @@ end
 
 if any( [varargin{:}] == "axistick" )
     set(gca,'Box','on',...
-        'TickDir','out',...
-        'XTick',MinExtremes(1):dExtremes(1)/6:MaxExtremes(1),...
-        'YTick',MinExtremes(2):dExtremes(2)/6:MaxExtremes(2),...
-        'FontName',SelectedFont);
-        grid off
+            'TickDir','out',...
+            'XTick',MinExtremes(1):dExtremes(1)/6:MaxExtremes(1),...
+            'YTick',MinExtremes(2):dExtremes(2)/6:MaxExtremes(2),...
+            'FontName',SelectedFont);
+    grid off
 end
 
 xlim([MinExtremes(1)-dExtremes(1)/15, MaxExtremes(1)+dExtremes(1)/15])
