@@ -1,4 +1,4 @@
-% Fig = uifigure; % Remember to comment this line if is app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
                                  'Indeterminate','on');
 drawnow
