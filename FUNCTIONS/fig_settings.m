@@ -11,13 +11,13 @@ function [] = fig_settings(fold0, varargin)
 %   'ScaleBarBox' to plot the scalimeter in a box with white background
 
 %% Preliminary Operations
-cd(fold0)
-load('os_folders.mat', 'fold_var','fold0');
+sl = filesep;
 
-cd(fold_var)
-load('StudyAreaVariables', 'MaxExtremes','MinExtremes')
-if exist('PlotSettings.mat', 'file')
-    load('PlotSettings.mat', 'FigSettingsInputs','Font','FontSize')
+load([fold0,sl,'os_folders.mat'], 'fold_var','fold0');
+
+load([fold_var,sl,'StudyAreaVariables'], 'MaxExtremes','MinExtremes')
+if exist([fold_var,sl,'PlotSettings.mat'], 'file')
+    load([fold_var,sl,'PlotSettings.mat'], 'FigSettingsInputs','Font','FontSize')
     if isempty(varargin) && isempty(FigSettingsInputs) % If is empty, nothing must be excecute except for daspect
         varargin = {'None'};
     elseif isempty(varargin) && ~isempty(FigSettingsInputs)
@@ -37,7 +37,6 @@ else
     PositionComprose = 'northeast';
     if isempty(varargin); varargin = {'ScaleBar', 'CompassRose', 'AxisTick'}; end
 end
-cd(fold0)
 
 if ~isempty(varargin)
     convert = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
@@ -54,6 +53,8 @@ if ~isempty(varargin)
 end
 
 %% Core
+hold(gca, 'on')
+
 if any( [varargin{:}] == "setextremes" )
     MinExtremes = [Extremes(1), Extremes(5)];
     MaxExtremes = [Extremes(3), Extremes(7)];
@@ -85,12 +86,12 @@ end
 
 if any( [varargin{:}] == "scalebar" )
     DimScalStandard = [0.25, 0.5, 1, 2, 5, 10, 20, 50];
-    DimWindowKm = deg2km(MaxExtremes(1)-MinExtremes(1));
-    [~,IndScal] = min(abs(DimWindowKm/5-DimScalStandard));
-    DimScalX = DimScalStandard(IndScal); % In km
-    dScaleBarX = km2deg(DimScalX);
-    dScaleBarY = dScaleBarX/15;
-    dScaleBarOffX = 2*dScaleBarX/15;
+    DimWindowKm     = deg2km(MaxExtremes(1)-MinExtremes(1));
+    [~,IndScal]     = min(abs(DimWindowKm/5-DimScalStandard));
+    DimScalX        = DimScalStandard(IndScal); % In km
+    dScaleBarX      = km2deg(DimScalX);
+    dScaleBarY      = dScaleBarX/15;
+    dScaleBarOffX   = 3*dScaleBarX/15;
     if exist('PositionComprose', 'var') && strcmp(PositionComprose,PositionScaleBar)
         dScaleBarOffY = 2*dScaleBarOffX;
     else
@@ -119,38 +120,42 @@ if any( [varargin{:}] == "scalebar" )
     xPoint3 = xPoint2+dScaleBarX/2;
     yPoint2 = yPoint1+dScaleBarY;
     
-    pol_scalebar1 = polyshape([xPoint1 xPoint2 xPoint2 xPoint1],...
-                              [yPoint1 yPoint1 yPoint2 yPoint2]);
+    pol_scalebar1 = polyshape([xPoint1, xPoint2, xPoint2, xPoint1], ...
+                              [yPoint1, yPoint1, yPoint2, yPoint2]);
     
-    pol_scalebar2 = polyshape([xPoint2 xPoint3 xPoint3 xPoint2],...
-                              [yPoint1 yPoint1 yPoint2 yPoint2]);
+    pol_scalebar2 = polyshape([xPoint2, xPoint3, xPoint3, xPoint2], ...
+                              [yPoint1, yPoint1, yPoint2, yPoint2]);
 
     if any( [varargin{:}] == "scalebarbox" )
         dbox    = 2.2*dScaleBarY;
         dboxdx  = 8*dScaleBarY;
-        pol_box = polyshape([xPoint1-dbox/2,            xPoint3+dbox/2+dboxdx,     xPoint3+dbox/2+dboxdx, xPoint1-dbox/2],...
+        pol_box = polyshape([xPoint1-dbox/2,            xPoint3+dbox/2+dboxdx,     xPoint3+dbox/2+dboxdx, xPoint1-dbox/2], ...
                             [yPoint1-dbox/2-dScaleBarY, yPoint1-dbox/2-dScaleBarY, yPoint2+dbox/2,        yPoint2+dbox/2]);
         plot(pol_box,'FaceColor',[1 1 1],'EdgeColor','k','FaceAlpha',1,'LineWidth',0.7)
     end
-    plot(pol_scalebar1,'FaceColor',[0 0 0],'EdgeColor','k','FaceAlpha',1,'LineWidth',1)
-    hold on
-    plot(pol_scalebar2,'FaceColor',[1 1 1],'EdgeColor','k','FaceAlpha',1,'LineWidth',1)
+
+    plot(pol_scalebar1, 'FaceColor',[0 0 0], 'EdgeColor','k', 'FaceAlpha',1, 'LineWidth',1);
+    plot(pol_scalebar2, 'FaceColor',[1 1 1], 'EdgeColor','k', 'FaceAlpha',1, 'LineWidth',1);
     
-    text(xPoint1, yPoint1-dScaleBarY, '0', 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
+    dScTx = 1.1*dScaleBarY*SelectedFontSize/4;
+    dTxOr = dScaleBarX/30;
+    text(xPoint1-dTxOr, yPoint1-1.1*dScTx, '0', 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1);
     if DimScalX > 0.5
-        text(xPoint2, yPoint1-1.1*dScaleBarY, num2str(DimScalX/2), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
-        text(xPoint3, yPoint1-1.1*dScaleBarY, strcat(num2str(DimScalX)," km"), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
+        TxNE = [numel(num2str(DimScalX/2)), numel(num2str(DimScalX))];
+        text(xPoint2-dTxOr*TxNE(1), yPoint1-1.1*dScTx, num2str(DimScalX/2)      , 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1);
+        text(xPoint3-dTxOr*TxNE(2), yPoint1-1.1*dScTx, [num2str(DimScalX),' km'], 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1);
     else
-        text(xPoint2, yPoint1-1.1*dScaleBarY, num2str(1000*DimScalX/2), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
-        text(xPoint3, yPoint1-1.1*dScaleBarY, strcat(num2str(1000*DimScalX)," m"), 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1)
+        TxNE = [num2str(1000*DimScalX/2), numel(num2str(1000*DimScalX))];
+        text(xPoint2-dTxOr*TxNE(1), yPoint1-1.1*dScTx, num2str(1000*DimScalX/2)     , 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1);
+        text(xPoint3-dTxOr*TxNE(2), yPoint1-1.1*dScTx, [num2str(1000*DimScalX),' m'], 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1);
     end
 end
 
 if any( [varargin{:}] == "axistick" )
-    set(gca,'Box','on',...
-            'TickDir','out',...
-            'XTick',MinExtremes(1):dExtremes(1)/6:MaxExtremes(1),...
-            'YTick',MinExtremes(2):dExtremes(2)/6:MaxExtremes(2),...
+    set(gca,'Box','on', ...
+            'TickDir','out', ...
+            'XTick',MinExtremes(1):dExtremes(1)/6:MaxExtremes(1), ...
+            'YTick',MinExtremes(2):dExtremes(2)/6:MaxExtremes(2), ...
             'FontName',SelectedFont);
     grid off
 end

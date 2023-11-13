@@ -1,20 +1,18 @@
-% Fig = uifigure; % Remember to comment if in app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Reading data', ...
                                  'Message','Reading files...', 'Cancelable','off', ...
                                  'Indeterminate','on');
 drawnow
 
 %% Loading Files
-cd(fold_var)
-load('GridCoordinates.mat',    'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
-load('StudyAreaVariables.mat', 'StudyAreaPolygonClean')
+sl = filesep;
+
+load([fold_var,sl,'GridCoordinates.mat']   , 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygonClean')
 
 %% Preliminary operations
-cd(fold_raw_det_ss)
-Files = {dir('*.xlsx').name};
-Choice = listdlg('PromptString',{'Choose files (even multiple file, i.e. events): ',''}, ...
-                 'ListString',Files, 'SelectionMode','multiple');
-FilesDetectedSoilSlip = string(Files(Choice));
+Files = {dir([fold_raw_det_ss,sl,'*.xlsx']).name};
+FilesDetectedSoilSlip = string(checkbox2(Files, 'Title',{'Choose file (even multiple):'}));
 
 if length(FilesDetectedSoilSlip) == 1
     IndDefInfoDet = 1;
@@ -49,7 +47,7 @@ for i1 = 1:length(FilesDetectedSoilSlip)
     %% Data extraction
     ProgressBar.Message = 'Data extraction...';
     
-    DetSSData = readcell(FilesDetectedSoilSlip(i1));
+    DetSSData      = readcell(strcat(fold_raw_det_ss,sl,FilesDetectedSoilSlip(i1)));
     EmptyPositions = cellfun(@(x) all(ismissing(x)), DetSSData);
     DetSSData(EmptyPositions) = {'Not specified'};
     
@@ -83,17 +81,15 @@ for i1 = 1:length(FilesDetectedSoilSlip)
                                              'Sub areas', 'Options',Options);
         switch MethodForNearPoints
             case 'Circle'
-                AreaDiamet = str2double(inputdlg(['Set diameter [m] that will include points for file n. ',num2str(i1)], '', 1, {'50'}));
+                AreaDiamet = str2double(inputdlg2(['Set diameter [m] for file n. ',num2str(i1)], 'DefInp',{'50'}));
     
             case 'ImportPolygons'
-                cd(fold_var)
-                if exist('SoilSlipPolygonsStudyArea.mat', 'file')
-                    load('SoilSlipPolygonsStudyArea.mat', 'IDsAllUnique','IDsPolygonsStudyArea')
+                if exist([fold_var,sl,'SoilSlipPolygonsStudyArea.mat'], 'file')
+                    load([fold_var,sl,'SoilSlipPolygonsStudyArea.mat'], 'IDsAllUnique','IDsPolygonsStudyArea')
                 else
                     error('You have to import the shapefile first (C_DetectedSoilSLips.m script)')
                 end
                 IDsDetSoilSlip = string(Locations);
-                cd(fold_raw_det_ss)
         end
     end
 
@@ -187,8 +183,5 @@ end
 
 %% Saving...
 ProgressBar.Message = 'Saving...';
-cd(fold_var)
-save('InfoDetectedSoilSlips.mat', VariablesInfoDet{:})
-cd(fold0)
 
-close(ProgressBar) % Fig instead of ProgressBar if in standalone version
+save([fold_var,sl,'InfoDetectedSoilSlips.mat'], VariablesInfoDet{:})

@@ -1,20 +1,20 @@
-% Fig = uifigure; % Remember to comment if in app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
                                  'Message','Reading files...', 'Cancelable','on', ...
                                  'Indeterminate','on');
 drawnow
 
 %% Data import
-cd(fold_var)
+sl = filesep;
 StatusPrevAnalysis = 0;
-if exist('AnalysisInformation.mat', 'file')
-    load('AnalysisInformation.mat', 'StabilityAnalysis')
+if exist([fold_var,sl,'AnalysisInformation.mat'], 'file')
+    load([fold_var,sl,'AnalysisInformation.mat'], 'StabilityAnalysis')
     StabilityAnalysisOld = StabilityAnalysis;
     clear StabilityAnalysis
     StatusPrevAnalysis = 1;
 end
 
-Options = {'Rainfall', 'Temperature'};
+Options  = {'Rainfall', 'Temperature'};
 DataRead = uiconfirm(Fig, 'What type of data do you want to read?', ...
                           'Reading Data', 'Options',Options, 'DefaultOption',1);
 
@@ -43,29 +43,26 @@ end
 %% Initialization
 VariablesRecorded  = {};
 VariablesFilenames = {};
+VariablesInterpol  = {};
 
 %% Data Recording
 if AnswerTypeRec == 1
     %% Import rainfall data record and station
-    cd(fold_raw_data)
-    if isempty({dir('*.xlsx').name})
+    if isempty({dir([fold_raw_data,sl,'*.xlsx']).name})
         Ans1 = uiconfirm(Fig, strcat("No excel in ",fold_raw_data), ...
-                              'No file in directory', 'Options','Search file');
+                                'No file in directory', 'Options','Search file');
         copyindirectory('xlsx', fold_raw_data, 'mode','multiple')
     end
 
-    Files         = {dir('*.xlsx').name};
-    ChoiceRec     = listdlg('PromptString',{'Choose a file:',''}, ...
-                            'ListString',Files, 'SelectionMode','single');
-    FileName_DataRec   = string(Files(ChoiceRec)); 
+    Files              = {dir([fold_raw_data,sl,'*.xlsx']).name};
+    FileName_DataRec   = char(listdlg2({'Choose a file:'}, Files));
     VariablesFilenames = {'FileName_DataRec'};
 
     drawnow % Remember to remove if in Standalone version
     figure(Fig) % Remember to remove if in Standalone version
     
-    Sheet_StationsRaw = readcell(FileName_DataRec, 'Sheet','Stations table'); % REMEMBER: in this sheet you should put stations in the same order of Data table!
-    Sheet_DataRec     = readcell(FileName_DataRec, 'Sheet','Data table');
-    cd(fold0)
+    Sheet_StationsRaw = readcell([fold_raw_data,sl,FileName_DataRec], 'Sheet','Stations table'); % REMEMBER: in this sheet you should put stations in the same order of Data table!
+    Sheet_DataRec     = readcell([fold_raw_data,sl,FileName_DataRec], 'Sheet','Data table');
 
     % Reordering of stations
     StationsRaw = string(Sheet_StationsRaw(2:end,1));
@@ -260,11 +257,10 @@ end
     
 %% Rainfall Forecast
 if AnswerTypeFor == 1
-    %% Import rainfall forecast data    
-    cd(fold_raw_data_for)
-    Files = {dir('*.').name, dir('*.grib').name}; % '*.' is for file without extension
+    %% Import rainfall forecast data
+    Files = {dir([fold_raw_data_for,sl,'*.']).name, dir([fold_raw_data_for,sl,'*.grib']).name}; % '*.' is for file without extension
     Files(1:2) = [];
-    ChoiceForcstFile = listdlg('PromptString',{'Choose a file:',''}, 'ListString',Files);
+    ChoiceForcstFile = checkbox2(Files, 'Title',{'Choose a file:'}, 'OutType','NumInd');
     FileNameForecast = strcat(fold_raw_data_for,sl,char(Files(ChoiceForcstFile)));
     try setup_nctoolbox; catch; disp('A problem has occurred in nctoolbox'); end
 
@@ -275,7 +271,7 @@ if AnswerTypeFor == 1
     ForecastData = cell(size(ChoiceForcstFile,2),5);
     for i1 = 1:size(ChoiceForcstFile,2)
         GribData = ncdataset(FileNameForecast(i1,:));  
-        GribLat = double(GribData.data('lat'));
+        GribLat  = double(GribData.data('lat'));
         GribLong = double(GribData.data('lon'));
         [MeshLong, MeshLat] = meshgrid(GribLong, GribLat);
         RainTemp = double(GribData.data('Total_precipitation_surface_1_Hour_DifferenceFromEnd'));
@@ -293,7 +289,6 @@ if AnswerTypeFor == 1
 
         GridForecastModel = {MeshLong, MeshLat};
     end
-    cd(fold0)
 
     VariablesRecorded  = [VariablesRecorded, {'ForecastData', 'GridForecastModel'}];
     VariablesFilenames = [VariablesFilenames, {'FileNameForecast'}];
@@ -303,9 +298,9 @@ end
 switch AnalysisCase
     case 'SLIP'
         %% SLIP process
-        dTRecsShifted        = RecDatesEndCommon(2)-RecDatesEndCommon(1);
-        AnalysisDateMaxRange = [min(RecDatesEndCommon)+days(30), max(RecDatesEndCommon)];
-        PossibleAnalysisDates        = AnalysisDateMaxRange(1) : dTRecsShifted : AnalysisDateMaxRange(2);
+        dTRecsShifted         = RecDatesEndCommon(2)-RecDatesEndCommon(1);
+        AnalysisDateMaxRange  = [min(RecDatesEndCommon)+days(30), max(RecDatesEndCommon)];
+        PossibleAnalysisDates = AnalysisDateMaxRange(1) : dTRecsShifted : AnalysisDateMaxRange(2);
         PossibleAnalysisDates.Format = 'dd/MM/yyyy HH:mm:ss';
 
         if AnswerTypeFor == 1
@@ -320,8 +315,7 @@ switch AnalysisCase
             if isempty(PossibleAnalysisDates); error('DT 1'); end
         end
 
-        ChoiceEvent = listdlg('PromptString',{'Select event(s) to analyse through SLIP:',''}, ...
-                              'ListString',PossibleAnalysisDates, 'SelectionMode','multiple');
+        ChoiceEvent    = checkbox2(string(PossibleAnalysisDates), 'Title',{'Select event(s) to analyse:'}, 'OutType','NumInd');
         AnalysisEvents = PossibleAnalysisDates(ChoiceEvent);
         
         drawnow % Remember to remove if in Standalone version
@@ -337,7 +331,7 @@ switch AnalysisCase
         
         if StatusPrevAnalysis == 1
             DiffNumOfEvents = StabilityAnalysis{1} ~= StabilityAnalysisOld{1};
-            DiffDates       = any(StabilityAnalysis{2} ~= StabilityAnalysisOld{2});
+            DiffDates       = not(isequal(StabilityAnalysis{2}, StabilityAnalysisOld{2}));
             DiffIndices     = any(StabilityAnalysis{3} ~= StabilityAnalysisOld{3});
             if DiffNumOfEvents || DiffDates || DiffIndices
                 StatusPrevAnalysis = 0;
@@ -345,15 +339,12 @@ switch AnalysisCase
         end
            
         IndexInterpolation = AnalysisIndices(1) : AnalysisIndices(end);
-
-        VariablesInterpolation = {'IndexInterpolation'};
+        VariablesInterpol  = [VariablesInterpol, {'IndexInterpolation'}];
 
         if AnswerTypeFor == 1; ForecastChoice = PossibleAnalysisDates(ChoiceEvent); end % Investigate this line
                     
-        cd(fold_var)
         VariablesAnalysisSLIP = {'StabilityAnalysis', 'AnalysisDateMaxRange', 'StatusPrevAnalysis'};
-        save('AnalysisInformation.mat', VariablesAnalysisSLIP{:});
-        cd(fold0)
+        save([fold_var,sl,'AnalysisInformation.mat'], VariablesAnalysisSLIP{:});
 
     case 'Other'
         %% General process
@@ -361,7 +352,7 @@ switch AnalysisCase
             RecDatesEndCommon = unique(cat(1,ForecastData{:,2}));
         end
         
-        ChoiceEvent    = listdlg('PromptString',{'Select event(s):',''}, 'ListString',RecDatesEndCommon);
+        ChoiceEvent    = checkbox2(string(RecDatesEndCommon), 'Title',{'Select event(s):'}, 'OutType','NumInd');
         AnalysisEvents = RecDatesEndCommon(ChoiceEvent);
         AnalysisEvents.Format = 'dd/MM/yyyy HH:mm';
 
@@ -375,7 +366,8 @@ switch AnalysisCase
             for i1 = 1:size(AnalysisEvents,2)
                 AnalysisIndices(i1) = find(abs(minutes(GeneralDatesEnd-AnalysisEvents(i1)))<=1);
             end
-            VariablesInterpolation = {'AnalysisIndices'};
+            IndexInterpolation = AnalysisIndices;
+            VariablesInterpol  = [VariablesInterpol, {'IndexInterpolation'}];
         end
 end
 
@@ -396,7 +388,7 @@ if AnswerTypeFor == 1
         end
         
         if size(ForecastChoice,1) == 1
-            ChoiceForcst = listdlg('PromptString',{'Select forcasted hours:',''}, 'ListString',string(PossibleHours));
+            ChoiceForcst = checkbox2(string(PossibleHours), 'Title',{'Select forcasted hours:'}, 'OutType','NumInd');
             SelectedHoursRun{1,1} = PossibleHours(ChoiceForcst);
             SelectedHoursRun{1,2} = RunNumber(ChoiceForcst);
         else
@@ -409,24 +401,22 @@ if AnswerTypeFor == 1
     if strcmp(AnalysisCase,'SLIP')
         SelectedHoursRun(:,1) = cellfun(@(x) 1:x, SelectedHoursRun(:,1), 'UniformOutput',false);
     end
-    VariablesInterpolation = [VariablesInterpolation, {'SelectedHoursRun'}];
+    VariablesInterpol = [VariablesInterpol, {'SelectedHoursRun'}];
 end
 
 %% Saving
 ProgressBar.Message = strcat("Saving data...");
 
-NameInterp  = [ShortName, 'Interpolated.mat'];
-NameGeneral = ['General', DataRead, '.mat'];
+NameInterp  = [ShortName,'Interpolated.mat'];
+NameGeneral = ['General',DataRead,'.mat'];
 AnswerType  = {'AnswerTypeRec', 'AnswerTypeFor', 'InterpDuration'};
 
-cd(fold_var)
-save('UserTimeSens_Answers.mat', VariablesFilenames{:},'AnalysisCase',AnswerType{:});
-if exist(NameInterp, 'file')
-    save(NameInterp, VariablesInterpolation{:}, '-append');
+save([fold_var,sl,'UserTimeSens_Answers.mat'], VariablesFilenames{:},'AnalysisCase',AnswerType{:});
+if exist([fold_var,sl,NameInterp], 'file')
+    save([fold_var,sl,NameInterp], VariablesInterpol{:}, '-append');
 else
-    save(NameInterp, VariablesInterpolation{:}, '-v7.3');
+    saveswitch([fold_var,sl,NameInterp], VariablesInterpol);
 end
-save(NameGeneral, VariablesRecorded{:});
-cd(fold0)
+save([fold_var,sl,NameGeneral], VariablesRecorded{:});
 
 close(ProgressBar) % Remember to replace ProgressBar with Fig if you are in standalone version

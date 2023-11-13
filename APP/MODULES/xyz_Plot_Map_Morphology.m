@@ -1,11 +1,18 @@
-%% File loading
-cd(fold_var)
-load('StudyAreaVariables.mat')
-load('GridCoordinates.mat')
-load('MorphologyParameters.mat')
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
+                                 'Message','Reading files...', 'Cancelable','off', ...
+                                 'Indeterminate','on');
+drawnow
 
-if exist('PlotSettings.mat', 'file')
-    load('PlotSettings.mat')
+%% File loading
+sl = filesep;
+
+load([fold_var,sl,'StudyAreaVariables.mat'])
+load([fold_var,sl,'GridCoordinates.mat'])
+load([fold_var,sl,'MorphologyParameters.mat'])
+
+if exist([fold_var,sl,'PlotSettings.mat'], 'file')
+    load([fold_var,sl,'PlotSettings.mat'])
     SelectedFont = Font;
     SelectedFontSize = FontSize;
 else
@@ -15,8 +22,8 @@ else
 end
 
 InfoDetectedExist = false;
-if exist('InfoDetectedSoilSlips.mat', 'file')
-    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','IndDefInfoDet')
+if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
+    load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
     InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
     InfoDetectedExist = true;
 end
@@ -24,7 +31,14 @@ end
 %% For scatter dimension
 [PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon);
 
+%% Options
+ProgressBar.Message = 'Options...';
+ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
+                           'Show Plots', 'Options',{'Yes','No'}, 'DefaultOption',2);
+if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
+
 %% Data extraction
+ProgressBar.Message = 'Data extraction...';
 xLongStudy = cellfun(@(x,y) x(y), xLongAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
 clear('xLongAll')
 
@@ -47,8 +61,9 @@ GradNStudy = cellfun(@(x,y) x(y), GradNAll, IndexDTMPointsInsideStudyArea, 'Unif
 clear('GradNAll')
 
 %% Ranges
-AltMin = min(cellfun(@min, ElevationStudy));
-AltMax = max(cellfun(@max, ElevationStudy));
+ProgressBar.Message = 'Definition of ranges for colors...';
+AltMin   = min(cellfun(@min, ElevationStudy));
+AltMax   = max(cellfun(@max, ElevationStudy));
 AltRange = linspace(AltMin, AltMax, 11)';
 % AltRange = [200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900];
 
@@ -123,15 +138,16 @@ for i1 = 1:length(AspectRange)-1
 end
 
 %% Plot based on user selection
+ProgressBar.Message = 'Plotting...';
 switch NumFigPlot
     case 1
         %% Elevation
         filename1 = 'Elevation_Range';
-        f1 = figure(1);
+        f1  = figure(1);
         ax1 = axes('Parent',f1); 
-        hold(ax1,'on'); 
+        hold(ax1,'on');
 
-        set(gcf, 'Name',filename1); 
+        set(f1, 'Name',filename1, 'Visible','off');
         
         helevation = cell(length(AltRange)-1, size(xLongStudy,2));
         for i1 = 1:length(AltRange)-1
@@ -177,17 +193,23 @@ switch NumFigPlot
         
         set(gca, 'visible','off')
 
-        cd(fold_fig)
-        exportgraphics(f1, strcat(filename1,'.png'), 'Resolution',600);
+        exportgraphics(f1, [fold_fig,sl,filename1,'.png'], 'Resolution',600);
+
+        % Show Fig
+        if ShowPlots
+            set(f1, 'visible','on');
+        else
+            close(f1)
+        end
 
     case 2
         %% Slope
         filename2 = 'sub_slope';
-        f2 = figure(2);
+        f2  = figure(2);
         ax2 = axes('Parent',f2); 
         hold(ax2,'on');
 
-        set(gcf, 'Name',filename2);
+        set(f2, 'Name',filename2, 'Visible','off');
         
         hslope = cell(length(SlopeRange), size(xLongStudy,2));
         for i1 = 1:length(SlopeRange)
@@ -233,17 +255,23 @@ switch NumFigPlot
 
         set(gca, 'visible','off')
 
-        cd(fold_fig)
-        exportgraphics(f2, strcat(filename2,'.png'), 'Resolution',600);
+        exportgraphics(f2, [fold_fig,sl,filename2,'.png'], 'Resolution',600);
 
-    case 3 
+        % Show Fig
+        if ShowPlots
+            set(f2, 'visible','on');
+        else
+            close(f2)
+        end
+
+    case 3
         %% Aspect
         filename3 = 'sub_aspect';
         f3 = figure(3);
         ax3 = axes('Parent',f3); 
         hold(ax3,'on');
 
-        set(gcf, 'Name',filename3);
+        set(f3, 'Name',filename3, 'Visible','off');
         
         haspect = cell(length(AspectRange)-1, size(xLongStudy,2));
         for i1 = 1:length(AspectRange)-1
@@ -289,6 +317,12 @@ switch NumFigPlot
         
         set(gca, 'visible','off')
 
-        cd(fold_fig)
-        exportgraphics(f3, strcat(filename3,'.png'), 'Resolution',600);
+        exportgraphics(f3, [fold_fig,sl,filename3,'.png'], 'Resolution',600);
+
+        % Show Fig
+        if ShowPlots
+            set(f3, 'visible','on');
+        else
+            close(f3)
+        end
 end

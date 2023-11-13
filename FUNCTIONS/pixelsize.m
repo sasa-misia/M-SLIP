@@ -21,15 +21,23 @@ function [varargout] = pixelsize(StudyAreaPolygon, varargin)
 %   - 'FinScale', num : is to specify the final scale of the pixel. If no 
 %   value is specified, then 0.028 will be take as default.
 %   
-%   - 'DetScale', num : is to specify the ratio between the normal pixels and 
-%   the pixels of the detected landslides. If no value is specified, then 
-%   7.5 will be take as default.
+%   - 'FixedDetSize', logical : is to specify if you want a fixed size for
+%   detected points. If no value is selected, then 'true' will be take as
+%   default. If setted to 'true', 'DetScale' will be ignored and the final
+%   size is 50 px.
+%   
+%   - 'DetPxSize', num : is to specify the ratio between the normal pixels 
+%   and the pixels of the detected landslides when 'FixedDetSize' is set to 
+%   'false'. When 'FixedDetSize' is set to 'true', this value is the absolute 
+%   value of det pixel size. If no value is specified, then 15 will be take 
+%   as default.
 
 %% Settings
 RefStudyArea = .0417; % Default
 UseJustExtr  = false; % Default
 FinalScale   = .028;  % Default
-DetectScale  = 7.5;   % Default
+DetectPxSize = 15;    % Default
+FixedDetSize = true;  % Default
 
 if ~isempty(varargin)
     StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
@@ -37,15 +45,17 @@ if ~isempty(varargin)
     vararginCp = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
     vararginCp(StringPart) = cellfun(@(x) lower(string(x)), varargin(StringPart),  'Uniform',false);
 
-    InputRefArea = find(cellfun(@(x) all(strcmpi(x, "refarea" )), vararginCp));
-    InputUseExtr = find(cellfun(@(x) all(strcmpi(x, "extremes")), vararginCp));
-    InputFnlScl  = find(cellfun(@(x) all(strcmpi(x, "finscale")), vararginCp));
-    InputDetScl  = find(cellfun(@(x) all(strcmpi(x, "detscale")), vararginCp));
+    InputRefArea = find(cellfun(@(x) all(strcmpi(x, "refarea"     )), vararginCp));
+    InputUseExtr = find(cellfun(@(x) all(strcmpi(x, "extremes"    )), vararginCp));
+    InputFnlScl  = find(cellfun(@(x) all(strcmpi(x, "finscale"    )), vararginCp));
+    InputDetPxSz = find(cellfun(@(x) all(strcmpi(x, "detpxsize"   )), vararginCp));
+    InputFixdSzs = find(cellfun(@(x) all(strcmpi(x, "fixeddetsize")), vararginCp));
 
     if InputRefArea; RefStudyArea = varargin{InputRefArea+1}; end
     if InputUseExtr; UseJustExtr  = varargin{InputUseExtr+1}; end
     if InputFnlScl ; FinalScale   = varargin{InputFnlScl+1 }; end
-    if InputDetScl ; DetectScale  = varargin{InputDetScl+1 }; end
+    if InputDetPxSz; DetectPxSize = varargin{InputDetPxSz+1}; end
+    if InputFixdSzs; FixedDetSize = varargin{InputFixdSzs+1}; end
 end
 
 %% Processing
@@ -59,6 +69,10 @@ end
 
 RatioRef = ExtStudyArea/RefStudyArea;
 varargout{1} = FinalScale/RatioRef;
-varargout{2} = DetectScale*varargout{1};
+if FixedDetSize
+    varargout{2} = DetectPxSize;
+else
+    varargout{2} = DetectPxSize*varargout{1};
+end
 
 end

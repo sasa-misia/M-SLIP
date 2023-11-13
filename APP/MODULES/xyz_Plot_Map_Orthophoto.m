@@ -32,12 +32,13 @@ end
 [PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon);
 
 %% Options
+ProgressBar.Message = 'Options...';
 ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
                            'Show Plots', 'Options',{'Yes','No'}, 'DefaultOption',2);
 if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
 
 %% Data extraction
-ProgressBar.Message = "Data extraction...";
+ProgressBar.Message = 'Data extraction...';
 
 OrtColAll = cell(size(ZOrtho));
 for i1 = 1:length(OrtColAll)
@@ -51,7 +52,7 @@ for i1 = 1:length(OrtColAll)
 end
 
 %% Plot
-ProgressBar.Message = "Plotting...";
+ProgressBar.Message = 'Plotting...';
 
 filename1 = 'Orthophoto';
 curr_fig  = figure('Visible','off');
@@ -98,14 +99,14 @@ end
 
 set(curr_ax, 'visible','off')
 
-if ShowPlots
-    set(curr_fig, 'visible','on');
-    % pause
-end
-
 %% Saving
-ProgressBar.Message = "Saving...";
+ProgressBar.Message = 'Saving...';
 
 exportgraphics(curr_fig, [fold_fig,sl,filename1,'.png'], 'Resolution',600);
 
-close(curr_fig)
+%% Show Fig
+if ShowPlots
+    set(curr_fig, 'visible','on');
+else
+    close(curr_fig)
+end
