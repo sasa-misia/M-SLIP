@@ -112,6 +112,8 @@ if FigSettgs.Position(4) > 600
     Panels{end}.Scrollable  = 'on';
 end
 
+FakeTxtArea = uitextarea(Panels{end}, 'Position',[10, 2000, 10, 10]); % This is necessary because with checkbox you do not have the possibility to resize!
+
 %% Callback functions
 function confirm
     Ind2Take = cellfun(@(x) x.Value, PnlCB);
