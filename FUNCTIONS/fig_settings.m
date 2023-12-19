@@ -126,19 +126,22 @@ if any( [varargin{:}] == "scalebar" )
     pol_scalebar2 = polyshape([xPoint2, xPoint3, xPoint3, xPoint2], ...
                               [yPoint1, yPoint1, yPoint2, yPoint2]);
 
+    dScTx = 1.1*dScaleBarY*SelectedFontSize/4;
+    dTxOr = dScaleBarX/30;
+
     if any( [varargin{:}] == "scalebarbox" )
+        dTxOr   = 0;
         dbox    = 2.2*dScaleBarY;
         dboxdx  = 8*dScaleBarY;
-        pol_box = polyshape([xPoint1-dbox/2,            xPoint3+dbox/2+dboxdx,     xPoint3+dbox/2+dboxdx, xPoint1-dbox/2], ...
-                            [yPoint1-dbox/2-dScaleBarY, yPoint1-dbox/2-dScaleBarY, yPoint2+dbox/2,        yPoint2+dbox/2]);
+        yoffbox = dScaleBarY+0.8*dScTx;
+        pol_box = polyshape([xPoint1-dbox/2,         xPoint3+dbox/2+dboxdx,  xPoint3+dbox/2+dboxdx, xPoint1-dbox/2], ...
+                            [yPoint1-dbox/2-yoffbox, yPoint1-dbox/2-yoffbox, yPoint2+dbox/2,        yPoint2+dbox/2]);
         plot(pol_box,'FaceColor',[1 1 1],'EdgeColor','k','FaceAlpha',1,'LineWidth',0.7)
     end
 
     plot(pol_scalebar1, 'FaceColor',[0 0 0], 'EdgeColor','k', 'FaceAlpha',1, 'LineWidth',1);
     plot(pol_scalebar2, 'FaceColor',[1 1 1], 'EdgeColor','k', 'FaceAlpha',1, 'LineWidth',1);
     
-    dScTx = 1.1*dScaleBarY*SelectedFontSize/4;
-    dTxOr = dScaleBarX/30;
     text(xPoint1-dTxOr, yPoint1-1.1*dScTx, '0', 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1);
     if DimScalX > 0.5
         TxNE = [numel(num2str(DimScalX/2)), numel(num2str(DimScalX))];

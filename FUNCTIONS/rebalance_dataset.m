@@ -39,6 +39,12 @@ if not(ischar(Technique) || isstring(Technique))
     error('Technique (5th argument) must be a char or a string!')
 end
 
+for i1 = 1:length(ExpctdOutsToUse) % ExpctdOutsToUse{i1} must be a vertical array to use the function groupcounts!
+    if not(size(ExpctdOutsToUse{i1}, 2) == 1)
+        error(['The expected output cell n. ',num2str(i1),' is not a 1D vertical array (nx1)!'])
+    end
+end
+
 %% Core
 [DtsetDatesOut, DtsetFeatsOut, ExpOutsOut] = deal(cell(1, length(ExpctdOutsToUse)));
 for i1 = 1:length(ExpctdOutsToUse)
@@ -69,93 +75,97 @@ for i1 = 1:length(ExpctdOutsToUse)
         end
         IndsOfClasses = (ExpctdOutsToUse{i1} == unique(ExpctdOutsToUse{i1})');
     end
-    ColumnOfStable = (unique(ExpctdOutsToUse{i1})' == 0);
-    IndsOfUnstable = IndsOfClasses(:,not(ColumnOfStable));
-    IndsOfStable   = IndsOfClasses(:,ColumnOfStable);
 
-    RatioBeforeResampling = sum(IndsOfUnstable,1)./sum(IndsOfStable);
+    [ClCnt, UnCl]  = groupcounts(ExpctdOutsToUse{i1});
+    [~, MjClssInd] = max(ClCnt);
+    MajClassVal    = UnCl(MjClssInd);
+    ColumnOfMajor  = (unique(ExpctdOutsToUse{i1})' == MajClassVal);
+    IndsOfMajCl    = IndsOfClasses(:,ColumnOfMajor);
+    IndsOfMinCl    = IndsOfClasses(:,not(ColumnOfMajor));
+
+    RatioBeforeResampling = sum(IndsOfMinCl, 1) ./ sum(IndsOfMajCl);
 
     switch Technique
         case 'Undersampling'
-            IndsNumsStable   = find(IndsOfStable);
+            NumIndsOfMaj = find(IndsOfMajCl);
 
-            PercToRemoveStab = 1-min(RatioBeforeResampling)./RatioToImpose; % Think about this formula please!
+            PercToRemMaj = 1-min(RatioBeforeResampling)./RatioToImpose; % Think about this formula please!
 
-            RelIndOfStabToChange = randperm(numel(IndsNumsStable), ceil(numel(IndsNumsStable)*PercToRemoveStab));
-            IndsToChange = IndsNumsStable(RelIndOfStabToChange);
+            RelIndMj2Chg = randperm(numel(NumIndsOfMaj), ceil(numel(NumIndsOfMaj)*PercToRemMaj));
+            IndsToChange = NumIndsOfMaj(RelIndMj2Chg);
 
-            IndsOfStable(IndsToChange) = false;
+            IndsOfMajCl(IndsToChange) = false;
 
-            if size(IndsOfUnstable, 2) >= 2
-                MinorClass = ( min(sum(IndsOfUnstable,1)) == sum(IndsOfUnstable,1) );
+            if size(IndsOfMinCl, 2) >= 2
+                MinorClass = ( min(sum(IndsOfMinCl,1)) == sum(IndsOfMinCl,1) );
 
-                IndsOfUnstableToRes = IndsOfUnstable(:, not(MinorClass));
-                IndsOfUnstableMinor = IndsOfUnstable(:, MinorClass);
-                if size(IndsOfUnstableMinor, 2) >= 2
+                IndsOfMin2Res = IndsOfMinCl(:, not(MinorClass));
+                IndsOfAbsMin  = IndsOfMinCl(:, MinorClass);
+                if size(IndsOfAbsMin, 2) >= 2
                     error('Minor class should be just one!')
                 end
 
-                RatioBefResUnst  = sum(IndsOfUnstableMinor,1)./sum(IndsOfUnstableToRes,1);
-                PercToRemoveUnst = 1-RatioBefResUnst; % Think about this formula please!
-                for i2 = 1:length(PercToRemoveUnst)
-                    IndsNumsUnstToResTemp = find(IndsOfUnstableToRes(:,i2));
+                RatBefResMin = sum(IndsOfAbsMin,1)./sum(IndsOfMin2Res,1);
+                PercToRemMin = 1-RatBefResMin; % Think about this formula please!
+                for i2 = 1:length(PercToRemMin)
+                    NumIndsMin2ResTmp = find(IndsOfMin2Res(:,i2));
 
-                    RelIndOfUnstToChngTmp = randperm(numel(IndsNumsUnstToResTemp), ceil(numel(IndsNumsUnstToResTemp)*PercToRemoveUnst(i2)));
-                    IndsToChngUnstTmp     = IndsNumsUnstToResTemp(RelIndOfUnstToChngTmp);
+                    RelIndOfMin2ChTmp = randperm(numel(NumIndsMin2ResTmp), ceil(numel(NumIndsMin2ResTmp)*PercToRemMin(i2)));
+                    IndsToChngMinTmp  = NumIndsMin2ResTmp(RelIndOfMin2ChTmp);
         
-                    IndsOfUnstableToRes(IndsToChngUnstTmp, i2) = false;
+                    IndsOfMin2Res(IndsToChngMinTmp, i2) = false;
                 end
 
-                IndsOfUnstable(:, not(MinorClass)) = IndsOfUnstableToRes;
-                if not(isequal(IndsOfUnstable(:,MinorClass), IndsOfUnstableMinor))
+                IndsOfMinCl(:, not(MinorClass)) = IndsOfMin2Res;
+                if not(isequal(IndsOfMinCl(:,MinorClass), IndsOfAbsMin))
                     error('Indices of minor class do not match!')
                 end
             end
 
-            [NumIndsUnstable, ~]  = find(IndsOfUnstable);
-            RelIndsMLDatasetToUse = [NumIndsUnstable; find(IndsOfStable)];
+            [NumIndsOfMin, ~]  = find(IndsOfMinCl);
+            RelIndsMLDsetToUse = [NumIndsOfMin; find(IndsOfMajCl)];
 
-            RatioAfterResampling = sum(IndsOfUnstable,1)./sum(IndsOfStable);
-            if any((any(IndsOfUnstable & IndsOfStable))) || any((round(RatioToImpose, 1) ~= round(RatioAfterResampling, 1)))
+            RatioAfterRes = sum(IndsOfMinCl,1)./sum(IndsOfMajCl);
+            if any((any(IndsOfMinCl & IndsOfMajCl))) || any((round(RatioToImpose, 1) ~= round(RatioAfterRes, 1)))
                 error('Something went wrong in re-attributing the correct ratio between positive and negative outputs!')
             end
 
         case 'Oversampling'
-            IndsNumsStable   = find(IndsOfStable);
-            IndsNumsUnstable = cell(1, size(IndsOfUnstable, 2));
-            for i2 = 1:size(IndsOfUnstable, 2)
-                IndsNumsUnstable{i2} = find(IndsOfUnstable(:,i2));
+            NumIndsOfMaj = find(IndsOfMajCl);
+            NumIndsOfMin = cell(1, size(IndsOfMinCl, 2));
+            for i2 = 1:size(IndsOfMinCl, 2)
+                NumIndsOfMin{i2} = find(IndsOfMinCl(:,i2));
             end
 
             PercToAdd = RatioToImpose./RatioBeforeResampling; % Think about this formula please!
 
             NumOfReps = fix(PercToAdd);
 
-            IndsUnstRepeated = cell(1, size(IndsOfUnstable, 2));
-            for i2 = 1:size(IndsOfUnstable, 2)
-                RelIndOfUnstToAddTemp = randperm(numel(IndsNumsUnstable{i2}), ceil(numel(IndsNumsUnstable{i2})*(PercToAdd(i2)-NumOfReps(i2))));
-                IndsUnstRepeated{i2}  = [repmat(IndsNumsUnstable{i2}, NumOfReps(i2), 1); IndsNumsUnstable{i2}(RelIndOfUnstToAddTemp)];
+            IndsMinRep = cell(1, size(IndsOfMinCl, 2));
+            for i2 = 1:size(IndsOfMinCl, 2)
+                RelIndMin2AddTmp = randperm(numel(NumIndsOfMin{i2}), ceil(numel(NumIndsOfMin{i2})*(PercToAdd(i2)-NumOfReps(i2))));
+                IndsMinRep{i2}   = [repmat(NumIndsOfMin{i2}, NumOfReps(i2), 1); NumIndsOfMin{i2}(RelIndMin2AddTmp)];
             end
 
-            IndsUnstableRepeated  = cat(1, IndsUnstRepeated{:});
-            RelIndsMLDatasetToUse = [IndsUnstableRepeated; IndsNumsStable];
+            IndsMinRepCat      = cat(1, IndsMinRep{:});
+            RelIndsMLDsetToUse = [IndsMinRepCat; NumIndsOfMaj];
 
-            RatioAfterResampling = cellfun(@numel, IndsUnstRepeated)./numel(IndsNumsStable);
-            CheckResampling = (not(isempty(intersect(IndsUnstableRepeated,IndsNumsStable)))) || ...
-                               any((round(RatioToImpose, 1) ~= round(RatioAfterResampling, 1))) || ...
-                               (numel(IndsUnstableRepeated) <= numel(cat(1, IndsNumsUnstable{:})));
+            RatioAfterRes   = cellfun(@numel, IndsMinRep) ./ numel(NumIndsOfMaj);
+            CheckResampling = (not(isempty(intersect(IndsMinRepCat, NumIndsOfMaj)))) || ...
+                              any((round(RatioToImpose, 1) ~= round(RatioAfterRes, 1))) || ...
+                              (numel(IndsMinRepCat) <= numel(cat(1, NumIndsOfMin{:})));
             if CheckResampling
                 error('Something went wrong in re-attributing the correct ratio between positive and negative outputs!')
             end
 
         case 'SMOTE'
             i2 = 1;
-            IndsOfClassesNew     = (ExpctdOutsToUse{i1} == unique(ExpctdOutsToUse{i1})');
-            RatioAfterResampling = RatioBeforeResampling;
-            while any(round(RatioAfterResampling, 1) < round(RatioToImpose, 1)) && (i2 <= 1000)
-                PercToAdd = RatioToImpose./RatioAfterResampling; % Think about this formula please!
+            IndsOfClssNew = (ExpctdOutsToUse{i1} == unique(ExpctdOutsToUse{i1})');
+            RatioAfterRes = RatioBeforeResampling;
+            while any(round(RatioAfterRes, 1) < round(RatioToImpose, 1)) && (i2 <= 1000)
+                PercToAdd = RatioToImpose ./ RatioAfterRes; % Think about this formula please!
     
-                NumObsCl = sum(IndsOfClassesNew,1);
+                NumObsCl = sum(IndsOfClssNew,1);
                 NNeighb  = NumObsCl-1; % min(NumObsCl-1, 5);
                 ObsToAdd = min([0, max(PercToAdd-1, 0)], NNeighb);
     
@@ -163,17 +173,17 @@ for i1 = 1:length(ExpctdOutsToUse)
                         DatasetFeatsAddedArr, ExpectedOutputsAddedArr] = smote(table2array(DtsetFeatsToUse{i1}), ObsToAdd, ...
                                                                                     NNeighb, 'Class',ExpctdOutsToUse{i1});
     
-                TableSyntDatesToAdd = array2table([NaT, NaT], 'VariableNames',DtsetDatesToUse{i1}.Properties.VariableNames);
-                DtsetDatesOut{i1} = [DtsetDatesToUse{i1}; repmat(TableSyntDatesToAdd, length(ExpectedOutputsAddedArr), 1)];
+                TblSyntDates2Add  = array2table([NaT, NaT], 'VariableNames',DtsetDatesToUse{i1}.Properties.VariableNames);
+                DtsetDatesOut{i1} = [DtsetDatesToUse{i1}; repmat(TblSyntDates2Add, length(ExpectedOutputsAddedArr), 1)];
                 DtsetFeatsOut{i1} = array2table(DatasetEvsFeatsArr, 'VariableNames',DtsetFeatsToUse{i1}.Properties.VariableNames);
-                DatasetFeatsAdded   = array2table(DatasetFeatsAddedArr, 'VariableNames',DtsetFeatsToUse{i1}.Properties.VariableNames);
+                DatasetFeatsAdded = array2table(DatasetFeatsAddedArr, 'VariableNames',DtsetFeatsToUse{i1}.Properties.VariableNames);
     
-                IndsOfClassesNew  = (ExpctdOutsToUse{i1} == unique(ExpctdOutsToUse{i1})');
-                ColumnOfStableNew = (unique(ExpctdOutsToUse{i1})' == 0);
-                IndsOfUnstableNew = IndsOfClassesNew(:,not(ColumnOfStableNew));
-                IndsOfStableNew   = IndsOfClassesNew(:,ColumnOfStableNew);
+                IndsOfClssNew = (ExpctdOutsToUse{i1} == unique(ExpctdOutsToUse{i1})');
+                ColnOfMajNew  = (unique(ExpctdOutsToUse{i1})' == 0);
+                IndsOfMinNew  = IndsOfClssNew(:,not(ColnOfMajNew));
+                IndsOfMajNew  = IndsOfClssNew(:,ColnOfMajNew);
             
-                RatioAfterResampling = sum(IndsOfUnstableNew,1)./sum(IndsOfStableNew);
+                RatioAfterRes = sum(IndsOfMinNew,1)./sum(IndsOfMajNew);
                 i2 = i2 + 1;
             end
 
@@ -183,7 +193,7 @@ for i1 = 1:length(ExpctdOutsToUse)
                 warning(['Not all new observations were synthesized, just ',num2str(PercSynth*100),' %!'])
             end
 
-            if any((round(RatioToImpose, 1) ~= round(RatioAfterResampling, 1))) || (i2 >= 1000)
+            if any((round(RatioToImpose, 1) ~= round(RatioAfterRes, 1))) || (i2 >= 1000)
                 error('Something went wrong in re-attributing the correct ratio between positive and negative outputs!')
             end
 
@@ -192,9 +202,9 @@ for i1 = 1:length(ExpctdOutsToUse)
     end
 
     if not(strcmp(Technique,'SMOTE'))
-        DtsetDatesOut{i1} = DtsetDatesToUse{i1}(RelIndsMLDatasetToUse,:);
-        DtsetFeatsOut{i1} = DtsetFeatsToUse{i1}(RelIndsMLDatasetToUse,:);
-        ExpOutsOut{i1}    = ExpctdOutsToUse{i1}(RelIndsMLDatasetToUse);
+        DtsetDatesOut{i1} = DtsetDatesToUse{i1}(RelIndsMLDsetToUse,:);
+        DtsetFeatsOut{i1} = DtsetFeatsToUse{i1}(RelIndsMLDsetToUse,:);
+        ExpOutsOut{i1}    = ExpctdOutsToUse{i1}(RelIndsMLDsetToUse);
     end
 end
 

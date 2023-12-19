@@ -27,7 +27,10 @@ for i1 = 1:length(VariablesToSave)
     eval(strcat(VariablesToSave{i1}, " = evalin('caller',VariablesToSave{i1});"));
 end
 
-[~, Filename, ~] = fileparts(Path);
+[FilePath, Filename, ~] = fileparts(Path);
+if not(exist(FilePath, 'dir'))
+    mkdir(FilePath)
+end
 
 %% Core
 try
