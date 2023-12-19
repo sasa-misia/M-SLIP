@@ -1,50 +1,48 @@
-% Fig = uifigure; % Remember to comment if in app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Reading data', ...
                                  'Message','Reading files...', 'Cancelable','off', ...
                                  'Indeterminate','on');
 drawnow
 
 %% File loading...
-cd(fold_var)
-load('MorphologyParameters.mat',  'AspectAngleAll','ElevationAll','SlopeAll')
-load('SoilParameters.mat',        'AAll','CohesionAll','KtAll','PhiAll','nAll')
-load('VegetationParameters.mat',  'BetaStarAll','RootCohesionAll')
-load('GridCoordinates.mat',       'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
-load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','SubArea','IndDefInfoDet')
-load('UserSoil_Answers.mat',      'AnswerAttributionSoilParameter')
-load('UserVeg_Answers.mat',       'VegAttribution')
+sl = filesep;
+
+load([fold_var,sl,'MorphologyParameters.mat'],  'AspectAngleAll','ElevationAll','SlopeAll')
+load([fold_var,sl,'SoilParameters.mat'],        'AAll','CohesionAll','KtAll','PhiAll','nAll')
+load([fold_var,sl,'VegetationParameters.mat'],  'BetaStarAll','RootCohesionAll')
+load([fold_var,sl,'GridCoordinates.mat'],       'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','SubArea','IndDefInfoDet')
+load([fold_var,sl,'UserSoil_Answers.mat'],      'AnswerAttributionSoilParameter')
+load([fold_var,sl,'UserVeg_Answers.mat'],       'VegAttribution')
 
 if SubArea
-    load('InfoDetectedSoilSlips.mat', 'InfoPointsNearDetectedSoilSlips','InfoDetectedSoilSlipsAverage')
+    load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoPointsNearDetectedSoilSlips','InfoDetectedSoilSlipsAverage')
 end
 
 AnswerAttributionVegetationParameter = -1;
 if (VegAttribution ~= 0)
-    load('UserVeg_Answers.mat', 'AnswerAttributionVegetationParameter')
+    load([fold_var,sl,'UserVeg_Answers.mat'], 'AnswerAttributionVegetationParameter')
 end
 
 if all(AnswerAttributionVegetationParameter ~= [-1, 0])
-    load('VegPolygonsStudyArea.mat', 'VegetationAllUnique','VegPolygonsStudyArea')
+    load([fold_var,sl,'VegPolygonsStudyArea.mat'], 'VegetationAllUnique','VegPolygonsStudyArea')
 end
 
 if AnswerAttributionSoilParameter ~= 0
-    load('LithoPolygonsStudyArea.mat', 'LithoAllUnique','LithoPolygonsStudyArea')
+    load([fold_var,sl,'LithoPolygonsStudyArea.mat'], 'LithoAllUnique','LithoPolygonsStudyArea')
 end
 
 AnswerLandUseAttribution = 0;
-if exist('LandUsesVariables.mat', 'file')
-    load('LandUsesVariables.mat', 'AllLandUnique','LandUsePolygonsStudyArea','FileNameLandUsesAssociation')
+if exist([fold_var,sl,'LandUsesVariables.mat'], 'file')
+    load([fold_var,sl,'LandUsesVariables.mat'], 'AllLandUnique','LandUsePolygonsStudyArea','FileNameLandUsesAssociation')
 
-    cd(fold_user)
-    Sheet_Ass = readcell(FileNameLandUsesAssociation,'Sheet','Association');
-    AllLandUniqueAbbr = Sheet_Ass(2:end,2)';
-    EmptyCells = any(cellfun(@(x) all(ismissing(x)), AllLandUniqueAbbr));
-    if EmptyCells; AllLandUniqueAbbr = AllLandUnique; end
-    cd(fold_var)
+    Sheet_Ass   = readcell([fold_user,sl,FileNameLandUsesAssociation],'Sheet','Association');
+    AllLndUnAbb = Sheet_Ass(2:end,2)';
+    EmptyCells  = any(cellfun(@(x) all(ismissing(x)), AllLndUnAbb));
+    if EmptyCells; AllLndUnAbb = AllLandUnique; end
 
     AnswerLandUseAttribution = 1;
 end
-cd(fold0)
 
 %% Extraction of points in Study Area and Detected points
 ProgressBar.Message = 'Data extraction...';
@@ -89,7 +87,7 @@ AStudy              = cellfun(@(x,y) x(y), AAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
 clear('AAll')
 
-betastarStudy       = cellfun(@(x,y) x(y), BetaStarAll, ...
+BetaStarStudy       = cellfun(@(x,y) x(y), BetaStarAll, ...
                                            IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
 clear('BetaStarAll')
 
@@ -151,7 +149,7 @@ for i1 = 1:length(InfoDetectedSoilSlips)
             end
         end
     
-        InfoDetectedSoilSlips{i1}{i2,17} = betastarStudy{DTMIncludingPoint(i2)}(NearestPoint(i2));
+        InfoDetectedSoilSlips{i1}{i2,17} = BetaStarStudy{DTMIncludingPoint(i2)}(NearestPoint(i2));
         InfoDetectedSoilSlips{i1}{i2,18} = RootStudy{DTMIncludingPoint(i2)}(NearestPoint(i2));
     
         % Intersection of detected point with land use
@@ -164,7 +162,7 @@ for i1 = 1:length(InfoDetectedSoilSlips)
             if isempty(LUPolygon)
                 InfoDetectedSoilSlips{i1}{i2,19} = 'Land Use not specified';
             else
-                InfoDetectedSoilSlips{i1}{i2,19} = AllLandUniqueAbbr{LUPolygon};
+                InfoDetectedSoilSlips{i1}{i2,19} = AllLndUnAbb{LUPolygon};
             end
         end
     
@@ -224,7 +222,7 @@ for i1 = 1:length(InfoDetectedSoilSlips)
                     end
                 end
         
-                InfoPointsNearDetectedSoilSlips{i1}{i2,4}(RowWithDTMNP,15) = num2cell(betastarStudy{DTMNP(i3)}(NearestPoints));
+                InfoPointsNearDetectedSoilSlips{i1}{i2,4}(RowWithDTMNP,15) = num2cell(BetaStarStudy{DTMNP(i3)}(NearestPoints));
                 InfoPointsNearDetectedSoilSlips{i1}{i2,4}(RowWithDTMNP,16) = num2cell(RootStudy{DTMNP(i3)}(NearestPoints));
         
                 % Intersection of detected point with land use
@@ -240,7 +238,7 @@ for i1 = 1:length(InfoDetectedSoilSlips)
                         if isempty(LUPolygonsInd)
                             InfoPointsNearDetectedSoilSlips{i1}{i2,4}(RowWithDTMNP(i4),17) = cellstr('Land Use not specified');
                         else
-                            InfoPointsNearDetectedSoilSlips{i1}{i2,4}(RowWithDTMNP(i4),17) = AllLandUniqueAbbr(LUPolygonsInd);
+                            InfoPointsNearDetectedSoilSlips{i1}{i2,4}(RowWithDTMNP(i4),17) = AllLndUnAbb(LUPolygonsInd);
                         end
                     end
                 end
@@ -327,8 +325,7 @@ end
 
 %% Saving...
 ProgressBar.Message = 'Saving...';
-cd(fold_var)
-save('InfoDetectedSoilSlips.mat', VariablesInfoDet{:}, '-append')
-cd(fold0)
+
+save([fold_var,sl,'InfoDetectedSoilSlips.mat'], VariablesInfoDet{:}, '-append')
 
 close(ProgressBar) % Fig instead of ProgressBar if in standalone version

@@ -10,10 +10,7 @@ ReadShapeStudyArea = shaperead(FileName_StudyArea);
 ShapeInfoStudyArea = shapeinfo(FileName_StudyArea);
 
 if isempty(ShapeInfoStudyArea.CoordinateReferenceSystem)
-    EPSG = str2double(inputdlg({["Set Shapefile EPSG"
-                                 "For Example:"
-                                 "Sicily -> 32633"
-                                 "Emilia Romagna -> 25832"]}, '', 1, {'32633'}));
+    EPSG = str2double(inputdlg2({'Set Shapefile EPSG (Sicily -> 32633, Emilia Romagna -> 25832)'}, 'DefInp', {'32633'}));
     ShapeInfoStudyArea.CoordinateReferenceSystem = projcrs(EPSG);
 end
 

@@ -20,10 +20,8 @@ if OriginallyProjected && SameCRSForAll
 
     ProjCRS = OriginalProjCRS;
 else
-    EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate flow)"
-                                 "For Example:"
-                                 "Sicily -> 32633"
-                                 "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
+    EPSG    = str2double(inputdlg2({['DTM EPSG (Sicily -> 32633, ' ...
+                                     'Emilia Romagna -> 25832):']}, 'DefInp',{'25832'}));
     ProjCRS = projcrs(EPSG);
 end
 

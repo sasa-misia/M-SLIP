@@ -218,16 +218,12 @@ CombsStudyAreaUnique = cat(1, CombsStudyAreaUnique{:});
 CombsStudyAreaUnique = unique(CombsStudyAreaUnique);
 
 if OriginallyProjected && SameCRSForAll
-    cd(fold_var)
-    load('MorphologyParameters.mat', 'OriginalProjCRS')
-    cd(fold0)
+    load([fold_var,sl,'MorphologyParameters.mat'], 'OriginalProjCRS')
 
     ProjCRS = OriginalProjCRS;
 else
-    EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate clusters)"
-                                 "For Example:"
-                                 "Sicily -> 32633"
-                                 "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
+    EPSG    = str2double(inputdlg2({['DTM EPSG (Sicily -> 32633, ' ...
+                                     'Emilia Romagna -> 25832):']}, 'DefInp',{'25832'}));
     ProjCRS = projcrs(EPSG);
 end
 
@@ -253,9 +249,9 @@ for i1 = 1:length(CombsStudyAreaUnique)
     IndPointsWithComb = find(CombsStudyAreaUnique(i1) == CombsTotCat); % Indices referred to the concatenate vector!
     
     dLat  = abs(yLatAll{1}(1)-yLatAll{1}(4)); % 4 points of distance!
-    dYmin = deg2rad(dLat)*earthRadius; % This will be the radius constructed around every point to create clusters. +1 for an extra boundary
+    MaxdY = deg2rad(dLat)*earthRadius; % This will be the radius constructed around every point to create clusters. +1 for an extra boundary
     MinPointsForEachCluster = 1; % CHOICE TO USER!
-    ClustersCombs = dbscan([xPlanTotCat(IndPointsWithComb), yPlanTotCat(IndPointsWithComb)], dYmin, MinPointsForEachCluster); % Coordinates, min dist, min n. of point for each core point
+    ClustersCombs = dbscan([xPlanTotCat(IndPointsWithComb), yPlanTotCat(IndPointsWithComb)], MaxdY, MinPointsForEachCluster); % Coordinates, max dist each point, min n. of point for each core point
     
     CombsTotCat(IndPointsWithComb) = strcat(CombsTotCat(IndPointsWithComb), '_C', string(ClustersCombs));
 end
