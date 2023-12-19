@@ -1,98 +1,115 @@
-%% File loading
-cd(fold_var)
-load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips')
-load('GeneralRainfall.mat', 'RainfallDates');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
+                                 'Cancelable','off', 'Indeterminate','on');
+drawnow
 
-if exist('PlotSettings.mat', 'file')
-    load('PlotSettings.mat')
-    SelectedFont = Font;
+%% File loading
+sl = filesep;
+
+load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
+load([fold_var,sl,'GeneralRainfall.mat'],       'RecDatesEndCommon');
+
+InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
+
+if exist([fold_var,sl,'PlotSettings.mat'], 'file')
+    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
+    SelectedFont     = Font;
     SelectedFontSize = FontSize;
 else
-    SelectedFont = 'Times New Roman';
+    SelectedFont     = 'Times New Roman';
     SelectedFontSize = 8;
-    LegendPosition = 'best';
+    LegendPosition   = 'best';
 end
 
+%% Options
+ProgressBar.Message = 'Options...';
+
+ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
+                           'Show Plots', 'Options',{'Yes','No'}, 'DefaultOption',2);
+if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
+
 %% Data extraction and manipulation
-Municipalities = InfoDetectedSoilSlips(:,1);
-Locations = InfoDetectedSoilSlips(:,2);
-DTMIncludingPoint = [InfoDetectedSoilSlips{:,3}]';
-NearestPoint = [InfoDetectedSoilSlips{:,4}]';
+ProgressBar.Message = 'Data extraction...';
 
-cd(fold_res_fs)
-foldFS = uigetdir('open');
+Municipalities    = InfoDetectedSoilSlipsToUse(:,1);
+Locations         = InfoDetectedSoilSlipsToUse(:,2);
+DTMIncludingPoint = [InfoDetectedSoilSlipsToUse{:,3}]';
+NearestPoint      = [InfoDetectedSoilSlipsToUse{:,4}]';
+
+foldFS = uigetdir(fold_res_fs, 'Select the folder');
 [~, namefoldFS] = fileparts(foldFS);
-cd(foldFS)
-load('AnalysisInformation.mat');
 
-ExtremeDates = StabilityAnalysis{3};
-DateRain = RainfallDates(ExtremeDates(1):ExtremeDates(2));
+figure(Fig)
+drawnow
+
+load([foldFS,sl,'AnalysisInformation.mat'], 'StabilityAnalysis');
+
 NumberAnalysis = StabilityAnalysis{1};
-DateAnalysis = StabilityAnalysis{2};
+DateAnalysis   = StabilityAnalysis{2};
+ExtremeDates   = StabilityAnalysis{3};
+DateRain       = RecDatesEndCommon(ExtremeDates(1):ExtremeDates(2));
 
-IndRainAnalysis = zeros(1,length(DateAnalysis));
+IndRainAnalysis = zeros(1, length(DateAnalysis));
 for i1 = 1:length(DateAnalysis)
     IndRainAnalysis(i1) = find( DateRain==DateAnalysis(i1) );
 end
 
-if ~exist('PunctualData.mat', 'file') % If you overwrite Fs matrices and mantain PunctualData in the same folder you'll skip this part and you'll be wrong. Pay attention!
-    load('FS1.mat');
-    Fs = cell(NumberAnalysis, length(FactorSafety));
-    for i1 = 1:NumberAnalysis
-        load( strcat('Fs',num2str(i1)) );
-        Fs(i1,:) = FactorSafety;
-    end
+if exist([foldFS,sl,'PunctualData.mat'], 'file') % Pay attention: If you overwrite Fs files and mantain old PunctualData, you load old one!!!
+    load([foldFS,sl,'PunctualData.mat'], 'Rain','FsAll')
 
-    cd(fold_var)
-    % Fig = uifigure; % Remember to comment this line if is app version
-    ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Loading rainfall data...', 'Indeterminate','on');
-    drawnow
-    load('RainInterpolated.mat');
-    close(ProgressBar) % ProgressBar instead of Fig if on the app version
-    
-    Rain = cell(1, size(DTMIncludingPoint,1)); % Initializing
-    FsAll = cell(size(Fs,1), size(DTMIncludingPoint,1)); % Initializing
-    for i1=1:size(DTMIncludingPoint,1)
-        Rain{i1} = cellfun(@(x) full(x(NearestPoint(i1),1)), ...
-                                    RainInterpolated(:,DTMIncludingPoint(i1)), 'UniformOutput',false); % full is to convert sparse in normal matrix
-
-        FsAll(:,i1) = cellfun(@(x) x(NearestPoint(i1),1), Fs(:,DTMIncludingPoint(i1)), 'UniformOutput',false); % Every column is referred to a different point. Rows indicate hours of the same point
-    end
-
-    cd(foldFS)
-    save('PunctualData.mat', 'Rain','FsAll')
 else
-    load('PunctualData.mat')
+    load([foldFS,sl,'Fs1.mat'], 'FactorSafety');
+
+    FS = cell(NumberAnalysis, length(FactorSafety));
+    for i1 = 1:NumberAnalysis
+        load([foldFS,sl,'Fs',num2str(i1),'.mat'], 'FactorSafety');
+        FS(i1,:) = FactorSafety;
+    end
+
+    ProgressBar.Message = 'Reading rainfall data...';
+    load([fold_var,sl,'RainInterpolated.mat'], 'RainInterpolated');
+
+    ProgressBar.Message = 'Data extraction...';
+    Rain  = cell(1,          size(DTMIncludingPoint,1)); % Initializing
+    FsAll = cell(size(FS,1), size(DTMIncludingPoint,1)); % Initializing
+    for i1 = 1:size(DTMIncludingPoint,1)
+        Rain{i1}    = cellfun(@(x) full(x(NearestPoint(i1),1)), ...
+                                            RainInterpolated(:,DTMIncludingPoint(i1)), 'UniformOutput',false); % full is to convert sparse in normal matrix
+
+        FsAll(:,i1) = cellfun(@(x) x(NearestPoint(i1),1), FS(:,DTMIncludingPoint(i1)), 'UniformOutput',false); % Every column is referred to a different point. Rows indicate hours of the same point
+    end
+
+    save([foldFS,sl,'PunctualData.mat'], 'Rain','FsAll')
 end
 
 % Select location to plot
 MunUnique = unique(Municipalities);
-IndMun = cell(1, length(MunUnique));
+IndMun    = cell(1, length(MunUnique));
 for i1 = 1:length(MunUnique)
     IndMun{i1} = cellfun(@(x) strcmp(x,MunUnique{i1}), Municipalities);
 end
 
-MunUnique = string(MunUnique);
-ChoiceMun = listdlg('PromptString',{'Select Municipality:',''}, 'ListString',MunUnique);
+MunUnique   = string(MunUnique);
+ChoiceMun   = listdlg2({'Select Municipality:'}, MunUnique, 'OutType','NumInd');
 SelectedMun = MunUnique(ChoiceMun);
 
-Locations = strcat(string(Locations), " ", string(1:length(Locations))');
-LocationsOpts = Locations(IndMun{ChoiceMun});
-ChoiceLoc = listdlg('PromptString',{'Select Location:',''}, 'ListString',LocationsOpts);
-SelectedLoc = LocationsOpts(ChoiceLoc);
+Locations   = strcat(string(Locations), " ", string(1:length(Locations))');
+PossLocats  = Locations(IndMun{ChoiceMun});
+SelectedLoc = char(listdlg2({'Select Location:'}, PossLocats));
+IndLocation = strcmp(SelectedLoc, Locations);
 
-Ind = strcmp(SelectedLoc, Locations);
-
-Fs2Plot = [FsAll{:,Ind}];
+Fs2Plot     = [FsAll{:,IndLocation}];
 IndFsUnstab = Fs2Plot < 1;
 
 %% Plot
-filename1 = strcat("FS ",SelectedLoc);
-f1 = figure(1);
+ProgressBar.Message = 'Plotting...';
+
+filename1 = ['FS History for ',SelectedLoc];
+f1  = figure(1);
 ax1 = axes('Parent',f1);
 hold(ax1,'on');
 
-set(f1, 'Name',filename1);
+set(f1, 'Name',filename1, 'Visible','off');
 
 yyaxis left
 line(DateAnalysis, Fs2Plot, 'Marker','^', 'MarkerSize',2, 'Color','k')
@@ -120,12 +137,12 @@ set(gca, ...
     'SortMethod'  , 'depth')
 
 yyaxis right
-bar(DateRain, cell2mat(Rain{Ind}), 'FaceColor',[0 127 255]./255);
+bar(DateRain, cell2mat(Rain{IndLocation}), 'FaceColor',[0 127 255]./255);
 ylabel('{\it h_w} [mm]', 'FontName',SelectedFont)
 
 set(gca, ...
     'XLim'        , [min(DateAnalysis) max(DateAnalysis)], ...
-    'YLim'        , [0 max(cell2mat(Rain{Ind}(IndRainAnalysis)))+2], ...
+    'YLim'        , [0 max(cell2mat(Rain{IndLocation}(IndRainAnalysis)))+2], ...
     'Box'         , 'on', ...
     'TickDir'     , 'in', ...
     'TickLength'  , [.01 .01], ...
@@ -136,11 +153,20 @@ set(gca, ...
     'XColor'      , [0 0 0], ...
     'YColor'      , [0 127 255]./255, ...
     'XTick'       , DateAnalysis(1):hours(6):DateAnalysis(end), ...
-    'YTick'       , 0:1:max(cell2mat(Rain{Ind}(IndRainAnalysis)))+2, ...
+    'YTick'       , 0:1:max(cell2mat(Rain{IndLocation}(IndRainAnalysis)))+2, ...
     'FontSize'    , SelectedFontSize, ...
     'FontName'    , SelectedFont,...
     'LineWidth'   , .5)
 
 title(SelectedLoc, SelectedMun, 'FontName',SelectedFont, 'FontSize',SelectedFontSize);
 
-exportgraphics(f1, strcat(filename1,'.png'), 'Resolution',600);
+%% Saving...
+ProgressBar.Message = 'Saving...';
+exportgraphics(f1, [fold_fig,sl,namefoldFS,sl,filename1,'.png'], 'Resolution',600);
+
+%% Show Fig
+if ShowPlots
+    set(f1, 'Visible','on');
+else
+    close(f1)
+end

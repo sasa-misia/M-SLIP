@@ -5,42 +5,39 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Reading data', ...
 drawnow
 
 %% Loading Files
-cd(fold_var)
-load('StudyAreaVariables.mat')
-% load('GridCoordinates.mat')
-load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','InfoPointsNearDetectedSoilSlips','IndDefInfoDet')
+sl = filesep;
+
+load([fold_var,sl,'StudyAreaVariables.mat'],    'PolWindow','StudyAreaPolygon')
+load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','InfoPointsNearDetectedSoilSlips','IndDefInfoDet')
 InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
 InfoPointsNearDetectedSoilSlipsToUse = InfoPointsNearDetectedSoilSlips{IndDefInfoDet};
 
-if exist('PlotSettings.mat', 'file')
-    load('PlotSettings.mat')
+if exist([fold_var,sl,'PlotSettings.mat'], 'file')
+    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
     SelectedFont = Font;
     SelectedFontSize = FontSize;
 else
     SelectedFont = 'Times New Roman';
     SelectedFontSize = 8;
 end
-cd(fold0)
 
 %% Raster CTR Selection
 fold_raw_ctr = strcat(fold_raw,sl,'CTR');
 if ~exist(fold_raw_ctr, 'dir'); mkdir(fold_raw_ctr); end
-save('os_folders.mat', 'fold_raw_ctr', '-append');
+save([fold0,sl,'os_folders.mat'], 'fold_raw_ctr', '-append');
 
-cd(fold_raw_ctr)
-Files = sort(string([{dir('*.tif').name}, ...
-                     {dir('*.tfw').name}, ...
-                     {dir('*.asc').name}, ...
-                     {dir('*.ecw').name}, ...
-                     {dir('*.img').name}, ...
-                     {dir('*.txt').name}, ...
-                     {dir('*.png').name}, ...
-                     {dir('*.pgw').name}, ...
-                     {dir('*.jpg').name}, ...
-                     {dir('*.jgw').name}]));
-Choice = listdlg('PromptString',{'Choose a file:',''}, ...
-                  'ListString',Files);
-FileNameCTR = string(Files(Choice));
+Files = sort(string([{dir([fold_raw_ctr,sl,'*.tif']).name}, ...
+                     {dir([fold_raw_ctr,sl,'*.tfw']).name}, ...
+                     {dir([fold_raw_ctr,sl,'*.asc']).name}, ...
+                     {dir([fold_raw_ctr,sl,'*.ecw']).name}, ...
+                     {dir([fold_raw_ctr,sl,'*.img']).name}, ...
+                     {dir([fold_raw_ctr,sl,'*.txt']).name}, ...
+                     {dir([fold_raw_ctr,sl,'*.png']).name}, ...
+                     {dir([fold_raw_ctr,sl,'*.pgw']).name}, ...
+                     {dir([fold_raw_ctr,sl,'*.jpg']).name}, ...
+                     {dir([fold_raw_ctr,sl,'*.jgw']).name}]));
+
+FileNameCTR = string(checkbox2(Files, 'Title',{'Choose a file:'}));
 
 drawnow % Remember to remove if in Standalone version
 figure(Fig) % Remember to remove if in Standalone version
@@ -86,15 +83,21 @@ end
 
 %% Check pre existing CTR
 SkipCTRProcessing = false;
-cd(fold_var)
-if exist('StudyCTR.mat', 'file')
-    load('StudyCTR.mat')
+if exist([fold_var,sl,'StudyCTR.mat'], 'file')
+    load([fold_var,sl,'StudyCTR.mat'], 'GrayScaleCTRStudy','NameFileIntersecated','NameFileTotUsed','xLongCTRStudy','yLatCTRStudy')
     if exist('NameFileTotUsed', 'var') && isequal(NameFileTotUsed, NameFile1)
-        SkipCTRProcessing = true;
-        warning('Pre existing CTR Processing is equal -> CTR Processing will be skipped')
+        SkipCTRProcAns = uiconfirm(Fig, ['Pre existing CTR contain same files, ' ...
+                                         'has anything changed?'], 'Pre existing CTR', ...
+                                         'Options',{'Yes, processing', 'No, skip processing'}, ...
+                                         'DefaultOption',2);
+        if strcmp(SkipCTRProcAns,'No, skip processing')
+            SkipCTRProcessing = true;
+            warning('CTR Processing will be skipped')
+        else
+            SkipCTRProcessing = false;
+        end
     end
 end
-cd(fold0)
 
 %% Raster CTR Processing
 if ~SkipCTRProcessing
@@ -171,10 +174,7 @@ if ~SkipCTRProcessing
         end
     
         if string(R.CoordinateSystemType)=="planar" && isempty(R.ProjectedCRS) && i1==1
-            EPSG = str2double(inputdlg({["Set DTM EPSG"
-                                         "For Example:"
-                                         "Sicily -> 32633"
-                                         "Emilia Romagna -> 25832"]}, '', 1, {'32633'}));
+            EPSG = str2double(inputdlg2({'Set DTM EPSG (Sicily -> 32633, Emilia Romagna -> 25832)'}, 'DefInp',{'32633'}));
             R.ProjectedCRS = projcrs(EPSG);
         elseif string(R.CoordinateSystemType)=="planar" && isempty(R.ProjectedCRS) && i1>1
             R.ProjectedCRS = projcrs(EPSG);
@@ -208,28 +208,25 @@ if ~SkipCTRProcessing
     
         if string(R.CoordinateSystemType)=="planar"
             [yLat,xLong] = projinv(R.ProjectedCRS, X, Y);
-            LatMin = min(yLat, [], "all");
-            LatMax = max(yLat, [], "all");
+            LatMin  = min(yLat,  [], "all");
+            LatMax  = max(yLat,  [], "all");
             LongMin = min(xLong, [], "all");
             LongMax = max(xLong, [], "all");
-            RGeo = georefcells([LatMin,LatMax], [LongMin,LongMax], size(GrayScaleCTR));
+            RGeo    = georefcells([LatMin,LatMax], [LongMin,LongMax], size(GrayScaleCTR));
             RGeo.GeographicCRS = R.ProjectedCRS.GeographicCRS;
         else
             xLong = X;
             yLat  = Y;
             RGeo  = R;
         end
-    
         clear('X', 'Y')
     
         IndexCTRPointsInsideStudyArea = find(inpoly([xLong(:), yLat(:)], pp1, ee1)==1);
     
-        xLongCTRStudy{i1} = xLong(IndexCTRPointsInsideStudyArea);
-        clear('xLong')
-        yLatCTRStudy{i1}  = yLat(IndexCTRPointsInsideStudyArea);
-        clear('yLat')
+        xLongCTRStudy{i1}     = xLong(IndexCTRPointsInsideStudyArea);
+        yLatCTRStudy{i1}      = yLat(IndexCTRPointsInsideStudyArea);
         GrayScaleCTRStudy{i1} = GrayScaleCTR(IndexCTRPointsInsideStudyArea);
-        clear('GrayScaleCTR')
+        clear('xLong', 'yLat', 'GrayScaleCTR')
     end
     
     %% Cleaning of CTR files with no intersection (or only a single point)
@@ -244,9 +241,8 @@ if ~SkipCTRProcessing
     ProgressBar.Indeterminate = 'on';
     ProgressBar.Message = 'Saving created files...';
     
-    cd(fold_var)
     VariablesCTR = {'xLongCTRStudy', 'yLatCTRStudy', 'GrayScaleCTRStudy', 'NameFileIntersecated', 'NameFileTotUsed'};
-    save('StudyCTR.mat', VariablesCTR{:});
+    save([fold_var,sl,'StudyCTR.mat'], VariablesCTR{:});
     cd(fold0)
 end
 
@@ -295,7 +291,7 @@ ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
 if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
 
 %% Figure Creation
-Options = {'Color Comb 1', 'Color Comb 2', 'Color Comb 3', 'Color Comb 4'};
+Options   = {'Color Comb 1', 'Color Comb 2', 'Color Comb 3', 'Color Comb 4'};
 ColorComb = uiconfirm(Fig, 'What color combination do you want to use?', ...
                            'Color combination', 'Options',Options);
 switch ColorComb
@@ -309,14 +305,13 @@ switch ColorComb
         rng(175) % For havenig the same color palet everytime
 end
 
-TransparencyValues = inputdlg({'Indicate transparency of background (from 0 to 1):'
-                               'Indicate transparency of top layer (from 0 to 1):'
-                               'Indicate the size of pixels for background:'},'', 1, ...
-                               {'0.8', '0.5', '0.5'});
+TransparencyValues = inputdlg2({'Transparency of background (0 to 1):', ...
+                                'Transparency of top layer (0 to 1):', ...
+                                'Size of background pixels:'}, 'DefInp',{'0.8', '0.5', '0.5'});
 
-BTrans  = eval(TransparencyValues{1});
-TTrans  = eval(TransparencyValues{2});
-CTRPxSz = eval(TransparencyValues{3});
+BTrans  = str2double(TransparencyValues{1});
+TTrans  = str2double(TransparencyValues{2});
+CTRPxSz = str2double(TransparencyValues{3});
 
 drawnow % Remember to remove if in Standalone version
 figure(Fig) % Remember to remove if in Standalone version
@@ -336,11 +331,10 @@ Classes(IndClassesNS) = [];
 
 PlotColors = arrayfun(@(x) rand(1, 3), Classes, 'UniformOutput',false);
 
-warning('off')
+warning('off') % Keep attention to this line in debugging!
 ProgressBar.Indeterminate = 'off';
-
 for i1 = 1:length(PolWindow)
-    ProgressBar.Message = strcat("Creation of figure n. ",num2str(i1)," of ", num2str(length(PolWindow)));
+    ProgressBar.Message = ['Creation of figure n. ',num2str(i1),' of ', num2str(length(PolWindow))];
     ProgressBar.Value = i1/length(PolWindow);
 
     %% Preliminary operations
@@ -409,10 +403,10 @@ for i1 = 1:length(PolWindow)
     %% Plot Classes
     if SelPlots == 1 || SelPlots == 2
         fig_class = figure('visible','off');
-        ax_ind1 = axes(fig_class);
+        ax_ind1   = axes(fig_class);
         hold(ax_ind1,'on')
 
-        Filename1 = strcat("Classes for point n. ",string(i1));
+        Filename1 = ['Classes for point n. ',num2str(i1)];
         title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
               'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind1)
         subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
@@ -485,8 +479,7 @@ for i1 = 1:length(PolWindow)
         end
     
         % Saving...
-        cd(fold_fig_det)
-        exportgraphics(fig_class, strcat(Filename1,'.png'), 'Resolution',600);
+        exportgraphics(fig_class, [fold_fig_det,sl,Filename1,'.png'], 'Resolution',600);
     
         close(fig_class)
         % cla(ax_ind1,'reset')
@@ -496,10 +489,10 @@ for i1 = 1:length(PolWindow)
     %% Plot Morphology
     if SelPlots == 1 || SelPlots == 3
         fig_morph = figure('visible','off');
-        ax_ind2 = axes(fig_morph);
+        ax_ind2   = axes(fig_morph);
         hold(ax_ind2,'on')
     
-        Filename2 = strcat("Morphology of point n. ",string(i1));
+        Filename2 = ['Morphology of point n. ',num2str(i1)];
         title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
               'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind2)
         subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
@@ -528,7 +521,7 @@ for i1 = 1:length(PolWindow)
         LimitsCol = linspace(min(PointsNearAlt), max(PointsNearAlt), 5);
         LimitsCol = round(LimitsCol, 3, 'significant'); % CHECK FOR LEGEND THAT IS CUTTED AND WITH 3 DECIMAL NUMBERS, WHEN 0 IS PRESENT
         clim([LimitsCol(1), LimitsCol(end)])
-        ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol);
+        ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol, 'TickLabels',string(LimitsCol)); % 'TickLabels',string(LimitsCol) to avoid unnecessary digits!
         ColBarPos = get(ColBar,'Position');
         ColBarPos(1) = ColBarPos(1)*2.8;
         ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
@@ -553,18 +546,17 @@ for i1 = 1:length(PolWindow)
         end
     
         % Saving...
-        cd(fold_fig_det)
-        exportgraphics(fig_morph, strcat(Filename2,'.png'), 'Resolution',600);
+        exportgraphics(fig_morph, [fold_fig_det,sl,Filename2,'.png'], 'Resolution',600);
         close(fig_morph)
     end
 
     %% Plot Slope
     if SelPlots == 1 || SelPlots == 3
         fig_slope = figure('visible','off');
-        ax_ind3 = axes(fig_slope);
+        ax_ind3   = axes(fig_slope);
         hold(ax_ind3,'on')
     
-        Filename3 = strcat("Slope of point n. ",string(i1));
+        Filename3 = ['Slope of point n. ',num2str(i1)];
         title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
               'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind3)
         subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
@@ -594,7 +586,7 @@ for i1 = 1:length(PolWindow)
         LimitsCol = round(LimitsCol, 2, 'significant');
         if LimitsCol(end) >= 5; LimitsCol = uint16(LimitsCol); end
         clim([LimitsCol(1), LimitsCol(end)])
-        ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol);
+        ColBar = colorbar('Location','southoutside', 'Ticks',LimitsCol, 'TickLabels',string(LimitsCol)); % 'TickLabels',string(LimitsCol) to avoid unnecessary digits!
         ColBarPos = get(ColBar,'Position');
         ColBarPos(1) = ColBarPos(1)*2.8;
         ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
@@ -619,18 +611,17 @@ for i1 = 1:length(PolWindow)
         end
     
         % Saving...
-        cd(fold_fig_det)
-        exportgraphics(fig_slope, strcat(Filename3,'.png'), 'Resolution',600);
+        exportgraphics(fig_slope, [fold_fig_det,sl,Filename3,'.png'], 'Resolution',600);
         close(fig_slope)
     end
 
     %% Plot Aspect
     if SelPlots == 1 || SelPlots == 4
         fig_aspect = figure('visible','off');
-        ax_ind4 = axes(fig_aspect);
+        ax_ind4    = axes(fig_aspect);
         hold(ax_ind4,'on')
     
-        Filename4 = strcat("Aspect of point n. ",string(i1));
+        Filename4 = ['Aspect of point n. ',num2str(i1)];
         title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
               'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind4)
         subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
@@ -689,11 +680,10 @@ for i1 = 1:length(PolWindow)
         end
     
         % Saving...
-        cd(fold_fig_det)
-        exportgraphics(fig_aspect, strcat(Filename4,'.png'), 'Resolution',600);
+        exportgraphics(fig_aspect, [fold_fig_det,sl,Filename4,'.png'], 'Resolution',600);
         close(fig_aspect)
     end
 end
-% close(ProgressBar) % Fig instead of ProgressBar if in Standalone Version
+
 cd(fold0)
 warning('on')

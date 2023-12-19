@@ -1,61 +1,71 @@
-%% File loading
-cd(fold_var)
-load('GridCoordinates.mat')
-load('SoilParameters.mat')
-load('StudyAreaVariables.mat')
-load('UserMorph_Answers.mat', 'OrthophotoAnswer')
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
+                                 'Cancelable','off', 'Indeterminate','on');
+drawnow
 
-if exist('PlotSettings.mat', 'file')
-    load('PlotSettings.mat')
-    SelectedFont = Font;
-    SelectedFontSize = FontSize;
+%% File loading
+sl = filesep;
+
+load([fold_var,sl,'GridCoordinates.mat'],    'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
+load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon')
+load([fold_var,sl,'UserMorph_Answers.mat'],  'OrthophotoAnswer')
+
+if exist([fold_var,sl,'PlotSettings.mat'], 'file')
+    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
+    SelFont  = Font;
+    SelFntSz = FontSize;
+    if exist('LegendPosition','var'); LegPos = LegendPosition; end
 else
-    SelectedFont = 'Times New Roman';
-    SelectedFontSize = 8;
-    LegendPosition = 'best';
+    SelFont  = 'Times New Roman';
+    SelFntSz = 8;
+    LegPos   = 'best';
 end
 
 InfoDetectedExist = false;
-if exist('InfoDetectedSoilSlips.mat', 'file')
-    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','IndDefInfoDet')
+if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
+    load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
     InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
     InfoDetectedExist = true;
 end
 
 if OrthophotoAnswer
-    load('Orthophoto.mat')
+    load([fold_var,sl,'Orthophoto.mat'], 'ZOrtho','xLongOrtho','yLatOrtho')
 end
 
 %% For scatter dimension
-[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon, 'RefArea',0.035, 'Extremes',true);
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon, 'Extremes',true); % 'RefArea',0.035
 
-%% Choice of stability type
-cd(fold_res_fs)
+%% Options
+ProgressBar.Message = 'Options...';
 
-foldFS = uigetdir('open');
-[~,namefoldFS] = fileparts(foldFS);
-
-figure(Fig)
-drawnow
-
-cd(foldFS)
-load('AnalysisInformation.mat');
-
-EventsAnalysed = string(StabilityAnalysis{:,2});
-Choice = listdlg('PromptString',{'Select event analysed to plot:',''}, 'ListString',EventsAnalysed);
+foldFS = uigetdir(fold_res_fs, 'Select analysis folder');
+[~, namefoldFS] = fileparts(foldFS);
 
 figure(Fig)
 drawnow
 
-EventFS = datetime(EventsAnalysed(Choice), 'InputFormat','dd/MM/yyyy HH:mm:ss');
+load([foldFS,sl,'AnalysisInformation.mat'], 'StabilityAnalysis');
+
+EvsAnlyz = string(StabilityAnalysis{:,2});
+EventFS  = datetime(listdlg2({'Event to plot:'}, EvsAnlyz), 'InputFormat','dd/MM/yyyy HH:mm:ss');
+
+figure(Fig)
+drawnow
+
 IndexFS = hours(EventFS-StabilityAnalysis{2}(1))+1;
 
-% Fig = uifigure; % Remember to comment if in app version
+ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
+                           'Show Plots', 'Options',{'Yes','No'}, 'DefaultOption',2);
+if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
+
+%% Pre processing
+ProgressBar.Message = 'Pre processing...';
+
 switch StabilityAnalysis{4}(1)
     case "Slip"
-        load(strcat('Fs',num2str(IndexFS),'.mat'));
+        %% SLIP
+        load([foldFS,sl,'Fs',num2str(IndexFS),'.mat'], 'FactorSafety');
 
-        %% Give a value to NaN and plot them
         MaxFS = cellfun(@max, FactorSafety, 'UniformOutput',false);
         MaxFS = max([MaxFS{:}]);
         NaNFactorSafetyROC = cellfun(@(x) isnan(x), FactorSafety, 'UniformOutput',false);
@@ -63,131 +73,127 @@ switch StabilityAnalysis{4}(1)
             FactorSafety{i2}(NaNFactorSafetyROC{i2}) = MaxFS; % NaN Points are excluded and considered as unconditionally stable
         end
 
-        Fs = FactorSafety;
+        FS = FactorSafety;
 
-        InputValues = inputdlg({'Indicate the value above which the point is stable:'
-                                'Indicate the value below which the point is unstable (<= than the previous):'},'',1,...
-                               {'1.5', '1'});
+        InputValues = inputdlg2({'Value above which the point is stable:', ...
+                                 'Value below which the point is unstable:'}, 'DefInp',{'1.5','1'});
 
         figure(Fig)
         drawnow
 
-        MinFSForStability = eval(InputValues{1});
-        MaxFSForInstability = eval(InputValues{2});
-        FsLow = cellfun(@(x) x<=MaxFSForInstability & x>0, Fs, 'UniformOutput',false);
-        FsHigh = cellfun(@(x) x>MinFSForStability, Fs, 'UniformOutput',false);
+        MinFSForStability   = str2double(InputValues{1});
+        MaxFSForInstability = str2double(InputValues{2});
+        FsLow  = cellfun(@(x) x<=MaxFSForInstability & x>0, FS, 'UniformOutput',false);
+        FsHigh = cellfun(@(x) x>MinFSForStability,          FS, 'UniformOutput',false);
 
         Answer = uiconfirm(Fig, 'Do you want the medium class of FS?', ...
                                 'Window type', 'Options',{'Yes','No, only High and Low'});
-        if string(Answer) == "Yes"
-            FsMedium = cellfun(@(x) x>MaxFSForInstability & x<=MinFSForStability, ...
-                               Fs, 'UniformOutput',false);
+        if strcmp(Answer,'Yes')
+            FsMedium = cellfun(@(x) x>MaxFSForInstability & x<=MinFSForStability, FS, 'UniformOutput',false);
         end
 
     case "Machine Learning"
-        load(strcat('FsML',num2str(IndexFS),'.mat'));
-        InstabilityProbabilities = cellfun(@(x) x(:,2), ...
-                                                FactorSafetyMachineLearning(2,:), ...
-                                                'UniformOutput',false);
+        %% ML
+        load([foldFS,sl,'FsML',num2str(IndexFS),'.mat'], 'FactorSafetyMachineLearning');
+        InstabilityProbabilities = cellfun(@(x) x(:,2), FactorSafetyMachineLearning(2,:), 'UniformOutput',false);
 
-        InputValues = inputdlg({'Indicate the probability above which the point is unstable:'
-                                ['Indicate the probability below which the point is stable ' ...
-                                 '(<= than the previous):']}, '', 1, {'0.8', '0.3'});
+        InputValues = inputdlg2({'Prob above which the point is unstable:', ...
+                                 'Prob below which the point is stable:'}, 'DefInp',{'0.8','0.3'});
 
         figure(Fig)
         drawnow
 
-        MinProbForInstability = eval(InputValues{1});
-        MaxProbForStability = eval(InputValues{2});
+        MinProbForInstability = str2double(InputValues{1});
+        MaxProbForStability   = str2double(InputValues{2});
 
-        FsLow = cellfun(@(x) x>=MinProbForInstability, InstabilityProbabilities, 'UniformOutput',false);
-        FsHigh = cellfun(@(x) x<MaxProbForStability, InstabilityProbabilities, 'UniformOutput',false);
+        FsLow  = cellfun(@(x) x>=MinProbForInstability, InstabilityProbabilities, 'UniformOutput',false);
+        FsHigh = cellfun(@(x) x<MaxProbForStability,    InstabilityProbabilities, 'UniformOutput',false);
 
         Answer = uiconfirm(Fig, 'Do you want the medium class of FS?', ...
                                 'Window type', 'Options',{'Yes','No, only High and Low'});
-        if string(Answer) == "Yes"
+        if strcmp(Answer,'Yes')
             FsMedium = cellfun(@(x) x>=MaxProbForStability & x<MinProbForInstability, ...
-                                    InstabilityProbabilities, 'UniformOutput',false);
+                                            InstabilityProbabilities, 'UniformOutput',false);
         end
 
-        case "Hybrid"
-        load(strcat('FsH',num2str(IndexFS),'.mat'));
+    case "Hybrid"
+        %% Hybrid
+        load([foldFS,sl,'FsH',num2str(IndexFS),'.mat'], 'FsHybrid');
         InstabilityProbabilities = FsHybrid;
 
-        InputValues = inputdlg({'Indicate the probability above which the point is unstable:'
-                                ['Indicate the probability below which the point is stable ' ...
-                                 '(<= than the previous):']}, '', 1, {'0.8', '0.3'});
+        InputValues = inputdlg2({'Prob above which the point is unstable:', ...
+                                 'Prob below which the point is stable:'}, 'DefInp',{'0.8','0.3'});
 
         figure(Fig)
         drawnow
 
-        MinProbForInstability = eval(InputValues{1});
-        MaxProbForStability = eval(InputValues{2});
+        MinProbForInstability = str2double(InputValues{1});
+        MaxProbForStability   = str2double(InputValues{2});
 
-        FsLow = cellfun(@(x) x>=MinProbForInstability, InstabilityProbabilities, 'UniformOutput',false);
-        FsHigh = cellfun(@(x) x<MaxProbForStability, InstabilityProbabilities, 'UniformOutput',false);
+        FsLow  = cellfun(@(x) x>=MinProbForInstability, InstabilityProbabilities, 'UniformOutput',false);
+        FsHigh = cellfun(@(x) x<MaxProbForStability,    InstabilityProbabilities, 'UniformOutput',false);
 
         Answer = uiconfirm(Fig, 'Do you want the medium class of FS?', ...
                                 'Window type', 'Options',{'Yes','No, only High and Low'});
-        if string(Answer) == "Yes"
+        if strcmp(Answer,'Yes')
             FsMedium = cellfun(@(x) x>=MaxProbForStability & x<MinProbForInstability, ...
                                     InstabilityProbabilities, 'UniformOutput',false);
         end
 
     otherwise
-        error('PLT 1')
+        error('Analysis type not recognized!')
 end
 
 %% Creation of point included in classes of FS
 NumInstabilityPoints = cellfun(@(x) numel(find(x)), FsLow);
 
-IndexStudyAreaLow = cellfun(@(x,y) x(y), ...
-    IndexDTMPointsInsideStudyArea, FsLow,'UniformOutput',false);
-IndexStudyAreaHigh = cellfun(@(x,y) x(y), ...
-    IndexDTMPointsInsideStudyArea, FsHigh,'UniformOutput',false);
+IndexStudyAreaLow  = cellfun(@(x,y) x(y), IndexDTMPointsInsideStudyArea, FsLow,  'UniformOutput',false);
+IndexStudyAreaHigh = cellfun(@(x,y) x(y), IndexDTMPointsInsideStudyArea, FsHigh, 'UniformOutput',false);
 
-xLongFSLow = cellfun(@(x,y) x(y),xLongAll,IndexStudyAreaLow,'UniformOutput',false);
-xLongFSHigh = cellfun(@(x,y) x(y),xLongAll,IndexStudyAreaHigh,'UniformOutput',false);
+xLongFSLow  = cellfun(@(x,y) x(y), xLongAll, IndexStudyAreaLow,  'UniformOutput',false);
+xLongFSHigh = cellfun(@(x,y) x(y), xLongAll, IndexStudyAreaHigh, 'UniformOutput',false);
 
-yLatFSLow = cellfun(@(x,y) x(y),yLatAll,IndexStudyAreaLow,'UniformOutput',false);
-yLatFSHigh = cellfun(@(x,y) x(y),yLatAll,IndexStudyAreaHigh,'UniformOutput',false);
+yLatFSLow  = cellfun(@(x,y) x(y), yLatAll, IndexStudyAreaLow,  'UniformOutput',false);
+yLatFSHigh = cellfun(@(x,y) x(y), yLatAll, IndexStudyAreaHigh, 'UniformOutput',false);
 
-if exist('FsMedium', 'var') == 1
-    IndexStudyAreaMedium = cellfun(@(x,y) x(y), ...
-        IndexDTMPointsInsideStudyArea, FsMedium,'UniformOutput',false);
+if exist('FsMedium', 'var')
+    IndexStudyAreaMedium = cellfun(@(x,y) x(y), IndexDTMPointsInsideStudyArea, FsMedium, 'UniformOutput',false);
     
-    xLongFSMedium = cellfun(@(x,y) x(y),xLongAll,IndexStudyAreaMedium,'UniformOutput',false);
-    
-    yLatFSMedium = cellfun(@(x,y) x(y),yLatAll,IndexStudyAreaMedium,'UniformOutput',false);
+    xLongFSMedium = cellfun(@(x,y) x(y), xLongAll, IndexStudyAreaMedium,'UniformOutput',false);
+    yLatFSMedium  = cellfun(@(x,y) x(y), yLatAll,  IndexStudyAreaMedium,'UniformOutput',false);
 end
 
 %% Plot of FS figure
-filename1 = string(datetime(EventFS,'Format','dd-MM-yyyy HH-mm'));
-f1 = figure(1);
+ProgressBar.Message = 'Plotting...';
+
+filename1 = char(datetime(EventFS, 'Format','dd-MM-yyyy HH-mm'));
+f1  = figure(1);
 ax1 = axes('Parent',f1);
 hold(ax1,'on');
 
-set(gcf, 'Name',filename1);
+set(f1, 'Name',filename1, 'Visible','off');
+set(ax1, 'visible','off')
 
 if OrthophotoAnswer
-    cellfun(@(x,y) geoshow(x,y), ZOrtho, ROrtho);
+    for i1 = 1:numel(ZOrtho)
+        fastscattergrid(ZOrtho{i1}, xLongOrtho{i1}, yLatOrtho{i1}, 'Mask',StudyAreaPolygon, ...
+                                                                   'Parent',ax1, 'Alpha',.7);
+    end
 end
 
-hSlipLow = cellfun(@(x,y) scatter(x, y, PixelSize, 'Marker','o', ...
-                                        'MarkerFaceColor',[229 81 55]./255, ...
-                                        'MarkerEdgeColor','none'), ...
-                            xLongFSLow, yLatFSLow, 'UniformOutput',false);
+hSlipLow  = cellfun(@(x,y) scatter(x, y, PixelSize, 'Marker','o', ...
+                                                    'MarkerFaceColor',[229 81 55]./255, ...
+                                                    'MarkerEdgeColor','none'), ...
+                                    xLongFSLow, yLatFSLow, 'UniformOutput',false);
 
 hSlipHigh = cellfun(@(x,y) scatter(x, y, PixelSize, 'Marker','o', ...
-                                        'MarkerFaceColor',[189 236 232]./255, ...
-                                        'MarkerEdgeColor','none'), ...
-                            xLongFSHigh, yLatFSHigh, 'UniformOutput',false);
+                                                    'MarkerFaceColor',[189 236 232]./255, ...
+                                                    'MarkerEdgeColor','none'), ...
+                                    xLongFSHigh, yLatFSHigh, 'UniformOutput',false);
 
 if InfoDetectedExist
     hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), ...
-                                InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
-    % cellfun(@(x,y,z) text(x, y+0.001, z, 'FontName',SelectedFont, 'FontSize',4), ...
-    %                   InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6), InfoDetectedSoilSlipsToUse(:,2));
+                                    InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
 end
 
 switch StabilityAnalysis{4}(1)
@@ -223,7 +229,7 @@ if exist('FsMedium', 'var') == 1
               any(~cellfun(@isempty, hSlipMedium)), ...
               any(~cellfun(@isempty, hSlipHigh))];
 
-    AllPlot = {hSlipLow, hSlipMedium, hSlipHigh};
+    AllPlot     = {hSlipLow, hSlipMedium, hSlipHigh};
     AllPlotGood = {hSlipLowGood, hSlipMediumGood, hSlipHighGood};
 
     for i1 = 1:length(hSlipLow)
@@ -243,7 +249,7 @@ plot(StudyAreaPolygon, 'FaceColor','none', 'EdgeColor','k', 'LineWidth',1, 'Line
 
 fig_settings(fold0)
 
-if exist('LegendPosition', 'var')
+if exist('LegPos', 'var')
     AllPlot = AllPlot(IndLeg);
     AllPlotGood = AllPlotGood(IndLeg);
 
@@ -257,29 +263,31 @@ if exist('LegendPosition', 'var')
 
     hleg = legend([LegendObjects{:}], ...
                   LegendCaption, ...
-                  'Location',LegendPosition, ...
-                  'FontName',SelectedFont, ...
-                  'FontSize',SelectedFontSize, ...
+                  'Location',LegPos, ...
+                  'FontName',SelFont, ...
+                  'FontSize',SelFntSz, ...
                   'Box','off');
 
     legend('AutoUpdate','off');
 
-    fig_rescaler(f1, hleg, LegendPosition)
+    fig_rescaler(f1, hleg, LegPos)
 end
-
-set(gca, 'visible','off')
-
-% hSS113=line(Street(:,1),Street(:,2),'LineWidth',1.5,'Color',[239 239 239]./255);
-% hTunnel=line(Street(StartEndPointsTunnel(1):StartEndPointsTunnel(2),1),Street(StartEndPointsTunnel(1):StartEndPointsTunnel(2),2),'LineWidth',4,'Color','c');
 
 % title(strcat("Safety Factors of ",string(EventFS)," event"),...
-%             'FontName',SelectedFont,'FontSize',SelectedFontSize*1.4)
+%             'FontName',SelFont,'FontSize',SelFntSz*1.4)
 
-%% Export png
-cd(fold_fig)
-if ~exist(namefoldFS,'dir')
-    mkdir(namefoldFS)
+%% Saving...
+ProgressBar.Message = 'Saving...';
+
+if ~exist([fold_fig,sl,namefoldFS], 'dir')
+    mkdir([fold_fig,sl,namefoldFS])
 end
-cd(namefoldFS)
-exportgraphics(f1, strcat(filename1,'.png'), 'Resolution',600);
-cd(fold0)
+
+exportgraphics(f1, [fold_fig,sl,namefoldFS,sl,filename1,'.png'], 'Resolution',600);
+
+%% Show Fig
+if ShowPlots
+    set(f1, 'visible','on');
+else
+    close(f1)
+end
