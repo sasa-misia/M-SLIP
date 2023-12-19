@@ -114,6 +114,9 @@ if FigSettgs.Position(4) > 600
     GenPanl.Scrollable    = 'on';
 end
 
+ScreenSize = get(0, 'ScreenSize');
+FigSettgs.Position(1:2) = (ScreenSize(3:4) - FigSettgs.Position(3:4)) ./ 2;
+
 %% Callback functions
 function confirm
     OutVals = cellfun(@(x) x.Value{:}, PnlTA, 'UniformOutput',false);

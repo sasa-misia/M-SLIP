@@ -112,7 +112,15 @@ if FigSettgs.Position(4) > 600
     Panels{end}.Scrollable  = 'on';
 end
 
-FakeTxtArea = uitextarea(Panels{end}, 'Position',[10, 2000, 10, 10]); % This is necessary because with checkbox you do not have the possibility to resize!
+ScreenSize = get(0, 'ScreenSize');
+FigSettgs.Position(1:2) = (ScreenSize(3:4) - FigSettgs.Position(3:4)) ./ 2;
+
+for i1 = 1:numel(Panels)
+    yTFk = Panels{i1}.Position(4);
+    FakeTxtArea = uitextarea(Panels{i1}, 'Position',[10, yTFk, 1, 1], ...
+                                         'BackgroundColor',MenuColor, ...
+                                         'Visible','off'); % This is necessary because with checkbox you do not have the possibility to resize!
+end
 
 %% Callback functions
 function confirm
