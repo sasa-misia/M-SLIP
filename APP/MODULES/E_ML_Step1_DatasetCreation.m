@@ -27,6 +27,8 @@ EventDate        = nan;
 DaysForTS        = nan;
 TimeSensMode     = nan;
 CauseMode        = nan;
+ResampleMode     = nan;
+RatioToImpose    = nan;
 
 %% Pre existing DatasetML check
 [AddToExistingDataset, OldSettings] = deal(false);

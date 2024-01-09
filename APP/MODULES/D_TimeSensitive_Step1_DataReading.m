@@ -1,15 +1,13 @@
-% Fig = uifigure; % Remember to comment if in app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Reading of rainfall files', ...
                                  'Message','Reading file', 'Cancelable','on', ...
                                  'Indeterminate','on');
 drawnow
 
 %% Data import
-cd(fold_var)
-
 StatusPrevAnalysis = 0;
-if exist('AnalysisInformation.mat', 'file')
-    load('AnalysisInformation.mat', 'StabilityAnalysis')
+if exist([fold_var,sl,'AnalysisInformation.mat'], 'file')
+    load([fold_var,sl,'AnalysisInformation.mat'], 'StabilityAnalysis')
     StabilityAnalysisOld = StabilityAnalysis;
     clear StabilityAnalysis
     StatusPrevAnalysis = 1;
@@ -24,15 +22,13 @@ AnswerRainfall = {'AnswerRainfallRec', 'AnswerRainfallFor'};
 if AnswerRainfallRec == 1
     
     %% Import rainfall data record and station
-    cd(fold_raw_rain)
-
-    if isempty({dir('*.xlsx').name})
+    if isempty({dir([fold_raw_rain,sl,'*.xlsx']).name})
         Answer = uiconfirm(Fig, strcat("No excel in ",fold_raw_rain), ...
                            'No file in directory', 'Options','Search file');
         copyindirectory('xlsx', fold_raw_rain, 'mode','multiple')
     end
 
-    Files = {dir('*.xlsx').name};
+    Files = {dir([fold_raw_rain,sl,'*.xlsx']).name};
     ChoiceRec = listdlg('PromptString',{'Choose a file:',''}, 'ListString',Files);
     FileName_Rainfall = string(Files(ChoiceRec)); 
     NameFile = {'FileName_Rainfall'};
@@ -44,11 +40,11 @@ if AnswerRainfallRec == 1
                           'in <Stations table> sheet? (see guidelines)'], ...
                          'Reminder', 'Options','Yes, I have done it!');
     
-    Sheet_Sta = readcell(FileName_Rainfall, 'Sheet','Stations table');
-    Sheet_Rain = readcell(FileName_Rainfall, 'Sheet','Data table');
+    Sheet_Sta  = readcell([fold_raw_rain,sl,FileName_Rainfall], 'Sheet','Stations table');
+    Sheet_Rain = readcell([fold_raw_rain,sl,FileName_Rainfall], 'Sheet','Data table');
 
     xLongSta = [Sheet_Sta{2:end,8}]';
-    yLatSta = [Sheet_Sta{2:end,9}]';
+    yLatSta  = [Sheet_Sta{2:end,9}]';
 
     Stations = string(Sheet_Sta(2:end,1));
     StationsNumber = length(Stations);
@@ -92,10 +88,8 @@ end
     
 %% Rainfall Forecast
 if AnswerRainfallFor == 1
-
     %% Import rainfall forecast data    
-    cd(fold_raw_rain_for)
-    Files = {dir('*.').name, dir('*.grib').name}; % '*.' is for file without extension
+    Files = {dir([fold_raw_rain_for,sl,'*.']).name, dir([fold_raw_rain_for,sl,'*.grib']).name}; % '*.' is for file without extension
     Files(1:2) = [];
     ChoiceForcstFile = listdlg('PromptString',{'Choose a file:',''}, 'ListString',Files);
     FileNameForecast = strcat(fold_raw_rain_for,sl,char(Files(ChoiceForcstFile)));
@@ -106,10 +100,9 @@ if AnswerRainfallFor == 1
     figure(Fig) % Remember to remove if in Standalone version
     
     ForecastData = cell(size(ChoiceForcstFile,2),5);
-    
     for i1 = 1:size(ChoiceForcstFile,2)
         GribData = ncdataset(FileNameForecast(i1,:));  
-        GribLat = double(GribData.data('lat'));
+        GribLat  = double(GribData.data('lat'));
         GribLong = double(GribData.data('lon'));
         [MeshLong, MeshLat] = meshgrid(GribLong, GribLat);
         RainTemp = double(GribData.data('Total_precipitation_surface_1_Hour_DifferenceFromEnd'));
@@ -127,12 +120,12 @@ if AnswerRainfallFor == 1
 
         GridForecastModel = {MeshLong, MeshLat};
     end
+
     VariablesRainfall = [VariablesRainfall, {'ForecastData','GridForecastModel'}];
     NameFile = [NameFile, {'FileNameForecast'}];
 end
 
 %% Analysis type
-cd(fold_var)
 switch AnalysisCase
     case 'SLIP'
         %% SLIP process
@@ -186,7 +179,7 @@ switch AnalysisCase
         if AnswerRainfallFor == 1; ForecastChoice = AnalysisDates(ChoiceEvent); end % Investigate this line
                     
         VariablesAnalysisSLIP = {'StabilityAnalysis', 'AnalysisDateMaxRange', 'StatusPrevAnalysis'};
-        save('AnalysisInformation.mat', VariablesAnalysisSLIP{:});
+        save([fold_var,sl,'AnalysisInformation.mat'], VariablesAnalysisSLIP{:});
 
     case 'Other'
         %% General process
@@ -248,20 +241,27 @@ if AnswerRainfallFor == 1
         SelectedHoursRun(:,1) = cellfun(@(x) 1:x, SelectedHoursRun(:,1), 'UniformOutput',false);
     end
 
-        VariablesInterpolation = [VariablesInterpolation, {'SelectedHoursRun'}];
+    VariablesInterpolation = [VariablesInterpolation, {'SelectedHoursRun'}];
 end
 
 %% Saving
 ProgressBar.Message = strcat("Saving data...");
 drawnow
 
-save('UserTimeSens_Answers.mat', NameFile{:}, 'AnalysisCase', AnswerRainfall{:});
-if exist('RainInterpolated.mat', 'file')
-    save('RainInterpolated.mat', VariablesInterpolation{:}, '-append');
-else
-    save('RainInterpolated.mat', VariablesInterpolation{:}, '-v7.3');
+SaveNewFile = true;
+if exist([fold_var,sl,'RainInterpolated.mat'], 'file')
+    Overwrite = uiconfirm(Fig, 'RainInterpolated.mat file already exist. Overwrite or update?', ...
+                               'Overwrite', 'Options',{'Overwrite', 'Update'});
+    if strcmp(Overwrite,'Update'); SaveNewFile = false; end
 end
-save('GeneralRainfall.mat', VariablesRainfall{:});
 
-cd(fold0)
+if SaveNewFile
+    saveswitch([fold_var,sl,'RainInterpolated.mat'], VariablesInterpolation);
+else
+    save([fold_var,sl,'RainInterpolated.mat'], VariablesInterpolation{:}, '-append');
+end
+
+save([fold_var,sl,'UserTimeSens_Answers.mat'], NameFile{:}, 'AnalysisCase', AnswerRainfall{:});
+save([fold_var,sl,'GeneralRainfall.mat'], VariablesRainfall{:});
+
 % close(Fig) % Remember to comment this line if is app version

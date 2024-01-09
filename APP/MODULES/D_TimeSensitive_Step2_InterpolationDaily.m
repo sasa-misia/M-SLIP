@@ -1,11 +1,11 @@
-% Fig = uifigure; % Remember to comment this line if is app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
                                  'Indeterminate','on');
 drawnow
 
 %% Loading data
 ProgressBar.Message = "Loading data...";
-Options = {'Rainfall', 'Temperature'};
+Options  = {'Rainfall', 'Temperature'};
 DataRead = uiconfirm(Fig, 'What type of data do you want to read?', ...
                           'Reading Data', 'Options',Options, 'DefaultOption',1);
 switch DataRead
@@ -24,29 +24,20 @@ load([fold_var,sl,'GridCoordinates.mat'], 'IndexDTMPointsInsideStudyArea','xLong
 ProgressBar.Message = "Selection od dates...";
 [xLongSta, yLatSta] = deal(Gauges{2}(:,1), Gauges{2}(:,2));
 
-EndDateInd = listdlg('PromptString',{'Select the last date you want to interpolate (suggested to select 00:00):',''}, ...
-                     'ListString',RecDatesEndCommon, 'SelectionMode','single');
-
-drawnow % Remember to remove if in Standalone version
-figure(Fig) % Remember to remove if in Standalone version
-
-MaxDaysPossible = caldays(between(RecDatesEndCommon(1), RecDatesEndCommon(EndDateInd), 'days'));
-
-NumberOfDays = str2double(inputdlg({["How many days do you want to consider? "
-                                     strcat("(Max possible with your dataset:  ",string(MaxDaysPossible)," days")]}, ...
-                                     '', 1, {num2str(MaxDaysPossible)}));
-
-drawnow % Remember to remove if in Standalone version
-figure(Fig) % Remember to remove if in Standalone version
+EndDateInd   = listdlg2({'Last date to interpolate (suggested hour is 00:00):'}, ...
+                        RecDatesEndCommon, 'OutType','NumInd');
+MaxDaysPoss  = caldays(between(RecDatesEndCommon(1), RecDatesEndCommon(EndDateInd), 'days'));
+NumberOfDays = str2double(inputdlg2({['Days to consider? (Max possible: ', ...
+                                      num2str(MaxDaysPoss)]}, 'DefInp',{num2str(MaxDaysPoss)}));
 
 EndDate          = RecDatesEndCommon(EndDateInd);
-StartDate        = RecDatesEndCommon(EndDateInd)-days(NumberOfDays);
-StartDateInd     = find(abs(minutes(RecDatesEndCommon-StartDate)) <= 1);
-dTRecordings     = RecDatesEndCommon(2)-RecDatesEndCommon(1);
+StartDate        = RecDatesEndCommon(EndDateInd) - days(NumberOfDays);
+StartDateInd     = find(abs(minutes(RecDatesEndCommon - StartDate)) <= 1);
+dTRecordings     = RecDatesEndCommon(2) - RecDatesEndCommon(1);
 StepForEntireDay = int64(days(1)/dTRecordings);
 
-if (NumberOfDays > MaxDaysPossible) || (NumberOfDays <= 0)
-    error(strcat('You have to specify a number that go from 1 to ',num2str(MaxDaysPossible)))
+if (NumberOfDays > MaxDaysPoss) || (NumberOfDays <= 0)
+    error(strcat('You have to specify a number that go from 1 to ',num2str(MaxDaysPoss)))
 end
 
 %% Interpolation
@@ -56,6 +47,7 @@ for i1 = 1:NumberOfDays
     switch DataRead
         case 'Rainfall'
             DataDaily(:,i1) = sum(  GeneralData(:, (StartDateInd+StepForEntireDay*(i1-1)+1) : StartDateInd+StepForEntireDay*(i1)), 2 );
+
         case 'Temperature'
             DataDaily(:,i1) = mean( GeneralData(:, (StartDateInd+StepForEntireDay*(i1-1)+1) : StartDateInd+StepForEntireDay*(i1)), 2 );
     end
@@ -89,7 +81,7 @@ DateInterpolationStarts = RecDatesEndCommon(StartDateInd) : days(1) : RecDatesEn
 
 %% Saving...
 ProgressBar.Message = "Saving...";
-cd(fold_var)
+
 eval([ShortName,'Interpolated = DataInterpolated;'])
 clear('DataInterpolated')
 eval([ShortName,'DateInterpolationStarts = DateInterpolationStarts;'])
@@ -100,8 +92,7 @@ clear('DataDaily')
 VariablesInterpolated = {[ShortName,'Interpolated'], [ShortName,'DateInterpolationStarts']};
 VariablesDates        = {[ShortName,'DateInterpolationStarts'], 'StartDate', 'EndDate', [ShortName,'CumDay']};
 
-save([ShortName,'Interpolated.mat']     , VariablesInterpolated{:}, '-v7.3');
-save([ShortName,'DateInterpolation.mat'], VariablesDates{:});
-cd(fold0)
+saveswitch([fold_var,sl,ShortName,'Interpolated.mat'], VariablesInterpolated, '-append');
+save([fold_var,sl,ShortName,'DateInterpolation.mat'],  VariablesDates{:});
 
 close(ProgressBar)

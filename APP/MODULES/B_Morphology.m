@@ -6,8 +6,7 @@ drawnow
 
 %% Import and elaboration of data
 tic
-cd(fold_var)
-load('StudyAreaVariables.mat', 'StudyAreaPolygon','StudyAreaPolygonExcluded','MaxExtremes','MinExtremes')
+load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon','StudyAreaPolygonExcluded','MaxExtremes','MinExtremes')
 
 cd(fold_raw_dtm)
 % Import tif and tfw file names
@@ -23,21 +22,24 @@ end
 
 % Initializing of cells in for loop to increase speed
 [xLongAll, yLatAll, ElevationAll, RasterInfoGeoAll, ...
-    AspectAngleAll, SlopeAll, GradNAll, GradEAll, OriginalProjCRS] = deal(cell(1,length(NameFile1)));
+    AspectAngleAll, SlopeAll, GradNAll, GradEAll, OriginalProjCRS] = deal(cell(1, length(NameFile1)));
 
 ProgressBar.Indeterminate = 'off';
 for i1 = 1:length(NameFile1)
     ProgressBar.Message = strcat("Analyzing DTM n. ",num2str(i1)," of ", num2str(length(NameFile1)));
-    ProgressBar.Value = i1/length(NameFile1);
+    ProgressBar.Value   = i1/length(NameFile1);
 
     switch DTMType
         case 0
-            RasterData = imread(NameFile1(i1));
-            RasterInfo = worldfileread(NameFile2(i1), 'planar', size(RasterData));
+            RasterData = imread([fold_raw_dtm,sl,char(NameFile1(i1))]);
+            RasterInfo = worldfileread([fold_raw_dtm,sl, ...
+                                        char(NameFile2(i1))], 'planar', size(RasterData));
         case 1
-            [RasterData,RasterInfo] = readgeoraster(NameFile1(i1), 'OutputType','native');
+            [RasterData, RasterInfo] = readgeoraster([fold_raw_dtm,sl, ...
+                                                      char(NameFile1(i1))], 'OutputType','native');
         case 2
-            [RasterData,RasterInfo] = readgeoraster(NameFile1(i1), 'OutputType','double');
+            [RasterData, RasterInfo] = readgeoraster([fold_raw_dtm,sl, ...
+                                                      char(NameFile1(i1))], 'OutputType','double');
     end
         
     if strcmp(RasterInfo.CoordinateSystemType,"planar")
@@ -117,12 +119,19 @@ for i1 = 1:length(NameFile1)
     GradEAll{i1} = GradEDTM;
     clear('GradEDTM')
 end
-cd(fold0)
+
+NumEmptyCRS = sum(cellfun(@isempty, OriginalProjCRS));
+if NumEmptyCRS == numel(OriginalProjCRS)
+    clear('OriginalProjCRS');
+elseif NumEmptyCRS < numel(OriginalProjCRS) && NumEmptyCRS > 0
+    error(['Some of your files are in geographic coordinates and others ' ...
+           'are in planar, this feature is not yet supported!'])
+end
 
 OriginallyProjected = false;
 SameCRSForAll       = true;
 if exist('OriginalProjCRS', 'var')
-    OriginallyProjected = true;
+    OriginallyProjected  = true;
     NamesOriginalProjCRS = strings(1, length(OriginalProjCRS));
     for i1 = 1:length(OriginalProjCRS)
         NamesOriginalProjCRS(i1) = OriginalProjCRS{i1}.Name;
@@ -309,14 +318,13 @@ VariablesAnswerVeg = {'VegAttribution'};
 
 %% Saving...
 ProgressBar.Message = 'Saving...';
-cd(fold_var)
-if OrthophotoAnswer; save('Orthophoto.mat', VariablesOrtho{:}); end
-save('UserMorph_Answers.mat', VariablesAnswerMorph{:})
-save('UserVeg_Answers.mat', VariablesAnswerVeg{:})
-save('MorphologyParameters.mat', VariablesMorph{:})
-save('GridCoordinates', VariablesGridCoord{:})
-save('SoilParameters.mat', VariablesSoilPar{:})
-save('VegetationParameters.mat', VariablesVegPar{:})
-cd(fold0)
+
+if OrthophotoAnswer; save([fold_var,sl,'Orthophoto.mat'], VariablesOrtho{:}); end
+save([fold_var,sl,'UserMorph_Answers.mat'   ], VariablesAnswerMorph{:})
+save([fold_var,sl,'UserVeg_Answers.mat'     ], VariablesAnswerVeg{:})
+save([fold_var,sl,'MorphologyParameters.mat'], VariablesMorph{:})
+save([fold_var,sl,'GridCoordinates'         ], VariablesGridCoord{:})
+save([fold_var,sl,'SoilParameters.mat'      ], VariablesSoilPar{:})
+save([fold_var,sl,'VegetationParameters.mat'], VariablesVegPar{:})
 
 close(ProgressBar) % Fig instead of ProgressBar if in Standalone version

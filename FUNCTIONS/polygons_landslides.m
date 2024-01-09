@@ -90,8 +90,7 @@ if length(FilesDetectedSoilSlip) == 1
 elseif exist('IndInfoToUse', 'var')
     InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndInfoToUse};
 else
-    IndInfoToUse = listdlg('PromptString',{'Choose dataset you want to use to define polygons: ',''}, ...
-                           'ListString',FilesDetectedSoilSlip, 'SelectionMode','single');
+    IndInfoToUse = listdlg2({'Choose dataset you want to use to define polygons: '}, FilesDetectedSoilSlip, 'OutType','NumInd');
     InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndInfoToUse};
 end
 
@@ -100,10 +99,8 @@ if OriginallyProjected && SameCRSForAll
     load([fold_var,sl,'MorphologyParameters.mat'], 'OriginalProjCRS')
     ProjCRS = OriginalProjCRS;
 else
-    EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate polygons)"
-                                 "For Example:"
-                                 "Sicily -> 32633"
-                                 "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
+    EPSG    = str2double(inputdlg2({['DTM EPSG for polygon creation (Sicily -> 32633; ' ...
+                                     'Emilia Romagna -> 25832']}, 'DefInp',{'25832'}));
     ProjCRS = projcrs(EPSG);
 end
 
@@ -165,7 +162,7 @@ switch UnstableMode
                 SuggBuffVals(3) = [];
             end
 
-            BufferSizes = str2double(inputdlg(PromptBuffer, '', 1, SuggBuffVals));
+            BufferSizes = str2double(inputdlg2(PromptBuffer, 'DefInp',SuggBuffVals));
         end
       
         switch CreateCoords

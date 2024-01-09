@@ -7,16 +7,17 @@ function [] = merge_dems(PolyMask, LongRasters, LatRasters, ElevRasters, varargi
 % Required arguments:
 %   Arguments MUST be in geographic coordinates!!!
 %   
-%   - PolyMask : is a polyshape containing the mask you want to apply.
+%   - PolyMask : is a polyshape containing the mask you want to apply. It
+%   must be in geographic coordinates!
 %   
 %   - LongRasters : is the cell array containing in each cell the matrix grid 
-%   with longitude values for each pixel..
+%   with longitude values for each pixel...
 %   
 %   - LatRasters : is the cell array containing in each cell the matrix grid 
-%   with latitude values for each pixel..
+%   with latitude values for each pixel...
 %   
 %   - ElevRasters : is the cell array containing in each cell the matrix grid 
-%   with elevation values for each pixel..
+%   with elevation values for each pixel...
 %   
 % Optional arguments:
 %   - 'DEMSize', numerical : is the size, in meters, that identify the

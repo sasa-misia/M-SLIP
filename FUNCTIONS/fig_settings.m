@@ -148,7 +148,7 @@ if any( [varargin{:}] == "scalebar" )
         text(xPoint2-dTxOr*TxNE(1), yPoint1-1.1*dScTx, num2str(DimScalX/2)      , 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1);
         text(xPoint3-dTxOr*TxNE(2), yPoint1-1.1*dScTx, [num2str(DimScalX),' km'], 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1);
     else
-        TxNE = [num2str(1000*DimScalX/2), numel(num2str(1000*DimScalX))];
+        TxNE = [numel(num2str(1000*DimScalX/2)), numel(num2str(1000*DimScalX))];
         text(xPoint2-dTxOr*TxNE(1), yPoint1-1.1*dScTx, num2str(1000*DimScalX/2)     , 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1);
         text(xPoint3-dTxOr*TxNE(2), yPoint1-1.1*dScTx, [num2str(1000*DimScalX),' m'], 'FontName',SelectedFont, 'FontSize',SelectedFontSize, 'LineWidth',1);
     end

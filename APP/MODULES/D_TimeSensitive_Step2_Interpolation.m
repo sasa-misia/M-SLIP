@@ -1,7 +1,6 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig,'Title','Please wait..', ...
-                                'Message','Loading files', 'Cancelable','on', ...
-                                'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig,'Title','Please wait..', 'Message','Loading files', ...
+                                'Cancelable','on', 'Indeterminate','on');
 drawnow
 
 %% Import data
@@ -60,7 +59,7 @@ if AnswerTypeRec == 1
     toc
 
     if ProgressBar.CancelRequested; return; end
-    saveswitch([fold_var,sl,'RainInterpolated.mat'], {'RainInterpolated','IndexInterpolation'});
+    saveswitch([fold_var,sl,'RainInterpolated.mat'], {'RainInterpolated','IndexInterpolation'}, '-append');
     if AnswerTypeFor == 1; save([fold_var,sl,'RainInterpolated.mat'], 'SelectedHoursRun', '-append'); end % To use in order to reintroduce all the old variables
 end
 
@@ -103,7 +102,7 @@ if AnswerTypeFor == 1
 
         % Check for Cancel button press
         if ProgressBar.CancelRequested; break; end
-        saveswitch([fold_var_rain_for,sl,'RainForecastInterpolated',num2str(ForecastRunUnique(i4))], {'RainForecastInterpolated'});
+        saveswitch([fold_var_rain_for,sl,'RainForecastInterpolated',num2str(ForecastRunUnique(i4))], {'RainForecastInterpolated'}, '-append');
     end
 
     if ProgressBar.CancelRequested; return; end

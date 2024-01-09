@@ -1,21 +1,17 @@
-% Fig = uifigure; % Remember to comment this line if is app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
                                  'Message','Reading files...', 'Indeterminate','on');
 drawnow
 
 %% Loading data and initialization of AnalysisInformation
-cd(fold_var)
-load('GridCoordinates.mat',      'xLongAll','yLatAll')
-load('MorphologyParameters.mat', 'ElevationAll','OriginallyProjected','SameCRSForAll')
-cd(fold0)
+load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','yLatAll')
+load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll','OriginallyProjected','SameCRSForAll')
 
 %% Defining different types of curvature
 ProgressBar.Message = "Defining curvature...";
 
 if OriginallyProjected && SameCRSForAll
-    cd(fold_var)
-    load('MorphologyParameters.mat', 'OriginalProjCRS')
-    cd(fold0)
+    load([fold_var,sl,'MorphologyParameters.mat'], 'OriginalProjCRS')
 
     ProjCRS = OriginalProjCRS;
 else
@@ -45,9 +41,8 @@ end
 
 %% Saving...
 ProgressBar.Message = 'Saving...';
-cd(fold_var)
+
 VariablesMorphology = {'MeanCurvatureAll', 'ProfileCurvatureAll', 'PlanformCurvatureAll'}; % Remember that you have calculate even others
-save('MorphologyParameters.mat', VariablesMorphology{:}, '-append');
-cd(fold0)
+save([fold_var,sl,'MorphologyParameters.mat'], VariablesMorphology{:}, '-append');
 
 close(ProgressBar)
