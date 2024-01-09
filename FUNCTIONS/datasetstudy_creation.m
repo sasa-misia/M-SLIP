@@ -338,7 +338,7 @@ if any(contains([FeatsToUse{:}], ["distance", "allfeats"]))
 end
 
 % Vegetation Probabilities
-if any(contains([FeatsToUse{:}], ["veg", "allfeats"]))
+if any(contains([FeatsToUse{:}], ["veg"+wildcardPattern+"prob"+lettersPattern, "allfeats"]))
     load([fold_var,sl,'SoilGrids.mat'], 'VgPrAll')
 
     VegVarNames = VgPrAll.Properties.RowNames;
@@ -366,7 +366,7 @@ if any(contains([FeatsToUse{:}], ["random", "allfeats"]))
     if NormData; SuggRanges = [SuggRanges; RngsToAdd]; end
 end
 
-%% Loading of features (categorical part)
+%% Loading of features (categorical part) -- please work on it to make it a single operation for each class (just from line 409 to 486 in a cycle)
 ProgressBar.Message = 'Dataset: reading categorical part...';
 
 % Reading of excel sheets
@@ -409,44 +409,11 @@ end
 % Sub Soil
 if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
     ProgressBar.Message = "Dataset: associating subsoil classes...";
-    load([fold_var,sl,'LithoPolygonsStudyArea.mat'], 'LithoAllUnique','LithoPolygonsStudyArea')
 
-    [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_SubSoilClasses, 2)));
-    for i1 = 1:length(ColWithRawClasses)
-        ColWithRawClasses(i1) = any(cellfun(@(x) strcmp(string(x), 'Raw data name'), Sheet_SubSoilClasses(:,i1)));
-        ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_SubSoilClasses(:,i1)));
-    end
-
-    [AssSubSoilClass, AssSubSoilNum] = deal(cell(size(LithoAllUnique)));
-    for i1 = 1:length(LithoAllUnique)
-        RowToTake = strcmp(LithoAllUnique{i1}, string(Sheet_SubSoilClasses(:,ColWithRawClasses)));
-        if not(any(RowToTake))
-            warning(['Raw sub soil class "',LithoAllUnique{i1},'" will be skipped (no row found in excel)'])
-            continue
-        end
-        NumOfSubSoilClass = Sheet_SubSoilClasses{RowToTake, ColWithAss};
-        if isempty(NumOfSubSoilClass) || ismissing(NumOfSubSoilClass)
-            warning(['Raw sub soil class "',LithoAllUnique{i1},'" will be skipped (no association)'])
-            continue
-        end
-
-        RowToTake = find(NumOfSubSoilClass==[Sheet_Info_Div.('Sub soil'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
-        if isempty(RowToTake)
-            error(['Raw sub soil class "',LithoAllUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
-        end
-
-        AssSubSoilClass(i1) = Sheet_Info_Div.('Sub soil'){:}(RowToTake, ColWithTitles);
-        AssSubSoilNum(i1)   = Sheet_Info_Div.('Sub soil'){:}(RowToTake, ColWithClassNum);
-    end
-
-    [AssSubSoilClassUnique, IndUniqueSubSoil] = unique(AssSubSoilClass(cellfun(@(x) ischar(x)||isstring(x), AssSubSoilClass)));
-    AssSubSoilNumUnique = AssSubSoilNum(cellfun(@(x) ischar(x)||isstring(x), AssSubSoilClass));
-    AssSubSoilNumUnique = AssSubSoilNumUnique(IndUniqueSubSoil);
-    SubSoilPolygons  = repmat(polyshape, 1, length(AssSubSoilClassUnique));
-    for i1 = 1:length(AssSubSoilClassUnique)
-        ProgressBar.Message = ['Dataset: union of subsoil poly n. ',num2str(i1),' of ',num2str(length(AssSubSoilClassUnique))];
-        IndToUnify = strcmp(AssSubSoilClassUnique{i1}, AssSubSoilClass);
-        SubSoilPolygons(i1) = union(LithoPolygonsStudyArea(IndToUnify));
+    GlbSubSlClss = string(Sheet_Info_Div.('Sub soil'){:}(2:end, ColWithTitles));
+    if numel(unique(GlbSubSlClss)) ~= numel(GlbSubSlClss)
+        error(['Sub Soil classes in Main sheet of association excel ' ...
+               'must be unique! There are repetitions, check it!'])
     end
 
     if CategVars
@@ -455,29 +422,86 @@ if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
         SubSoilStudy = cellfun(@(x) zeros(size(x)),   xLongStudy, 'UniformOutput',false);
     end
 
-    ProgressBar.Message = "Dataset: indexing of subsoil classes...";
-    for i1 = 1:length(SubSoilPolygons)
-        [pp1,ee1] = getnan2([SubSoilPolygons(i1).Vertices; nan, nan]);
-        IndsInsideSubSoilPolygon = cellfun(@(x,y) inpoly([x,y],pp1,ee1), xLongStudy, yLatStudy, 'Uniform',false);
-        for i2 = 1:size(xLongAll,2)
-            if CategVars
-                SubSoilStudy{i2}(IndsInsideSubSoilPolygon{i2}) = string(AssSubSoilClassUnique{i1});
-            else
-                SubSoilStudy{i2}(IndsInsideSubSoilPolygon{i2}) = AssSubSoilNumUnique{i1};
+    if exist([fold_var,sl,'LithoPolygonsStudyArea.mat'], 'file')
+        load([fold_var,sl,'LithoPolygonsStudyArea.mat'], 'LithoAllUnique','LithoPolygonsStudyArea')
+    
+        [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_SubSoilClasses, 2)));
+        for i1 = 1:length(ColWithRawClasses)
+            ColWithRawClasses(i1) = any(cellfun(@(x) strcmp(string(x), 'Raw data name'), Sheet_SubSoilClasses(:,i1)));
+            ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_SubSoilClasses(:,i1)));
+        end
+    
+        [AssSubSoilClass, AssSubSoilNum] = deal(cell(size(LithoAllUnique)));
+        for i1 = 1:length(LithoAllUnique)
+            RowToTakeLoc = strcmp(LithoAllUnique{i1}, string(Sheet_SubSoilClasses(:,ColWithRawClasses)));
+            if not(any(RowToTakeLoc))
+                warning(['Raw sub soil class "',LithoAllUnique{i1},'" will be skipped (no row found in excel)'])
+                continue
+            end
+    
+            NumOfSubSoilClass = Sheet_SubSoilClasses{RowToTakeLoc, ColWithAss};
+            if isempty(NumOfSubSoilClass) || ismissing(NumOfSubSoilClass)
+                warning(['Raw sub soil class "',LithoAllUnique{i1},'" will be skipped (no association)'])
+                continue
+            end
+    
+            RowToTakeGlb = find(NumOfSubSoilClass==[Sheet_Info_Div.('Sub soil'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
+            if isempty(RowToTakeGlb)
+                error(['Raw sub soil class "',LithoAllUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
+            end
+    
+            AssSubSoilClass(i1) = Sheet_Info_Div.('Sub soil'){:}(RowToTakeGlb, ColWithTitles);
+            AssSubSoilNum(i1)   = Sheet_Info_Div.('Sub soil'){:}(RowToTakeGlb, ColWithClassNum);
+        end
+    
+        IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssSubSoilClass);
+    
+        [AssSubSoilClassUnq, IndUniqueSubSoil] = unique(AssSubSoilClass(IndStrPart));
+        if numel(AssSubSoilClassUnq) ~= numel(GlbSubSlClss)
+            warning(['The associated classes of sub soil are less than the ' ...
+                     'possible classes in the Main sheet of the association file.'])
+        end
+    
+        AssSubSoilNumUnq = AssSubSoilNum(IndStrPart);
+        AssSubSoilNumUnq = AssSubSoilNumUnq(IndUniqueSubSoil);
+    
+        SubSoilPolygons = repmat(polyshape, 1, length(AssSubSoilClassUnq));
+        for i1 = 1:length(AssSubSoilClassUnq)
+            ProgressBar.Message = ['Dataset: union of subsoil poly n. ',num2str(i1),' of ',num2str(length(AssSubSoilClassUnq))];
+            IndToUnify = strcmp(AssSubSoilClassUnq{i1}, AssSubSoilClass);
+            SubSoilPolygons(i1) = union(LithoPolygonsStudyArea(IndToUnify));
+        end
+    
+        ProgressBar.Message = "Dataset: indexing of subsoil classes...";
+        for i1 = 1:length(SubSoilPolygons)
+            [pp1,ee1] = getnan2([SubSoilPolygons(i1).Vertices; nan, nan]);
+            IndsInsideSubSoilPolygon = cellfun(@(x,y) inpoly([x,y],pp1,ee1), xLongStudy, yLatStudy, 'Uniform',false);
+            for i2 = 1:size(xLongAll,2)
+                if CategVars
+                    SubSoilStudy{i2}(IndsInsideSubSoilPolygon{i2}) = string(AssSubSoilClassUnq{i1});
+                else
+                    SubSoilStudy{i2}(IndsInsideSubSoilPolygon{i2}) = AssSubSoilNumUnq{i1};
+                end
             end
         end
-    end
+    
+        ClassPolys('SubSoil',{'Polys','ClassNames'}) = {SubSoilPolygons', AssSubSoilClassUnq'};
 
-    ClassPolys('SubSoil',{'Polys','ClassNames'}) = {SubSoilPolygons', AssSubSoilClassUnique'};
+    else
+        warning(['You have selected Sub Soil as a feature but there is no file containing ' ...
+                 'polygons. Zero values or empty string will be generated for this feature!' ...
+                 'It is highly suggested to use this dataset only with pre-trained models.'])
+    end
 
     Prmpt4Fts = [Prmpt4Fts, "Sub Soil Class [-]"];
     if CategVars
-        DatasetFeaturesStudy.SubSoilClass = categorical(cat(1,SubSoilStudy{:}), string(AssSubSoilClassUnique), 'Ordinal',true);
-        FeatsType  = [FeatsType, "Categorical"];
+        DatasetFeaturesStudy.SubSoilClass = categorical(cat(1,SubSoilStudy{:}), ...
+                                                        unique(GlbSubSlClss), 'Ordinal',true); % unique is to order the classes!
+        FeatsType = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
         DatasetFeaturesStudy.SubSoilClass = cat(1,SubSoilStudy{:});
-        FeatsType  = [FeatsType, "Numerical"];
+        FeatsType = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Sub soil'){:}{2:end,ColWithClassNum}])];
     end
 
@@ -487,44 +511,11 @@ end
 % Top Soil
 if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
     ProgressBar.Message = "Dataset: associating topsoil classes...";
-    load([fold_var,sl,'TopSoilPolygonsStudyArea.mat'], 'TopSoilAllUnique','TopSoilPolygonsStudyArea')
 
-    [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_TopSoilClasses, 2)));
-    for i1 = 1:length(ColWithRawClasses)
-        ColWithRawClasses(i1) = any(cellfun(@(x) strcmp(string(x), 'Raw data name'), Sheet_TopSoilClasses(:,i1)));
-        ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_TopSoilClasses(:,i1)));
-    end
-
-    [AssTopSoilClass, AssTopSoilNum] = deal(cell(size(TopSoilAllUnique)));
-    for i1 = 1:length(TopSoilAllUnique)
-        RowToTake = strcmp(TopSoilAllUnique{i1}, string(Sheet_TopSoilClasses(:,ColWithRawClasses)));
-        if not(any(RowToTake))
-            warning(['Raw top soil class "',TopSoilAllUnique{i1},'" will be skipped (no row found in excel)'])
-            continue
-        end
-        NumOfTopSoilClass = Sheet_TopSoilClasses{RowToTake, ColWithAss};
-        if isempty(NumOfTopSoilClass) || ismissing(NumOfTopSoilClass)
-            warning(['Raw top soil class "',TopSoilAllUnique{i1},'" will be skipped (no association)'])
-            continue
-        end
-
-        RowToTake = find(NumOfTopSoilClass==[Sheet_Info_Div.('Top soil'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
-        if isempty(RowToTake)
-            error(['Raw top soil class "',TopSoilAllUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
-        end
-
-        AssTopSoilClass(i1) = Sheet_Info_Div.('Top soil'){:}(RowToTake, ColWithTitles);
-        AssTopSoilNum(i1)   = Sheet_Info_Div.('Top soil'){:}(RowToTake, ColWithClassNum);
-    end
-
-    [AssTopSoilClassUnique, IndUniqueTopSoil] = unique(AssTopSoilClass(cellfun(@(x) ischar(x)||isstring(x), AssTopSoilClass)));
-    AssTopSoilNumUnique = AssTopSoilNum(cellfun(@(x) ischar(x)||isstring(x), AssTopSoilClass));
-    AssTopSoilNumUnique = AssTopSoilNumUnique(IndUniqueTopSoil);
-    TopSoilPolygons  = repmat(polyshape, 1, length(AssTopSoilClassUnique));
-    for i1 = 1:length(AssTopSoilClassUnique)
-        ProgressBar.Message = ['Dataset: union of topsoil poly n. ',num2str(i1),' of ',num2str(length(AssTopSoilClassUnique))];
-        IndToUnify = strcmp(AssTopSoilClassUnique{i1}, AssTopSoilClass);
-        TopSoilPolygons(i1) = union(TopSoilPolygonsStudyArea(IndToUnify));
+    GlbTopSlClss = string(Sheet_Info_Div.('Top soil'){:}(2:end, ColWithTitles));
+    if numel(unique(GlbTopSlClss)) ~= numel(GlbTopSlClss)
+        error(['Top Soil classes in Main sheet of association excel ' ...
+               'must be unique! There are repetitions, check it!'])
     end
 
     if CategVars
@@ -533,29 +524,86 @@ if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
         TopSoilStudy = cellfun(@(x) zeros(size(x)),   xLongStudy, 'UniformOutput',false);
     end
 
-    ProgressBar.Message = "Dataset: indexing of topsoil classes...";
-    for i1 = 1:length(TopSoilPolygons)
-        [pp1,ee1] = getnan2([TopSoilPolygons(i1).Vertices; nan, nan]);
-        IndexInsideTopSoilPolygon = cellfun(@(x,y) inpoly([x,y],pp1,ee1), xLongStudy, yLatStudy, 'Uniform',false);
-        for i2 = 1:size(xLongAll,2)
-            if CategVars
-                TopSoilStudy{i2}(IndexInsideTopSoilPolygon{i2}) = string(AssTopSoilClassUnique{i1});
-            else
-                TopSoilStudy{i2}(IndexInsideTopSoilPolygon{i2}) = AssTopSoilNumUnique{i1};
+    if exist([fold_var,sl,'TopSoilPolygonsStudyArea.mat'], 'file')
+        load([fold_var,sl,'TopSoilPolygonsStudyArea.mat'], 'TopSoilAllUnique','TopSoilPolygonsStudyArea')
+    
+        [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_TopSoilClasses, 2)));
+        for i1 = 1:length(ColWithRawClasses)
+            ColWithRawClasses(i1) = any(cellfun(@(x) strcmp(string(x), 'Raw data name'), Sheet_TopSoilClasses(:,i1)));
+            ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_TopSoilClasses(:,i1)));
+        end
+    
+        [AssTopSoilClass, AssTopSoilNum] = deal(cell(size(TopSoilAllUnique)));
+        for i1 = 1:length(TopSoilAllUnique)
+            RowToTakeLoc = strcmp(TopSoilAllUnique{i1}, string(Sheet_TopSoilClasses(:,ColWithRawClasses)));
+            if not(any(RowToTakeLoc))
+                warning(['Raw top soil class "',TopSoilAllUnique{i1},'" will be skipped (no row found in excel)'])
+                continue
+            end
+
+            NumOfTopSoilClass = Sheet_TopSoilClasses{RowToTakeLoc, ColWithAss};
+            if isempty(NumOfTopSoilClass) || ismissing(NumOfTopSoilClass)
+                warning(['Raw top soil class "',TopSoilAllUnique{i1},'" will be skipped (no association)'])
+                continue
+            end
+    
+            RowToTakeGlb = find(NumOfTopSoilClass==[Sheet_Info_Div.('Top soil'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
+            if isempty(RowToTakeGlb)
+                error(['Raw top soil class "',TopSoilAllUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
+            end
+    
+            AssTopSoilClass(i1) = Sheet_Info_Div.('Top soil'){:}(RowToTakeGlb, ColWithTitles);
+            AssTopSoilNum(i1)   = Sheet_Info_Div.('Top soil'){:}(RowToTakeGlb, ColWithClassNum);
+        end
+    
+        IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssTopSoilClass);
+
+        [AssTopSoilClassUnq, IndUniqueTopSoil] = unique(AssTopSoilClass(IndStrPart));
+        if numel(AssTopSoilClassUnq) ~= numel(GlbTopSlClss)
+            warning(['The associated classes of top soil are less than the ' ...
+                     'possible classes in the Main sheet of the association file.'])
+        end
+
+        AssTopSoilNumUnq = AssTopSoilNum(IndStrPart);
+        AssTopSoilNumUnq = AssTopSoilNumUnq(IndUniqueTopSoil);
+
+        TopSoilPolygons = repmat(polyshape, 1, length(AssTopSoilClassUnq));
+        for i1 = 1:length(AssTopSoilClassUnq)
+            ProgressBar.Message = ['Dataset: union of topsoil poly n. ',num2str(i1),' of ',num2str(length(AssTopSoilClassUnq))];
+            IndToUnify = strcmp(AssTopSoilClassUnq{i1}, AssTopSoilClass);
+            TopSoilPolygons(i1) = union(TopSoilPolygonsStudyArea(IndToUnify));
+        end
+    
+        ProgressBar.Message = "Dataset: indexing of topsoil classes...";
+        for i1 = 1:length(TopSoilPolygons)
+            [pp1,ee1] = getnan2([TopSoilPolygons(i1).Vertices; nan, nan]);
+            IndexInsideTopSoilPolygon = cellfun(@(x,y) inpoly([x,y],pp1,ee1), xLongStudy, yLatStudy, 'Uniform',false);
+            for i2 = 1:size(xLongAll,2)
+                if CategVars
+                    TopSoilStudy{i2}(IndexInsideTopSoilPolygon{i2}) = string(AssTopSoilClassUnq{i1});
+                else
+                    TopSoilStudy{i2}(IndexInsideTopSoilPolygon{i2}) = AssTopSoilNumUnq{i1};
+                end
             end
         end
-    end
+    
+        ClassPolys('TopSoil',{'Polys','ClassNames'}) = {TopSoilPolygons', AssTopSoilClassUnq'};
 
-    ClassPolys('TopSoil',{'Polys','ClassNames'}) = {TopSoilPolygons', AssTopSoilClassUnique'};
+    else
+        warning(['You have selected Top Soil as a feature but there is no file containing ' ...
+                 'polygons. Zero values or empty string will be generated for this feature!' ...
+                 'It is highly suggested to use this dataset only with pre-trained models.'])
+    end
 
     Prmpt4Fts = [Prmpt4Fts, "Top Soil Class [-]"];
     if CategVars
-        DatasetFeaturesStudy.TopSoilClass = categorical(cat(1,TopSoilStudy{:}), string(AssTopSoilClassUnique), 'Ordinal',true);
-        FeatsType  = [FeatsType, "Categorical"];
+        DatasetFeaturesStudy.TopSoilClass = categorical(cat(1,TopSoilStudy{:}), ...
+                                                        unique(GlbTopSlClss), 'Ordinal',true); % unique is to order the classes!
+        FeatsType = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
         DatasetFeaturesStudy.TopSoilClass = cat(1,TopSoilStudy{:});
-        FeatsType  = [FeatsType, "Numerical"];
+        FeatsType = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Top soil'){:}{2:end,ColWithClassNum}])];
     end
 
@@ -565,44 +613,11 @@ end
 % Land Use
 if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
     ProgressBar.Message = "Dataset: associating land use classes...";
-    load([fold_var,sl,'LandUsesVariables.mat'], 'AllLandUnique','LandUsePolygonsStudyArea')
 
-    [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_LandUseClasses, 2)));
-    for i1 = 1:length(ColWithRawClasses)
-        ColWithRawClasses(i1) = any(cellfun(@(x) strcmp(string(x), 'Raw data name'), Sheet_LandUseClasses(:,i1)));
-        ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_LandUseClasses(:,i1)));
-    end
-
-    [AssLandUseClass, AssLandUseNum] = deal(cell(size(AllLandUnique)));
-    for i1 = 1:length(AllLandUnique)
-        RowToTake = strcmp(AllLandUnique{i1}, string(Sheet_LandUseClasses(:,ColWithRawClasses)));
-        if not(any(RowToTake))
-            warning(['Raw land use class "',AllLandUnique{i1},'" will be skipped (no row found in excel)'])
-            continue
-        end
-        NumOfLandUseClass = Sheet_LandUseClasses{RowToTake, ColWithAss};
-        if isempty(NumOfLandUseClass) || ismissing(NumOfLandUseClass)
-            warning(['Raw land use class "',AllLandUnique{i1},'" will be skipped (no association)'])
-            continue
-        end
-
-        RowToTake = find(NumOfLandUseClass==[Sheet_Info_Div.('Land use'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
-        if isempty(RowToTake)
-            error(['Raw class "',AllLandUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
-        end
-
-        AssLandUseClass(i1) = Sheet_Info_Div.('Land use'){:}(RowToTake, ColWithTitles);
-        AssLandUseNum(i1)   = Sheet_Info_Div.('Land use'){:}(RowToTake, ColWithClassNum);
-    end
-
-    [AssLandUseClassUnique, IndUniqueLandUse] = unique(AssLandUseClass(cellfun(@(x) ischar(x)||isstring(x), AssLandUseClass)));
-    AssLandUseNumUnique = AssLandUseNum(cellfun(@(x) ischar(x)||isstring(x), AssLandUseClass));
-    AssLandUseNumUnique = AssLandUseNumUnique(IndUniqueLandUse);
-    LandUsePolygons  = repmat(polyshape, 1, length(AssLandUseClassUnique));
-    for i1 = 1:length(AssLandUseClassUnique)
-        ProgressBar.Message = ['Dataset: union of land use poly n. ',num2str(i1),' of ',num2str(length(AssLandUseClassUnique))];
-        IndToUnify = strcmp(AssLandUseClassUnique{i1}, AssLandUseClass);
-        LandUsePolygons(i1) = union(LandUsePolygonsStudyArea(IndToUnify));
+    GlbLandUseClss = string(Sheet_Info_Div.('Land use'){:}(2:end, ColWithTitles));
+    if numel(unique(GlbLandUseClss)) ~= numel(GlbLandUseClss)
+        error(['Land Use classes in Main sheet of association excel ' ...
+               'must be unique! There are repetitions, check it!'])
     end
 
     if CategVars
@@ -611,29 +626,86 @@ if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
         LandUseStudy = cellfun(@(x) zeros(size(x)),   xLongStudy, 'UniformOutput',false);
     end
 
-    ProgressBar.Message = "Dataset: indexing of land use classes...";
-    for i1 = 1:length(LandUsePolygons)
-        [pp1,ee1] = getnan2([LandUsePolygons(i1).Vertices; nan, nan]);
-        IndexInsideLandUsePolygon = cellfun(@(x,y) inpoly([x,y],pp1,ee1), xLongStudy, yLatStudy, 'Uniform',false);
-        for i2 = 1:size(xLongAll,2)
-            if CategVars
-                LandUseStudy{i2}(IndexInsideLandUsePolygon{i2}) = string(AssLandUseClassUnique{i1});
-            else
-                LandUseStudy{i2}(IndexInsideLandUsePolygon{i2}) = AssLandUseNumUnique{i1};
+    if exist([fold_var,sl,'LandUsesVariables.mat'], 'file')
+        load([fold_var,sl,'LandUsesVariables.mat'], 'AllLandUnique','LandUsePolygonsStudyArea')
+    
+        [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_LandUseClasses, 2)));
+        for i1 = 1:length(ColWithRawClasses)
+            ColWithRawClasses(i1) = any(cellfun(@(x) strcmp(string(x), 'Raw data name'), Sheet_LandUseClasses(:,i1)));
+            ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_LandUseClasses(:,i1)));
+        end
+    
+        [AssLandUseClass, AssLandUseNum] = deal(cell(size(AllLandUnique)));
+        for i1 = 1:length(AllLandUnique)
+            RowToTakeLoc = strcmp(AllLandUnique{i1}, string(Sheet_LandUseClasses(:,ColWithRawClasses)));
+            if not(any(RowToTakeLoc))
+                warning(['Raw land use class "',AllLandUnique{i1},'" will be skipped (no row found in excel)'])
+                continue
+            end
+    
+            NumOfLandUseClass = Sheet_LandUseClasses{RowToTakeLoc, ColWithAss};
+            if isempty(NumOfLandUseClass) || ismissing(NumOfLandUseClass)
+                warning(['Raw land use class "',AllLandUnique{i1},'" will be skipped (no association)'])
+                continue
+            end
+    
+            RowToTakeGlb = find(NumOfLandUseClass==[Sheet_Info_Div.('Land use'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
+            if isempty(RowToTakeGlb)
+                error(['Raw class "',AllLandUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
+            end
+    
+            AssLandUseClass(i1) = Sheet_Info_Div.('Land use'){:}(RowToTakeGlb, ColWithTitles);
+            AssLandUseNum(i1)   = Sheet_Info_Div.('Land use'){:}(RowToTakeGlb, ColWithClassNum);
+        end
+    
+        IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssLandUseClass);
+    
+        [AssLandUseClassUnq, IndUniqueLandUse] = unique(AssLandUseClass(IndStrPart));
+        if numel(AssLandUseClassUnq) ~= numel(GlbLandUseClss)
+            warning(['The associated classes of land use are less than the ' ...
+                     'possible classes in the Main sheet of the association file.'])
+        end
+    
+        AssLandUseNumUnq = AssLandUseNum(IndStrPart);
+        AssLandUseNumUnq = AssLandUseNumUnq(IndUniqueLandUse);
+    
+        LandUsePolygons = repmat(polyshape, 1, length(AssLandUseClassUnq));
+        for i1 = 1:length(AssLandUseClassUnq)
+            ProgressBar.Message = ['Dataset: union of land use poly n. ',num2str(i1),' of ',num2str(length(AssLandUseClassUnq))];
+            IndToUnify = strcmp(AssLandUseClassUnq{i1}, AssLandUseClass);
+            LandUsePolygons(i1) = union(LandUsePolygonsStudyArea(IndToUnify));
+        end
+    
+        ProgressBar.Message = "Dataset: indexing of land use classes...";
+        for i1 = 1:length(LandUsePolygons)
+            [pp1,ee1] = getnan2([LandUsePolygons(i1).Vertices; nan, nan]);
+            IndexInsideLandUsePolygon = cellfun(@(x,y) inpoly([x,y],pp1,ee1), xLongStudy, yLatStudy, 'Uniform',false);
+            for i2 = 1:size(xLongAll,2)
+                if CategVars
+                    LandUseStudy{i2}(IndexInsideLandUsePolygon{i2}) = string(AssLandUseClassUnq{i1});
+                else
+                    LandUseStudy{i2}(IndexInsideLandUsePolygon{i2}) = AssLandUseNumUnq{i1};
+                end
             end
         end
-    end
+    
+        ClassPolys('LandUse',{'Polys','ClassNames'}) = {LandUsePolygons', AssLandUseClassUnq'};
 
-    ClassPolys('LandUse',{'Polys','ClassNames'}) = {LandUsePolygons', AssLandUseClassUnique'};
+    else
+        warning(['You have selected Land Use as a feature but there is no file containing ' ...
+                 'polygons. Zero values or empty string will be generated for this feature!' ...
+                 'It is highly suggested to use this dataset only with pre-trained models.'])
+    end
 
     Prmpt4Fts = [Prmpt4Fts, "Land Use Class [-]"];
     if CategVars
-        DatasetFeaturesStudy.LandUseClass = categorical(cat(1,LandUseStudy{:}), string(AssLandUseClassUnique), 'Ordinal',true);
-        FeatsType  = [FeatsType, "Categorical"];
+        DatasetFeaturesStudy.LandUseClass = categorical(cat(1,LandUseStudy{:}), ...
+                                                        unique(GlbLandUseClss), 'Ordinal',true); % unique is to order the classes!
+        FeatsType = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
         DatasetFeaturesStudy.LandUseClass = cat(1,LandUseStudy{:});
-        FeatsType  = [FeatsType, "Numerical"];
+        FeatsType = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Land use'){:}{2:end,ColWithClassNum}])];
     end
 
@@ -643,44 +715,11 @@ end
 % Vegetation
 if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
     ProgressBar.Message = "Dataset: associating vegetation classes...";
-    load([fold_var,sl,'VegPolygonsStudyArea.mat'], 'VegetationAllUnique','VegPolygonsStudyArea')
 
-    [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_VegetClasses, 2))); % RIPRENDI QUA
-    for i1 = 1:length(ColWithRawClasses)
-        ColWithRawClasses(i1) = any(cellfun(@(x) strcmp(string(x), 'Raw data name'), Sheet_VegetClasses(:,i1)));
-        ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_VegetClasses(:,i1)));
-    end
-
-    [AssVegetClass, AssVegetNum] = deal(cell(size(VegetationAllUnique)));
-    for i1 = 1:length(VegetationAllUnique)
-        RowToTake = strcmp(VegetationAllUnique{i1}, string(Sheet_VegetClasses(:,ColWithRawClasses)));
-        if not(any(RowToTake))
-            warning(['Raw vegetation class "',VegetationAllUnique{i1},'" will be skipped (no row found in excel)'])
-            continue
-        end
-        NumOfVegetClass = Sheet_VegetClasses{RowToTake, ColWithAss};
-        if isempty(NumOfVegetClass) || ismissing(NumOfVegetClass)
-            warning(['Raw vegetation class "',VegetationAllUnique{i1},'" will be skipped (no association)'])
-            continue
-        end
-
-        RowToTake = find(NumOfVegetClass==[Sheet_Info_Div.('Vegetation'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
-        if isempty(RowToTake)
-            error(['Raw class "',VegetationAllUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
-        end
-
-        AssVegetClass(i1) = Sheet_Info_Div.('Vegetation'){:}(RowToTake, ColWithTitles);
-        AssVegetNum(i1)   = Sheet_Info_Div.('Vegetation'){:}(RowToTake, ColWithClassNum);
-    end
-
-    [AssVegetClassUnique, IndUniqueVeget] = unique(AssVegetClass(cellfun(@(x) ischar(x)||isstring(x), AssVegetClass)));
-    AssVegetNumUnique = AssVegetNum(cellfun(@(x) ischar(x)||isstring(x), AssVegetClass));
-    AssVegetNumUnique = AssVegetNumUnique(IndUniqueVeget);
-    VegetPolygons  = repmat(polyshape, 1, length(AssVegetClassUnique));
-    for i1 = 1:length(AssVegetClassUnique)
-        ProgressBar.Message = ['Dataset: union of vegetation poly n. ',num2str(i1),' of ',num2str(length(AssVegetClassUnique))];
-        IndToUnify = strcmp(AssVegetClassUnique{i1}, AssVegetClass);
-        VegetPolygons(i1) = union(VegPolygonsStudyArea(IndToUnify));
+    GlbVegetClss = string(Sheet_Info_Div.('Vegetation'){:}(2:end, ColWithTitles));
+    if numel(unique(GlbVegetClss)) ~= numel(GlbVegetClss)
+        error(['Vegetation classes in Main sheet of association excel ' ...
+               'must be unique! There are repetitions, check it!'])
     end
 
     if CategVars
@@ -689,29 +728,86 @@ if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
         VegetStudy = cellfun(@(x) zeros(size(x)),   xLongStudy, 'UniformOutput',false);
     end
 
-    ProgressBar.Message = "Dataset: indexing of vegetation classes...";
-    for i1 = 1:length(VegetPolygons)
-        [pp1,ee1] = getnan2([VegetPolygons(i1).Vertices; nan, nan]);
-        IndexInsideVegetPolygon = cellfun(@(x,y) inpoly([x,y],pp1,ee1), xLongStudy, yLatStudy, 'Uniform',false);
-        for i2 = 1:size(xLongAll,2)
-            if CategVars
-                VegetStudy{i2}(IndexInsideVegetPolygon{i2}) = string(AssVegetClassUnique{i1});
-            else
-                VegetStudy{i2}(IndexInsideVegetPolygon{i2}) = AssVegetNumUnique{i1};
+    if exist([fold_var,sl,'VegPolygonsStudyArea.mat'], 'file')
+        load([fold_var,sl,'VegPolygonsStudyArea.mat'], 'VegetationAllUnique','VegPolygonsStudyArea')
+    
+        [ColWithRawClasses, ColWithAss] = deal(false(1, size(Sheet_VegetClasses, 2))); % RIPRENDI QUA
+        for i1 = 1:length(ColWithRawClasses)
+            ColWithRawClasses(i1) = any(cellfun(@(x) strcmp(string(x), 'Raw data name'), Sheet_VegetClasses(:,i1)));
+            ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_VegetClasses(:,i1)));
+        end
+    
+        [AssVegetClass, AssVegetNum] = deal(cell(size(VegetationAllUnique)));
+        for i1 = 1:length(VegetationAllUnique)
+            RowToTakeLoc = strcmp(VegetationAllUnique{i1}, string(Sheet_VegetClasses(:,ColWithRawClasses)));
+            if not(any(RowToTakeLoc))
+                warning(['Raw vegetation class "',VegetationAllUnique{i1},'" will be skipped (no row found in excel)'])
+                continue
+            end
+    
+            NumOfVegetClass = Sheet_VegetClasses{RowToTakeLoc, ColWithAss};
+            if isempty(NumOfVegetClass) || ismissing(NumOfVegetClass)
+                warning(['Raw vegetation class "',VegetationAllUnique{i1},'" will be skipped (no association)'])
+                continue
+            end
+    
+            RowToTakeGlb = find(NumOfVegetClass==[Sheet_Info_Div.('Vegetation'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
+            if isempty(RowToTakeGlb)
+                error(['Raw class "',VegetationAllUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
+            end
+    
+            AssVegetClass(i1) = Sheet_Info_Div.('Vegetation'){:}(RowToTakeGlb, ColWithTitles);
+            AssVegetNum(i1)   = Sheet_Info_Div.('Vegetation'){:}(RowToTakeGlb, ColWithClassNum);
+        end
+    
+        IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssVegetClass);
+    
+        [AssVegetClassUnq, IndUniqueVeget] = unique(AssVegetClass(IndStrPart));
+        if numel(AssVegetClassUnq) ~= numel(GlbVegetClss)
+            warning(['The associated classes of vegetation are less than the ' ...
+                     'possible classes in the Main sheet of the association file.'])
+        end
+    
+        AssVegetNumUnq = AssVegetNum(IndStrPart);
+        AssVegetNumUnq = AssVegetNumUnq(IndUniqueVeget);
+    
+        VegetPolygons = repmat(polyshape, 1, length(AssVegetClassUnq));
+        for i1 = 1:length(AssVegetClassUnq)
+            ProgressBar.Message = ['Dataset: union of vegetation poly n. ',num2str(i1),' of ',num2str(length(AssVegetClassUnq))];
+            IndToUnify = strcmp(AssVegetClassUnq{i1}, AssVegetClass);
+            VegetPolygons(i1) = union(VegPolygonsStudyArea(IndToUnify));
+        end
+    
+        ProgressBar.Message = "Dataset: indexing of vegetation classes...";
+        for i1 = 1:length(VegetPolygons)
+            [pp1,ee1] = getnan2([VegetPolygons(i1).Vertices; nan, nan]);
+            IndexInsideVegetPolygon = cellfun(@(x,y) inpoly([x,y],pp1,ee1), xLongStudy, yLatStudy, 'Uniform',false);
+            for i2 = 1:size(xLongAll,2)
+                if CategVars
+                    VegetStudy{i2}(IndexInsideVegetPolygon{i2}) = string(AssVegetClassUnq{i1});
+                else
+                    VegetStudy{i2}(IndexInsideVegetPolygon{i2}) = AssVegetNumUnq{i1};
+                end
             end
         end
-    end
+    
+        ClassPolys('Vegetation',{'Polys','ClassNames'}) = {VegetPolygons', AssVegetClassUnq'};
 
-    ClassPolys('Vegetation',{'Polys','ClassNames'}) = {VegetPolygons', AssVegetClassUnique'};
+    else
+        warning(['You have selected Vegetation as a feature but there is no file containing ' ...
+                 'polygons. Zero values or empty string will be generated for this feature!' ...
+                 'It is highly suggested to use this dataset only with pre-trained models.'])
+    end
 
     Prmpt4Fts = [Prmpt4Fts, "Vegetation Class [-]"];
     if CategVars
-        DatasetFeaturesStudy.VegetationClass = categorical(cat(1,VegetStudy{:}), string(AssVegetClassUnique), 'Ordinal',true);
-        FeatsType  = [FeatsType, "Categorical"];
+        DatasetFeaturesStudy.VegetationClass = categorical(cat(1,VegetStudy{:}), ...
+                                                           unique(GlbVegetClss), 'Ordinal',true); % unique is to order the classes!
+        FeatsType = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
         DatasetFeaturesStudy.VegetationClass = cat(1,VegetStudy{:});
-        FeatsType  = [FeatsType, "Numerical"];
+        FeatsType = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Vegetation'){:}{2:end,ColWithClassNum}])];
     end
 
