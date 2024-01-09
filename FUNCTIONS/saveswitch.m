@@ -1,4 +1,4 @@
-function saveswitch(Path, VariablesToSave)
+function saveswitch(Path, VariablesToSave, varargin)
 
 % AUTOMATIC SWITCH OF SAVE VERSION
 %   
@@ -9,6 +9,10 @@ function saveswitch(Path, VariablesToSave)
 %   
 %   - VariablesToSave : must be a string, a char or a cell containing the 
 %   previous types. Could be a single element or array.
+%   
+% Optional arguments:
+%   - '-append' : to just update the already existing file with the new
+%   variables (or same variables but with new values')
 
 %% Inputs check and manipulation
 if not(any(strcmp(class(Path), ["string", "char"])))
@@ -23,16 +27,49 @@ else
            'You should also not use {:} at the end of your variable.'])
 end
 
-for i1 = 1:length(VariablesToSave)
-    eval(strcat(VariablesToSave{i1}, " = evalin('caller',VariablesToSave{i1});"));
-end
-
 [FilePath, Filename, ~] = fileparts(Path);
 if not(exist(FilePath, 'dir'))
     mkdir(FilePath)
 end
 
+VariablesToSave = {VariablesToSave{:}}; % To make it a row!
+
+Append = false; % Default
+if ~isempty(varargin)
+    InputRead  = 0;
+    StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
+
+    vararginCp = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
+    vararginCp(StringPart) = cellfun(@(x) lower(string(x)), varargin(StringPart),  'Uniform',false);
+
+    InputAppend = find(cellfun(@(x) all(strcmpi(x, "-append")), vararginCp));
+
+    if InputAppend; Append = true; InputRead = InputRead+1; end
+
+    if InputRead ~= numel(varargin)
+        error(['Some variable inputs were not read! Please check it, and ', ...
+               'remember to not use {:} at the end of VariablesToSave!'])
+    end
+end
+
 %% Core
+if Append
+    OldVariables = load(Path);
+    OldVarsNames = fields(OldVariables);
+    for i1 = 1:numel(OldVarsNames)
+        eval(strcat(OldVarsNames{i1}, " = OldVariables.(OldVarsNames{i1});")); % Attention: it must be before reading new variables to save (otherwise you store the old values)!
+    end
+    clear('OldVariables')
+end
+
+for i1 = 1:length(VariablesToSave)
+    eval(strcat(VariablesToSave{i1}, " = evalin('caller',VariablesToSave{i1});"));
+end
+
+if Append
+    VariablesToSave = unique([VariablesToSave, OldVarsNames']);
+end
+
 try
     lastwarn('', '');
     save(Path, VariablesToSave{:})
