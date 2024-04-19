@@ -11,13 +11,13 @@ AreaFltAns = uiconfirm(Fig, 'Do you want to filter polygons based on the area?',
 if strcmp(AreaFltAns,'Yes'); AreaFilter = true; else; AreaFilter = false; end
 
 if AreaFilter
-    MaxLimArea = str2num(string(inputdlg({'Specify max limit area [m2]'}, '', 1, {'70*70'})));
+    MaxLimArea = str2num(string(inputdlg2({'Max limit area [m2]'}, 'DefInp',{'70*70'})));
     
     figure(Fig)
     drawnow
 end
 
-BufferSize  = str2double(string(inputdlg({'Specify the buffer for point or linear geometries [m]'}, '', 1, {'15'})));
+BufferSize  = str2double(string(inputdlg2({'Buffer for point or linear geometries [m]'}, 'DefInp',{'15'})));
 OrderEvents = uiconfirm(Fig, 'How do you want to order polygons?', ...
                              'Poly order', 'Options',{'Dates','NumOfEvents'}, 'DefaultOption',1);
 figure(Fig)

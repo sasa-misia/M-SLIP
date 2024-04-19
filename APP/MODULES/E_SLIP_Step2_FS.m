@@ -18,7 +18,9 @@ load([fold_var,sl,'DmCum.mat'],                 'DmCumPar')
 load([fold_var,sl,'UserTimeSens_Answers.mat'],  'Sr0','H')
 if exist([fold_var,sl,'LandUsesVariables.mat'], 'file')
     load([fold_var,sl,'LandUsesVariables.mat'], 'AllLandUnique','IndexLandUsesToRemove')
-    LandUsesRemoved = string(AllLandUnique(IndexLandUsesToRemove));
+    if exist('IndexLandUsesToRemove', 'var')
+        LandUsesRemoved = string(AllLandUnique(IndexLandUsesToRemove));
+    end
 end
 
 %% Calculating DmCum
@@ -46,7 +48,7 @@ GammaW = 10;
 %% Evalutation of FS
 ProgressBar.Message = 'Evaluation of FS...';
 
-if isfile([fold_var,sl,'UserD_Answers.mat']); SubName1 = 'Veget'; else; SubName1 = 'NoVeget'; end
+if isfile([fold_var,sl,'UserVeg_Answers.mat']); SubName1 = 'Veget'; else; SubName1 = 'NoVeget'; end
 DEMSize   = num2str(round(1000*deg2km(abs(yLatAll{1}(1,1)-yLatAll{1}(2,1))),1));
 FldNameFS = char(inputdlg2({'Choose folder name (Results->Factors of Safety):'}, ...
                            'DefInp',{[char(datetime('now', 'format','dd-MM-yy-HH-mm')), ...
@@ -60,6 +62,7 @@ if exist([fold_res_fs,sl,FldNameFS], 'dir')
         case 'Yes, thanks'
             rmdir([fold_res_fs,sl,FldNameFS], 's')
             mkdir([fold_res_fs,sl,FldNameFS])
+
         case 'No, for God!'
             return
     end

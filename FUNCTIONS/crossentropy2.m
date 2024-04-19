@@ -6,6 +6,12 @@ function CrssEntr = crossentropy2(Predictions, Targets)
 % Syntax
 %
 %     CrssEntr = crossentropy2(Predictions, Targets)
+%     
+% - Predictions: is a nxm matrix containing prediction probabilities, where 
+%   m is the number of classes and n is the number of observations
+%  
+% - Targets: is a nxm matrix containing real target outputs to predict, where 
+%   m is the number of classes and n is the number of observations
 
 % REMEMBER TO CHECK IT WITH MULTICLASS (MULTIOUTPUT AND PREDICTIONS)
 ClssUnq  = unique(Targets);

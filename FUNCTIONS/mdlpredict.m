@@ -11,18 +11,11 @@ function PredictionProbabilities = mdlpredict(Model, Dataset, varargin)
 %   
 %   - Dataset : dataset to predict
 %   
-%   - ExpctdOutsToUse : is/are the array/s with the expected output classes
-%   
-%   - RatioToUse : is the ratio to impose between stable class and all the
-%   others
-%   
-%   - Technique : is the technique you want to use. You can choose between
-%   'Undersampling', 'Oversampling', and 'SMOTE'
-%   
 % Optional arguments:
 %   - 'SecondOut', logical : is to specify if your model give as a second
 %   output the probabilities (when you apply stock predict). If no value is 
-%   specified, then 'false' will be take as default.
+%   specified, then is set by default to 'true' if the class of the Model 
+%   contains the string 'class', otherwise is set to 'false'.
 %   
 %   - 'SingleCol', logical : is to specify if you want just one single
 %   column with probabilities summed (one vs all remaining classes) or if
@@ -31,7 +24,7 @@ function PredictionProbabilities = mdlpredict(Model, Dataset, varargin)
 %   is specified, then 'false' will be take as default.
 
 %% Settings initialization
-ScndOut = false; % Default
+ScndOut = contains(class(Model), 'class', 'IgnoreCase',true); % Default
 SnglCol = false; % Default
 
 if ~isempty(varargin)
@@ -49,10 +42,23 @@ if ~isempty(varargin)
 end
 
 %% Core
-if ScndOut
-    [~, CurrPreds] = predict(Model, Dataset);
+if isa(Model, 'dlnetwork')
+    if isa(Dataset, 'table')
+        warning(['Dataset to predict is a table but you have a dlnetwork ', ...
+                 'model -> input dataset will be converted in array, ', ...
+                 'check order of input dataset features!'])
+        DatasetArr = table2array(Dataset);
+    end
+
+    CurrPreds = predict(Model, DatasetArr);
+
 else
-    CurrPreds = predict(Model, Dataset);
+    if ScndOut
+        [~, CurrPreds] = predict(Model, Dataset);
+
+    else
+        CurrPreds = predict(Model, Dataset);
+    end
 end
 
 OutOfRng = any(CurrPreds < 0) | any(CurrPreds > 1);

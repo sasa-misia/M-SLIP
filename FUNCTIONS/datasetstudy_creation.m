@@ -377,14 +377,15 @@ if any(contains([FeatsToUse{:}], ["sub", "top", "land", "vegetation", "allfeats"
     Sheet_LandUseClasses = readcell([fold_user,sl,FileAssoc], 'Sheet','Land use');
     Sheet_VegetClasses   = readcell([fold_user,sl,FileAssoc], 'Sheet','Vegetation');
 
-    [ColWithTitles, ColWithClassNum] = deal(false(1, size(Sheet_InfoClasses, 2)));
+    [ColWithTitles, ColWithClassNum, ColWithDescript] = deal(false(1, size(Sheet_InfoClasses, 2)));
     for i1 = 1:length(ColWithTitles)
-        ColWithTitles(i1)   = any(cellfun(@(x) strcmp(string(x), 'Title'),  Sheet_InfoClasses(:,i1)));
-        ColWithClassNum(i1) = any(cellfun(@(x) strcmp(string(x), 'Number'), Sheet_InfoClasses(:,i1)));
+        ColWithTitles(i1)   = any(cellfun(@(x) strcmp(string(x), 'Title'      ), Sheet_InfoClasses(:,i1)));
+        ColWithClassNum(i1) = any(cellfun(@(x) strcmp(string(x), 'Number'     ), Sheet_InfoClasses(:,i1)));
+        ColWithDescript(i1) = any(cellfun(@(x) strcmp(string(x), 'Description'), Sheet_InfoClasses(:,i1)));
     end
     ColWithSubject = find(ColWithTitles)-1;
 
-    if sum(ColWithTitles) > 1 || sum(ColWithClassNum) > 1
+    if sum(ColWithTitles) > 1 || sum(ColWithClassNum) > 1 || sum(ColWithDescript) > 1
         error('Please, align columns in excel! Sheet: Main')
     end
 
@@ -410,6 +411,8 @@ end
 if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
     ProgressBar.Message = "Dataset: associating subsoil classes...";
 
+    SubFeatName = 'SubSoilClass';
+
     GlbSubSlClss = string(Sheet_Info_Div.('Sub soil'){:}(2:end, ColWithTitles));
     if numel(unique(GlbSubSlClss)) ~= numel(GlbSubSlClss)
         error(['Sub Soil classes in Main sheet of association excel ' ...
@@ -431,7 +434,7 @@ if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
             ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_SubSoilClasses(:,i1)));
         end
     
-        [AssSubSoilClass, AssSubSoilNum] = deal(cell(size(LithoAllUnique)));
+        [AssSubSoilClass, AssSubSoilNum, AssSubSoilDescr] = deal(cell(size(LithoAllUnique)));
         for i1 = 1:length(LithoAllUnique)
             RowToTakeLoc = strcmp(LithoAllUnique{i1}, string(Sheet_SubSoilClasses(:,ColWithRawClasses)));
             if not(any(RowToTakeLoc))
@@ -445,15 +448,19 @@ if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
                 continue
             end
     
-            RowToTakeGlb = find(NumOfSubSoilClass==[Sheet_Info_Div.('Sub soil'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
+            RowToTakeGlb = find(NumOfSubSoilClass == [Sheet_Info_Div.('Sub soil'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
             if isempty(RowToTakeGlb)
                 error(['Raw sub soil class "',LithoAllUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
             end
     
             AssSubSoilClass(i1) = Sheet_Info_Div.('Sub soil'){:}(RowToTakeGlb, ColWithTitles);
             AssSubSoilNum(i1)   = Sheet_Info_Div.('Sub soil'){:}(RowToTakeGlb, ColWithClassNum);
+            AssSubSoilDescr(i1) = Sheet_Info_Div.('Sub soil'){:}(RowToTakeGlb, ColWithDescript);
         end
     
+        IndNumPart = cellfun(@(x) isnumeric(x), AssSubSoilClass);
+        AssSubSoilClass(IndNumPart) = cellfun(@(x) num2str(x), AssSubSoilClass(IndNumPart), 'UniformOutput',false); % To convert all numerical values to char
+
         IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssSubSoilClass);
     
         [AssSubSoilClassUnq, IndUniqueSubSoil] = unique(AssSubSoilClass(IndStrPart));
@@ -464,6 +471,9 @@ if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
     
         AssSubSoilNumUnq = AssSubSoilNum(IndStrPart);
         AssSubSoilNumUnq = AssSubSoilNumUnq(IndUniqueSubSoil);
+
+        AssSubSoilDescrUnq = AssSubSoilDescr(IndStrPart);
+        AssSubSoilDescrUnq = AssSubSoilDescrUnq(IndUniqueSubSoil);
     
         SubSoilPolygons = repmat(polyshape, 1, length(AssSubSoilClassUnq));
         for i1 = 1:length(AssSubSoilClassUnq)
@@ -485,7 +495,9 @@ if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
             end
         end
     
-        ClassPolys('SubSoil',{'Polys','ClassNames'}) = {SubSoilPolygons', AssSubSoilClassUnq'};
+        ClassPolys(SubFeatName,{'Polys','ClassNames', ...
+                                'ClassNum','ClassDescr'}) = {SubSoilPolygons', AssSubSoilClassUnq', ...
+                                                             AssSubSoilNumUnq', AssSubSoilDescrUnq'};
 
     else
         warning(['You have selected Sub Soil as a feature but there is no file containing ' ...
@@ -495,12 +507,12 @@ if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
 
     Prmpt4Fts = [Prmpt4Fts, "Sub Soil Class [-]"];
     if CategVars
-        DatasetFeaturesStudy.SubSoilClass = categorical(cat(1,SubSoilStudy{:}), ...
-                                                        unique(GlbSubSlClss), 'Ordinal',true); % unique is to order the classes!
+        DatasetFeaturesStudy.(SubFeatName) = categorical(cat(1,SubSoilStudy{:}), ...
+                                                         unique(GlbSubSlClss), 'Ordinal',true); % unique is to order the classes!
         FeatsType = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
-        DatasetFeaturesStudy.SubSoilClass = cat(1,SubSoilStudy{:});
+        DatasetFeaturesStudy.(SubFeatName) = cat(1,SubSoilStudy{:});
         FeatsType = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Sub soil'){:}{2:end,ColWithClassNum}])];
     end
@@ -511,6 +523,8 @@ end
 % Top Soil
 if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
     ProgressBar.Message = "Dataset: associating topsoil classes...";
+
+    TopFeatName = 'TopSoilClass';
 
     GlbTopSlClss = string(Sheet_Info_Div.('Top soil'){:}(2:end, ColWithTitles));
     if numel(unique(GlbTopSlClss)) ~= numel(GlbTopSlClss)
@@ -533,7 +547,7 @@ if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
             ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_TopSoilClasses(:,i1)));
         end
     
-        [AssTopSoilClass, AssTopSoilNum] = deal(cell(size(TopSoilAllUnique)));
+        [AssTopSoilClass, AssTopSoilNum, AssTopSoilDescr] = deal(cell(size(TopSoilAllUnique)));
         for i1 = 1:length(TopSoilAllUnique)
             RowToTakeLoc = strcmp(TopSoilAllUnique{i1}, string(Sheet_TopSoilClasses(:,ColWithRawClasses)));
             if not(any(RowToTakeLoc))
@@ -547,15 +561,19 @@ if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
                 continue
             end
     
-            RowToTakeGlb = find(NumOfTopSoilClass==[Sheet_Info_Div.('Top soil'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
+            RowToTakeGlb = find(NumOfTopSoilClass == [Sheet_Info_Div.('Top soil'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
             if isempty(RowToTakeGlb)
                 error(['Raw top soil class "',TopSoilAllUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
             end
     
             AssTopSoilClass(i1) = Sheet_Info_Div.('Top soil'){:}(RowToTakeGlb, ColWithTitles);
             AssTopSoilNum(i1)   = Sheet_Info_Div.('Top soil'){:}(RowToTakeGlb, ColWithClassNum);
+            AssTopSoilDescr(i1) = Sheet_Info_Div.('Top soil'){:}(RowToTakeGlb, ColWithDescript);
         end
     
+        IndNumPart = cellfun(@(x) isnumeric(x), AssTopSoilClass);
+        AssTopSoilClass(IndNumPart) = cellfun(@(x) num2str(x), AssTopSoilClass(IndNumPart), 'UniformOutput',false); % To convert all numerical values to char
+
         IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssTopSoilClass);
 
         [AssTopSoilClassUnq, IndUniqueTopSoil] = unique(AssTopSoilClass(IndStrPart));
@@ -566,6 +584,9 @@ if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
 
         AssTopSoilNumUnq = AssTopSoilNum(IndStrPart);
         AssTopSoilNumUnq = AssTopSoilNumUnq(IndUniqueTopSoil);
+
+        AssTopSoilDescrUnq = AssTopSoilDescr(IndStrPart);
+        AssTopSoilDescrUnq = AssTopSoilDescrUnq(IndUniqueTopSoil);
 
         TopSoilPolygons = repmat(polyshape, 1, length(AssTopSoilClassUnq));
         for i1 = 1:length(AssTopSoilClassUnq)
@@ -587,7 +608,9 @@ if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
             end
         end
     
-        ClassPolys('TopSoil',{'Polys','ClassNames'}) = {TopSoilPolygons', AssTopSoilClassUnq'};
+        ClassPolys(TopFeatName,{'Polys','ClassNames', ...
+                                'ClassNum','ClassDescr'}) = {TopSoilPolygons', AssTopSoilClassUnq', ...
+                                                             AssTopSoilNumUnq', AssTopSoilDescrUnq'};
 
     else
         warning(['You have selected Top Soil as a feature but there is no file containing ' ...
@@ -597,12 +620,12 @@ if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
 
     Prmpt4Fts = [Prmpt4Fts, "Top Soil Class [-]"];
     if CategVars
-        DatasetFeaturesStudy.TopSoilClass = categorical(cat(1,TopSoilStudy{:}), ...
-                                                        unique(GlbTopSlClss), 'Ordinal',true); % unique is to order the classes!
+        DatasetFeaturesStudy.(TopFeatName) = categorical(cat(1,TopSoilStudy{:}), ...
+                                                         unique(GlbTopSlClss), 'Ordinal',true); % unique is to order the classes!
         FeatsType = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
-        DatasetFeaturesStudy.TopSoilClass = cat(1,TopSoilStudy{:});
+        DatasetFeaturesStudy.(TopFeatName) = cat(1,TopSoilStudy{:});
         FeatsType = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Top soil'){:}{2:end,ColWithClassNum}])];
     end
@@ -613,6 +636,8 @@ end
 % Land Use
 if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
     ProgressBar.Message = "Dataset: associating land use classes...";
+
+    LndFeatName = 'LandUseClass';
 
     GlbLandUseClss = string(Sheet_Info_Div.('Land use'){:}(2:end, ColWithTitles));
     if numel(unique(GlbLandUseClss)) ~= numel(GlbLandUseClss)
@@ -635,7 +660,7 @@ if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
             ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_LandUseClasses(:,i1)));
         end
     
-        [AssLandUseClass, AssLandUseNum] = deal(cell(size(AllLandUnique)));
+        [AssLandUseClass, AssLandUseNum, AssLandUseDescr] = deal(cell(size(AllLandUnique)));
         for i1 = 1:length(AllLandUnique)
             RowToTakeLoc = strcmp(AllLandUnique{i1}, string(Sheet_LandUseClasses(:,ColWithRawClasses)));
             if not(any(RowToTakeLoc))
@@ -649,15 +674,19 @@ if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
                 continue
             end
     
-            RowToTakeGlb = find(NumOfLandUseClass==[Sheet_Info_Div.('Land use'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
+            RowToTakeGlb = find(NumOfLandUseClass == [Sheet_Info_Div.('Land use'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
             if isempty(RowToTakeGlb)
                 error(['Raw class "',AllLandUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
             end
     
             AssLandUseClass(i1) = Sheet_Info_Div.('Land use'){:}(RowToTakeGlb, ColWithTitles);
             AssLandUseNum(i1)   = Sheet_Info_Div.('Land use'){:}(RowToTakeGlb, ColWithClassNum);
+            AssLandUseDescr(i1) = Sheet_Info_Div.('Land use'){:}(RowToTakeGlb, ColWithDescript);
         end
     
+        IndNumPart = cellfun(@(x) isnumeric(x), AssLandUseClass);
+        AssLandUseClass(IndNumPart) = cellfun(@(x) num2str(x), AssLandUseClass(IndNumPart), 'UniformOutput',false); % To convert all numerical values to char
+
         IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssLandUseClass);
     
         [AssLandUseClassUnq, IndUniqueLandUse] = unique(AssLandUseClass(IndStrPart));
@@ -668,6 +697,9 @@ if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
     
         AssLandUseNumUnq = AssLandUseNum(IndStrPart);
         AssLandUseNumUnq = AssLandUseNumUnq(IndUniqueLandUse);
+
+        AssLandUseDescrUnq = AssLandUseDescr(IndStrPart);
+        AssLandUseDescrUnq = AssLandUseDescrUnq(IndUniqueLandUse);
     
         LandUsePolygons = repmat(polyshape, 1, length(AssLandUseClassUnq));
         for i1 = 1:length(AssLandUseClassUnq)
@@ -689,7 +721,9 @@ if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
             end
         end
     
-        ClassPolys('LandUse',{'Polys','ClassNames'}) = {LandUsePolygons', AssLandUseClassUnq'};
+        ClassPolys(LndFeatName,{'Polys','ClassNames', ...
+                                'ClassNum','ClassDescr'}) = {LandUsePolygons', AssLandUseClassUnq', ...
+                                                             AssLandUseNumUnq', AssLandUseDescrUnq'};
 
     else
         warning(['You have selected Land Use as a feature but there is no file containing ' ...
@@ -699,12 +733,12 @@ if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
 
     Prmpt4Fts = [Prmpt4Fts, "Land Use Class [-]"];
     if CategVars
-        DatasetFeaturesStudy.LandUseClass = categorical(cat(1,LandUseStudy{:}), ...
-                                                        unique(GlbLandUseClss), 'Ordinal',true); % unique is to order the classes!
+        DatasetFeaturesStudy.(LndFeatName) = categorical(cat(1,LandUseStudy{:}), ...
+                                                         unique(GlbLandUseClss), 'Ordinal',true); % unique is to order the classes!
         FeatsType = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
-        DatasetFeaturesStudy.LandUseClass = cat(1,LandUseStudy{:});
+        DatasetFeaturesStudy.(LndFeatName) = cat(1,LandUseStudy{:});
         FeatsType = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Land use'){:}{2:end,ColWithClassNum}])];
     end
@@ -715,6 +749,8 @@ end
 % Vegetation
 if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
     ProgressBar.Message = "Dataset: associating vegetation classes...";
+
+    VgtFeatName = 'VegetationClass';
 
     GlbVegetClss = string(Sheet_Info_Div.('Vegetation'){:}(2:end, ColWithTitles));
     if numel(unique(GlbVegetClss)) ~= numel(GlbVegetClss)
@@ -737,7 +773,7 @@ if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
             ColWithAss(i1)        = any(cellfun(@(x) strcmp(string(x), 'Ass. class'),    Sheet_VegetClasses(:,i1)));
         end
     
-        [AssVegetClass, AssVegetNum] = deal(cell(size(VegetationAllUnique)));
+        [AssVegetClass, AssVegetNum, AssVegetDescr] = deal(cell(size(VegetationAllUnique)));
         for i1 = 1:length(VegetationAllUnique)
             RowToTakeLoc = strcmp(VegetationAllUnique{i1}, string(Sheet_VegetClasses(:,ColWithRawClasses)));
             if not(any(RowToTakeLoc))
@@ -751,15 +787,19 @@ if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
                 continue
             end
     
-            RowToTakeGlb = find(NumOfVegetClass==[Sheet_Info_Div.('Vegetation'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
+            RowToTakeGlb = find(NumOfVegetClass == [Sheet_Info_Div.('Vegetation'){:}{2:end,ColWithClassNum}])+1; % +1 because the first row is char and was excluded in finding equal number, but anyway must be considered in taking the correct row!
             if isempty(RowToTakeGlb)
                 error(['Raw class "',VegetationAllUnique{i1},'" has an associated number that is not present in main sheet! Check your excel.'])
             end
     
             AssVegetClass(i1) = Sheet_Info_Div.('Vegetation'){:}(RowToTakeGlb, ColWithTitles);
             AssVegetNum(i1)   = Sheet_Info_Div.('Vegetation'){:}(RowToTakeGlb, ColWithClassNum);
+            AssVegetDescr(i1) = Sheet_Info_Div.('Vegetation'){:}(RowToTakeGlb, ColWithDescript);
         end
     
+        IndNumPart = cellfun(@(x) isnumeric(x), AssVegetClass);
+        AssVegetClass(IndNumPart) = cellfun(@(x) num2str(x), AssVegetClass(IndNumPart), 'UniformOutput',false); % To convert all numerical values to char
+
         IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssVegetClass);
     
         [AssVegetClassUnq, IndUniqueVeget] = unique(AssVegetClass(IndStrPart));
@@ -770,6 +810,9 @@ if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
     
         AssVegetNumUnq = AssVegetNum(IndStrPart);
         AssVegetNumUnq = AssVegetNumUnq(IndUniqueVeget);
+
+        AssVegetDescrUnq = AssVegetDescr(IndStrPart);
+        AssVegetDescrUnq = AssVegetDescrUnq(IndUniqueVeget);
     
         VegetPolygons = repmat(polyshape, 1, length(AssVegetClassUnq));
         for i1 = 1:length(AssVegetClassUnq)
@@ -791,7 +834,9 @@ if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
             end
         end
     
-        ClassPolys('Vegetation',{'Polys','ClassNames'}) = {VegetPolygons', AssVegetClassUnq'};
+        ClassPolys(VgtFeatName,{'Polys','ClassNames', ...
+                                'ClassNum','ClassDescr'}) = {VegetPolygons', AssVegetClassUnq', ...
+                                                             AssVegetNumUnq', AssVegetDescrUnq'};
 
     else
         warning(['You have selected Vegetation as a feature but there is no file containing ' ...
@@ -801,12 +846,12 @@ if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
 
     Prmpt4Fts = [Prmpt4Fts, "Vegetation Class [-]"];
     if CategVars
-        DatasetFeaturesStudy.VegetationClass = categorical(cat(1,VegetStudy{:}), ...
-                                                           unique(GlbVegetClss), 'Ordinal',true); % unique is to order the classes!
+        DatasetFeaturesStudy.(VgtFeatName) = categorical(cat(1,VegetStudy{:}), ...
+                                                         unique(GlbVegetClss), 'Ordinal',true); % unique is to order the classes!
         FeatsType = [FeatsType, "Categorical"];
         RngsToAdd = [nan, nan];
     else
-        DatasetFeaturesStudy.VegetationClass = cat(1,VegetStudy{:});
+        DatasetFeaturesStudy.(VgtFeatName) = cat(1,VegetStudy{:});
         FeatsType = [FeatsType, "Numerical"];
         RngsToAdd = [0, max([Sheet_Info_Div.('Vegetation'){:}{2:end,ColWithClassNum}])];
     end

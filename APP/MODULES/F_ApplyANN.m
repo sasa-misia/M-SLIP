@@ -1,15 +1,13 @@
-% Fig = uifigure; % Remember to comment this line if is app version
+if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
-                                 'Indeterminate','on');
+                                 'Cancelable','off', 'Indeterminate','on');
 drawnow
 
 %% Options
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
-% Options = {'Yes', 'No, I want to use the current'};
-% TrainDatasetAns = uiconfirm(Fig, ['Do you want to use the dataset of the entire ' ...
-%                                   'study area created while training the ANNs?'], ...
-%                                  'Train dataset use', 'Options',Options, 'DefaultOption',1);
-% if strcmp(TrainDatasetAns,'Yes'); UseTrainDataset = true; else; UseTrainDataset = false; end
+
+figure(Fig)
+drawnow
 
 ParallelizeAns = uiconfirm(Fig, 'Do you want to parallelize prediction computation?', ...
                                 'Parallelize', 'Options',{'Yes', 'No'}, 'DefaultOption',2);
@@ -120,13 +118,10 @@ if TimeSensExist
 
     DaysForTS = ModelInfo{1,'DatasetInfo'}{:}{1,'DaysForTS'};
     
-    IndEvent  = listdlg('PromptString',{'Select the date to consider for event (start times of 24 h):',''}, ...
-                        'ListString',TimeSensitiveDate(DaysForTS:end), 'SelectionMode','single');
+    IndEvent  = listdlg2({'Date of event (start time of 24 h):'}, ...
+                         TimeSensitiveDate(DaysForTS:end), 'OutType','NumInd');
     EventDate = TimeSensitiveDate(DaysForTS-1+IndEvent);
     DateUsed  = EventDate;
-
-    figure(Fig)
-    drawnow
 
     LandslideDayAns = uiconfirm(Fig, 'Is this a landslide day?', ...
                                      'Landslide day', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
@@ -142,12 +137,12 @@ switch TimeSensMode
 
         RowToTake = find(EventDate == TimeSensitiveDate);
         for i1 = 1:length(TimeSensitiveParam)
-            ColumnToChange = cell(1, size(TimeSensitiveDataInterpStudy{i1}, 2)); % YOU MUST FIX THIS TimeSensitiveDataInterpStudy (apparently is not defined)!
-            for i2 = 1:size(TimeSensitiveDataInterpStudy{i1}, 2)
+            ColumnToChange = cell(1, size(TimeSensitiveData{i1}, 2));
+            for i2 = 1:size(TimeSensitiveData{i1}, 2)
                 if TimeSensCumulable(i1)
-                    ColumnToChange{i2} = sum([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                    ColumnToChange{i2} = sum([TimeSensitiveData{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
                 else
-                    ColumnToChange{i2} = mean([TimeSensitiveDataInterpStudy{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
+                    ColumnToChange{i2} = mean([TimeSensitiveData{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
                 end
             end
             TSEventTimeNotNorm = cat(1,ColumnToChange{:});
@@ -169,7 +164,7 @@ switch TimeSensMode
         for i1 = 1:length(TimeSensitiveParam)
             for i2 = 1:DaysForTS
                 RowToTake = find(EventDate == TimeSensitiveDate) - i2 + 1;
-                TSEventTimeNotNorm = cat(1,TimeSensitiveDataInterpStudy{i1}{RowToTake,:});
+                TSEventTimeNotNorm = cat(1,TimeSensitiveData{i1}{RowToTake,:});
                 if NormData
                     TSEventTime = rescale(TSEventTimeNotNorm, ...
                                            'InputMin',RangesForNorm{FeatsNamesToChange{i1}(i2), 'Min value'}, ...
@@ -195,17 +190,17 @@ switch TimeSensMode
                 if isempty(IndsPossEvents)
                     error('You have no events in a time window of 2 days around your datetime. Choose another datetime!')
                 elseif IndsPossEvents > 1
-                    PossEventNames = strcat("Event of ", char(cellfun(@(x) min(x), TimeSensEventDates{i1}(IndsPossEvents))), ' (+', ...
+                    PossEvNames = strcat("Event of ", char(cellfun(@(x) min(x), TimeSensEventDates{i1}(IndsPossEvents))), ' (+', ...
                                             num2str(cellfun(@(x) length(x), TimeSensEventDates{i1}(IndsPossEvents))'), ' h)');
-                    RelIndEvent    = listdlg('PromptString',{'Select the rain event to consider:',''}, ...
-                                             'ListString',PossEventNames, 'SelectionMode','single');
+                    RelIndEvent = listdlg2({'Rain event to consider:'}, PossEvNames, 'OutType','NumInd');
 
                     figure(Fig)
                     drawnow
                 elseif IndsPossEvents == 1
-                    RelIndEvent    = 1;
+                    RelIndEvent = 1;
                 end
                 IndEventToTake = IndsPossEvents(RelIndEvent);
+
             else
                 IndEventToTake = find(cellfun(@(x) min(abs(StartDateTrigg-x)) < minutes(1), TimeSensEventDates{i1}));
                 if isempty(IndEventToTake) || (numel(IndEventToTake) > 1)
@@ -311,7 +306,7 @@ ProgressBar.Indeterminate = 'on';
 
 %% Creation (or update) of tables
 SuggFoldName = ['Ev-',num2str(size(EventsInfo, 2)+1)];
-EventName    = {char(inputdlg({'Choose an event name:'}, '', 1, {SuggFoldName} ))};
+EventName    = {char(inputdlg2({'Current event name:'}, 'DefInp',SuggFoldName))};
 ModelsName   = ANNs.Properties.VariableNames;
 
 RowEventsToWrite = {'PredictionDate', 'Municipalities', 'SizeOfDTM', 'StudyAreaPolygon'};
@@ -407,11 +402,9 @@ EventsBT{EventName,ModelsName}  = BestThrsQ;
 [~, BestModelMSEForQuality] = min(ModelsMSEQ); % In terms of loss
 [~, BestModelAUCForQuality] = max(AUCQ);       % In terms of AUC
 
-IndMdlToUse = str2double(inputdlg({[ "Which model do you want to use?"
-                                     strcat("From 1 to ", string(size(ANNs,2)))
-                                     strcat("Best in terms of loss is: ", string(BestModelMSEForQuality))
-                                     strcat("Best in terms of AUC is: ",  string(BestModelAUCForQuality) )   ]}, '', 1, ...
-                                     {num2str(BestModelMSEForQuality)}));
+IndMdlToUse = str2double(inputdlg2({['Model to use? From 1 to ',num2str(size(ANNs,2)), ...
+                                     ' (Best for loss: ',num2str(BestModelMSEForQuality), ...
+                                     '; Best for AUC: ',num2str(BestModelAUCForQuality)]}, 'DefInp',num2str(BestModelMSEForQuality)));
 
 ModelSelected     = ANNs{'Model',IndMdlToUse}{:};
 PredClassesMdlSel = int8(full(PredictionProbabilitiesCell{IndMdlToUse}));
@@ -426,10 +419,8 @@ if Clusterize
     
         ProjCRS = OriginalProjCRS;
     else
-        EPSG = str2double(inputdlg({["Set DTM EPSG (to calculate clusters)"
-                                     "For Example:"
-                                     "Sicily -> 32633"
-                                     "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
+        EPSG = str2double(inputdlg2({['DTM EPSG for clusters (Sicily -> 32633; ', ...
+                                      'Emilia Romagna -> 25832):']}, 'DefInp',{'25832'}));
         ProjCRS = projcrs(EPSG);
     end
     
@@ -575,8 +566,8 @@ if PlotPolys
             % Plot for check
             ProgressBar.Message = "Plotting results...";
     
-            SelectedPolygon = str2double(inputdlg({["Which polygon do you want to plot?"
-                                                    strcat("From 1 to ", string(length(AttributesInPolygons.PolygonsStable{1,1})))]}, '', 1, {'1'}));
+            SelectedPolygon = str2double(inputdlg2({['Polygon to plot? (From 1 to ', ...
+                                                     num2str(length(AttributesInPolygons.PolygonsStable{1,1}))]}, 'DefInp',{'1'}));
     
             Options = {'BestThreshold', 'Manual'};
             ModeUnstable = uiconfirm(Fig, 'How do you want to define the threshold?', ...
@@ -585,8 +576,7 @@ if PlotPolys
                 case 'BestThreshold'
                     ClassesThreshold = round(Probabilities,4) >= ResultsInPolygons.BestThreshold;
                 case 'Manual'
-                    ThresholdChosed  = str2double(inputdlg({["Which threshold do you want?"
-                                                             "If you overpass it, then you will have a landslide. [from 0 to 100 %]"]}, '', 1, {'50'}))/100;
+                    ThresholdChosed  = str2double(inputdlg2({'Landslide threshold [0 to 100 %]'}, 'DefInp',{'50'}))/100;
                     ClassesThreshold = Probabilities >= ThresholdChosed;
             end
     

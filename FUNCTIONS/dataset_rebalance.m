@@ -1,4 +1,4 @@
-function [DtsetDatesOut, DtsetFeatsOut, ExpOutsOut] = rebalance_dataset(DtsetDatesToUse, DtsetFeatsToUse, ExpctdOutsToUse, RatioToImpose, Technique)
+function [DtsetDatesOut, DtsetFeatsOut, ExpOutsOut] = dataset_rebalance(DtsetDatesToUse, DtsetFeatsToUse, ExpctdOutsToUse, RatioToImpose, Technique)
 
 % CREATE AN INDEX ARRAY TO USE IN TRAINING OF ML, WITH RELATIVE OUTPUTS
 %   

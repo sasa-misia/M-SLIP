@@ -131,7 +131,11 @@ function add % Probably to fix for sizes (when scrollable)
     OldPnlSz = Panels{end}.Position;
     OldTASz  = PnlTA{end}.Position;
 
-    yPnNew = Panels{2}.Position(2) - Panels{1}.Position(2);
+    if numel(Panels) == 1
+        yPnNew = Panels{1}.Position(4) + (GenPanl.Position(4) - Panels{1}.Position(4));
+    else
+        yPnNew = Panels{2}.Position(2) - Panels{1}.Position(2);
+    end
     if FigSettgs.Position(4) + yPnNew < 600
         FigSettgs.Position(4) = OldFigSz(4) + yPnNew;
         GenPanl.Position(4)   = OldGPnSz(4) + yPnNew;

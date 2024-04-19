@@ -5,12 +5,15 @@ function [Im] = fastscattergrid(Colors, xGrid, yGrid, varargin)
 %   Im : Image object.
 %   
 % Required arguments:
-%   - Colors : is a grid containing rgb colors (3d matrix, whith the third
-%   containing respectively the R, G, and B). It could be also just a 2d
-%   grid, containing a single value.
+%   - Colors : is a grid containing rgb colors (3D matrix: three 2D matrices 
+%   concatenated in 3rd dim, containing R, G, and B; 2d matrix grid: a 2D 
+%   matrix containing white values with same dim of xGrid). It could be also 
+%   a 2D array nx3 or 3xn containing the R, G, and B values in 1st, 2nd, and 
+%   3rd column or row. It could be also a 1D array, containing the white
+%   values.
 %   
 %   - xGrid : is a grid containing rgb colors (3d matrix, whith the third
-%   containing respectively the R, G, and B). It could be also just a 2d
+%   containing respectively the R, G, and B). It could be also just a 2D
 %   grid, containing a single value.
 %   
 % Optional arguments:
@@ -31,16 +34,50 @@ end
 DimInpClr = ndims(Colors);
 CrdsCheck = isequal(size(xGrid), size(yGrid));
 if DimInpClr == 3
-    ClrCheck = isequal(size(Colors, [1,2]), size(xGrid));
+    SizeCheck = isequal(size(Colors, [1,2]), size(xGrid));
 else
-    ClrCheck = isequal(size(Colors), size(xGrid)); 
+    SzCheck1  = isequal(size(Colors), size(xGrid));
+    SzCheck2  = isequal(size(Colors, 1), numel(xGrid)); % In this case it must be resized!
+    SzCheck3  = isequal(size(Colors, 2), numel(xGrid)); % In this case it must be resized!
+    SizeCheck = SzCheck1 || SzCheck2 || SzCheck3;
+
+    if SzCheck2 || SzCheck3 % Resize of Colors
+        warning(['The color is an nx3, nx1, 3xn, or 1xn ' ...
+                 'array and it will be resized in grid format!'])
+
+        % Conversion in vertical array
+        if SzCheck3
+            Colors = Colors';
+        end
+
+        % Conversion in nx3
+        if size(Colors, 2) == 1
+            Colors = repmat(Colors, 1, 3);
+        end
+
+        % Check of dims
+        if size(Colors, 2) ~= 3
+            error(['First argument was written as a 2D or 1D array but it was ' ...
+                   'not nx3, nx1, 3xn, or 1xn, where n is the number of pixels.'])
+        end
+
+        Colors = cat(3, reshape(Colors(:,1), size(xGrid)), ...
+                        reshape(Colors(:,2), size(xGrid)), ...
+                        reshape(Colors(:,3), size(xGrid)));
+    end
 end
-if not( ClrCheck && CrdsCheck )
+if not( SizeCheck && CrdsCheck )
     error('Sizes of first 3 inputs must be identical (for 3d color matrix just first 2 dims)!')
 end
 
+if max(Colors, [], 'all') > 255 || max(Colors, [], 'all') < 0
+    error('First argument, containing colors, is our of range (0 - 255)!')
+end
+if max(Colors, [], 'all') <= 1
+    Colors = Colors.*255; % Conversion in standard RGB (0 - 255)
+end
+
 %% Settings
-curr_ax = gca; % Default
 PolMask = [];  % Default
 AlphaIm = 1;   % Default
 
@@ -59,38 +96,26 @@ if ~isempty(varargin)
     if InputAlpha ; AlphaIm = varargin{InputAlpha+1 }; end
 end
 
-%% Core
-switch DimInpClr
-    case 1 % Create a separate function to convert from 1d to 2d in a regular grid!
-        error('Not yet implemenyted!')
-
-    case 2
-        error('Not yet implemenyted!')
-
-    case 3
-
-    otherwise
-        error('Dimensions of input not recognized!')
+if not(exist('curr_ax', 'var'))
+    curr_fig = figure();       % Default
+    curr_ax  = axes(curr_fig); % Default
 end
 
+%% Core
 if not(isempty(PolMask))
     if numel(PolMask) > 1; PolMask = union(PolMask); end
 
     [pp1, ee1]   = getnan2([PolMask.Vertices; nan, nan]);
     IndPntsInMsk = find(inpoly([xGrid(:), yGrid(:)], pp1, ee1)==1);
 
-    if DimInpClr == 3
-        ColorsArr = double(reshape(Colors(:), [size(Colors,1)*size(Colors,2), 3]));
-        [RedTemp, GreenTemp, BlueTemp] = deal(ones(numel(xGrid), 1)); % This means that they start as white pixels.
-        RedTemp(IndPntsInMsk)   = ColorsArr(IndPntsInMsk, 1)./255;
-        GreenTemp(IndPntsInMsk) = ColorsArr(IndPntsInMsk, 2)./255;
-        BlueTemp(IndPntsInMsk)  = ColorsArr(IndPntsInMsk, 3)./255;
-    
-        Colors2Plot    = zeros(size(xGrid, 1), size(xGrid, 2), 3); % This means that they start as black pixels -> check if an area is black outside StudyArea (error).
-        Colors2Plot(:) = [RedTemp; GreenTemp; BlueTemp];
-    else
-        error('Not yet implemenyted!')
-    end
+    ColorsArr = double(reshape(Colors(:), [size(Colors,1)*size(Colors,2), 3]));
+    [RedTemp, GreenTemp, BlueTemp] = deal(ones(numel(xGrid), 1)); % This means that they start as white pixels.
+    RedTemp(IndPntsInMsk)   = ColorsArr(IndPntsInMsk, 1)./255;
+    GreenTemp(IndPntsInMsk) = ColorsArr(IndPntsInMsk, 2)./255;
+    BlueTemp(IndPntsInMsk)  = ColorsArr(IndPntsInMsk, 3)./255;
+
+    Colors2Plot    = zeros(size(xGrid, 1), size(xGrid, 2), 3); % This means that they start as black pixels -> check if an area is black outside StudyArea (error).
+    Colors2Plot(:) = [RedTemp; GreenTemp; BlueTemp];
 
     Im = imagesc(curr_ax, xGrid(:), yGrid(:), Colors2Plot, 'AlphaData',AlphaIm);
 end

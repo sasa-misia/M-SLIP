@@ -1,10 +1,11 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig, 'Title','Reading of rainfall files', ...
-                                 'Message','Reading file', 'Cancelable','on', ...
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
+                                 'Message','Reading files...', 'Cancelable','on', ...
                                  'Indeterminate','on');
 drawnow
 
 %% Data import
+sl = filesep;
 StatusPrevAnalysis = 0;
 if exist([fold_var,sl,'AnalysisInformation.mat'], 'file')
     load([fold_var,sl,'AnalysisInformation.mat'], 'StabilityAnalysis')
@@ -13,86 +14,136 @@ if exist([fold_var,sl,'AnalysisInformation.mat'], 'file')
     StatusPrevAnalysis = 1;
 end
 
-VariablesRainfall = {};
-NameFile = {};
-VariablesInterpolation = {};
-AnswerRainfall = {'AnswerRainfallRec', 'AnswerRainfallFor'};
+Options  = {'Rainfall', 'Temperature'};
+DataRead = uiconfirm(Fig, 'What type of data do you want to read?', ...
+                          'Reading Data', 'Options',Options, 'DefaultOption',1);
 
-%% Rainfall Recording
-if AnswerRainfallRec == 1
-    
+switch DataRead
+    case 'Rainfall'
+        ShortName = 'Rain';
+        fold_raw_data     = fold_raw_rain;
+        fold_raw_data_for = fold_raw_rain_for;
+
+    case 'Temperature'
+        ShortName = 'Temp';
+        if exist('fold_raw_temp', 'var')
+            fold_raw_data     = fold_raw_temp;
+            fold_raw_data_for = fold_raw_temp_for;
+        else
+            fold_raw_data     = [fold_raw,sl,DataRead];
+            fold_raw_data_for = [fold_raw,sl,DataRead,' Forecast'];
+
+            if ~exist(fold_raw_data, 'dir')
+                mkdir(fold_raw_data)
+                mkdir(fold_raw_data_for)
+            end
+        end
+end
+
+%% Initialization
+VariablesRecorded  = {};
+VariablesFilenames = {};
+VariablesInterpol  = {};
+
+%% Data Recording
+if AnswerTypeRec == 1
     %% Import rainfall data record and station
-    if isempty({dir([fold_raw_rain,sl,'*.xlsx']).name})
-        Answer = uiconfirm(Fig, strcat("No excel in ",fold_raw_rain), ...
-                           'No file in directory', 'Options','Search file');
-        copyindirectory('xlsx', fold_raw_rain, 'mode','multiple')
+    if isempty({dir([fold_raw_data,sl,'*.xlsx']).name})
+        Ans1 = uiconfirm(Fig, strcat("No excel in ",fold_raw_data), ...
+                                'No file in directory', 'Options','Search file');
+        copyindirectory('xlsx', fold_raw_data, 'mode','multiple')
     end
 
-    Files = {dir([fold_raw_rain,sl,'*.xlsx']).name};
-    ChoiceRec = listdlg('PromptString',{'Choose a file:',''}, 'ListString',Files);
-    FileName_Rainfall = string(Files(ChoiceRec)); 
-    NameFile = {'FileName_Rainfall'};
+    Files              = {dir([fold_raw_data,sl,'*.xlsx']).name};
+    FileName_DataRec   = char(listdlg2({'Choose a file:'}, Files));
+    VariablesFilenames = {'FileName_DataRec'};
 
     drawnow % Remember to remove if in Standalone version
     figure(Fig) % Remember to remove if in Standalone version
 
-    Ans = uiconfirm(Fig, ['Have you put stations in the correct order ' ...
-                          'in <Stations table> sheet? (see guidelines)'], ...
-                         'Reminder', 'Options','Yes, I have done it!');
-    
-    Sheet_Sta  = readcell([fold_raw_rain,sl,FileName_Rainfall], 'Sheet','Stations table');
-    Sheet_Rain = readcell([fold_raw_rain,sl,FileName_Rainfall], 'Sheet','Data table');
+    FullNmeRec = [fold_raw_data,sl,FileName_DataRec];
+    FileSheets = sheetnames(FullNmeRec);
+    Sheets2Use = listdlg2({'Data table:', 'Stations table:'}, FileSheets);
 
-    xLongSta = [Sheet_Sta{2:end,8}]';
-    yLatSta  = [Sheet_Sta{2:end,9}]';
+    [RecDatesStartsPerSta, RecDatesEndsPerSta, ...
+        RecNumDataPerSta, Gauges] = readtimesenscell(FullNmeRec, 'AutoFill','OtherSta', ...
+                                                                 'StatsFilt',true, ...
+                                                                 'DataSheet',Sheets2Use{1}, ...
+                                                                 'StationSheet',Sheets2Use{2});
 
-    Stations = string(Sheet_Sta(2:end,1));
-    StationsNumber = length(Stations);
-    CoordinatesRainGauges = [xLongSta, yLatSta];
-    RainGauges = {Stations, CoordinatesRainGauges};
+    %% Adjustment of dates
+    dTRecsRaw = RecDatesStartsPerSta{1}(2)-RecDatesStartsPerSta{1}(1);
+    if dTRecsRaw < minutes(59)
+        ShiftApprox = 'minute';
+        if strcmp(AnalysisCase,'SLIP')
+            warning(['Rain data is discretized in less than 1 hour. ', ...
+                     'It could become too large and it may not work! ', ...
+                     'Please contanct the support.'])
+        end
 
-    RainfallDates = [Sheet_Rain{cellfun(@isdatetime,Sheet_Rain)}];
-    RainfallDates = unique(dateshift(RainfallDates,'start','hours','nearest')); % Minutes if analysis time range < 1 hour
-    RainfallDates(1) = []; % You only want end dates
-    RainfallDates.Format = 'dd/MM/yyyy HH:mm'; % HH:mm:ss if analysis time range < 1 hour
+    elseif dTRecsRaw < hours(23) && dTRecsRaw >= minutes(59)
+        ShiftApprox = 'hour';
 
-    HeaderLine = find(cellfun(@isdatetime, Sheet_Rain), 1); % Automatically recognize excel file header line
-    
-    HoursNum = 0; 
-    for i1 = HeaderLine:length(Sheet_Rain)
-        if ~ismissing(Sheet_Rain{i1,2}); HoursNum = HoursNum+1; else; break; end
+    elseif dTRecsRaw >= hours(23)
+        ShiftApprox = 'day';
+        if strcmp(AnalysisCase,'SLIP')
+            warning(['Rain data is discretized in more than 1 hour. ', ...
+                     'It may not work! Please contanct the support.'])
+        end
+
+    else
+        error('Time discretization of excel not recognized!')
     end
-    
-    RainNumeric = [Sheet_Rain{cellfun(@isnumeric, Sheet_Rain)}]';
 
-    if numel(RainNumeric) ~= HoursNum*StationsNumber
-        error("Your excel is inconsistent in the 3rd column, please check it!")
+    RecDatesStartsPerStaShifted = cellfun(@(x) dateshift(x, 'start',ShiftApprox, 'nearest'), RecDatesStartsPerSta, 'UniformOutput',false);
+    RecDatesEndsPerStaShifted   = cellfun(@(x) dateshift(x, 'start',ShiftApprox, 'nearest'), RecDatesEndsPerSta  , 'UniformOutput',false);
+
+    StartDateCommon = max(cellfun(@min, RecDatesEndsPerStaShifted)); % Start in end dates
+    EndDateCommon   = min(cellfun(@max, RecDatesEndsPerStaShifted)); % End in end dates
+
+    IndIntersecated = cellfun(@(x) find(x == StartDateCommon) : find(x == EndDateCommon), RecDatesEndsPerStaShifted, 'UniformOutput',false);
+
+    NumOfCommonRecs = unique(cellfun(@numel, IndIntersecated));
+
+    if length(NumOfCommonRecs) > 1
+        error('You have a different timing among stations, please check your excel!')
     end
 
-    GeneralRainData = zeros(HoursNum,StationsNumber);
-    
-    for i1 = 1:StationsNumber
-        GeneralRainData(:,i1) = RainNumeric((i1-1)*(HoursNum)+1:(i1-1)*(HoursNum)+(HoursNum));
+    DataNotConsidered = cellfun(@(x) length(x) > NumOfCommonRecs, RecDatesEndsPerStaShifted);
+    if any(DataNotConsidered)
+        warning(strcat('Attention! Some stations (', strjoin(Stations(DataNotConsidered), ', '), ...
+                       ') have more recs than others. Recs outside common dates will be excluded.'))
     end
-    
-    GeneralRainData(isnan(GeneralRainData))  = 0;
-    GeneralRainData(GeneralRainData == -999) = 0;
-    GeneralRainData = GeneralRainData';
-    
-    GeneralDatesStart = dateshift([Sheet_Rain{HeaderLine:HoursNum+HeaderLine-1,1}]', 'start','hours', 'nearest');
-    GeneralDatesEnd   = dateshift([Sheet_Rain{HeaderLine:HoursNum+HeaderLine-1,2}]', 'start','hours', 'nearest');
 
-    VariablesRainfall = {'GeneralRainData', 'RainGauges', 'RainfallDates'};
+    GeneralDatesStart = RecDatesStartsPerStaShifted{1}(IndIntersecated{1}); % Taking only the firs one
+    GeneralDatesEnd   = RecDatesEndsPerStaShifted{1}(IndIntersecated{1}); % Taking only the firs one
 
+    RecDatesEndCommon = GeneralDatesEnd;
+    if strcmp(ShiftApprox, 'minute')
+        RecDatesEndCommon.Format = 'dd/MM/yyyy HH:mm:ss';
+    elseif strcmp(ShiftApprox, 'hour')
+        RecDatesEndCommon.Format = 'dd/MM/yyyy HH:mm';
+    elseif strcmp(ShiftApprox, 'day')
+        RecDatesEndCommon.Format = 'dd/MM/yyyy';
+    end
+
+    %% Numeric data writing
+    GeneralData = cell2mat(cellfun(@(x,y) x(y), RecNumDataPerSta', IndIntersecated', 'UniformOutput',false));
+    
+    GeneralData(isnan(GeneralData))  = 0;
+    GeneralData(GeneralData == -999) = 0;
+    GeneralData = GeneralData';
+
+    VariablesRecorded = {'GeneralData', 'Gauges', 'RecDatesEndCommon'};
 end
     
 %% Rainfall Forecast
-if AnswerRainfallFor == 1
-    %% Import rainfall forecast data    
-    Files = {dir([fold_raw_rain_for,sl,'*.']).name, dir([fold_raw_rain_for,sl,'*.grib']).name}; % '*.' is for file without extension
+if AnswerTypeFor == 1
+    %% Import rainfall forecast data
+    Files = {dir([fold_raw_data_for,sl,'*.']).name, dir([fold_raw_data_for,sl,'*.grib']).name}; % '*.' is for file without extension
     Files(1:2) = [];
-    ChoiceForcstFile = listdlg('PromptString',{'Choose a file:',''}, 'ListString',Files);
-    FileNameForecast = strcat(fold_raw_rain_for,sl,char(Files(ChoiceForcstFile)));
+    ChoiceForcstFile = checkbox2(Files, 'Title',{'Choose a file:'}, 'OutType','NumInd');
+    FileNameForecast = strcat(fold_raw_data_for,sl,char(Files(ChoiceForcstFile)));
     try setup_nctoolbox; catch; disp('A problem has occurred in nctoolbox'); end
 
     ProgressBar.Message = strcat("Processing data...");
@@ -121,132 +172,126 @@ if AnswerRainfallFor == 1
         GridForecastModel = {MeshLong, MeshLat};
     end
 
-    VariablesRainfall = [VariablesRainfall, {'ForecastData','GridForecastModel'}];
-    NameFile = [NameFile, {'FileNameForecast'}];
+    VariablesRecorded  = [VariablesRecorded, {'ForecastData', 'GridForecastModel'}];
+    VariablesFilenames = [VariablesFilenames, {'FileNameForecast'}];
 end
 
 %% Analysis type
 switch AnalysisCase
     case 'SLIP'
         %% SLIP process
-        dTRecordings = RainfallDates(2)-RainfallDates(1);
-        AnalysisDateMaxRange = [min(RainfallDates)+days(30), max(RainfallDates)];
-        AnalysisDates = AnalysisDateMaxRange(1):dTRecordings:AnalysisDateMaxRange(2);
-        AnalysisDates = datetime(AnalysisDates, 'Format','dd/MM/yyyy HH:mm:ss');
+        dTRecsShifted         = RecDatesEndCommon(2)-RecDatesEndCommon(1);
+        AnalysisDateMaxRange  = [min(RecDatesEndCommon)+days(30), max(RecDatesEndCommon)];
+        PossibleAnalysisDates = AnalysisDateMaxRange(1) : dTRecsShifted : AnalysisDateMaxRange(2);
+        PossibleAnalysisDates.Format = 'dd/MM/yyyy HH:mm:ss';
 
-
-        if AnswerRainfallFor == 1
+        if AnswerTypeFor == 1
             for i1 = 1:size(ChoiceForcstFile,2)
-                ForecastTime = ForecastData{i1,2};
-                IndexForecast = find(ForecastTime-days(30) > RainfallDates(1));   
+                ForecastTime  = ForecastData{i1,2};
+                IndexForecast = find(ForecastTime-days(30) > RecDatesEndCommon(1));   
                 if ~isempty(IndexForecast)
                     ForecastData{i1,5} = ForecastTime(IndexForecast);
                 end
             end
-            AnalysisDates = unique(cat(1,ForecastData{:,5}));
+            PossibleAnalysisDates = unique(cat(1,ForecastData{:,5}));
+            if isempty(PossibleAnalysisDates); error('DT 1'); end
+        end
 
-            if isempty(AnalysisDates); error('DT 1'); end
-        end   
-
-        ChoiceEvent = listdlg('PromptString',{'Select event(s) to analyse through SLIP:',''}, ...
-                              'ListString',AnalysisDates);
-        AnalysisEvents = AnalysisDates(ChoiceEvent);
+        ChoiceEvent    = checkbox2(string(PossibleAnalysisDates), 'Title',{'Select event(s) to analyse:'}, 'OutType','NumInd');
+        AnalysisEvents = PossibleAnalysisDates(ChoiceEvent);
         
         drawnow % Remember to remove if in Standalone version
         figure(Fig) % Remember to remove if in Standalone version
 
-        RainfallSetInterval = {AnalysisEvents(1)-days(30)+dTRecordings, AnalysisEvents(end)}; % +dTRecordings because these are end dates and include an hour of rec
-        RainfallSetIndex = [find(abs(minutes(GeneralDatesEnd-RainfallSetInterval{1})) <= 1), ...
-                            find(abs(minutes(GeneralDatesEnd-RainfallSetInterval{2})) <= 1)];
+        AnalysisInterval = {AnalysisEvents(1)-days(30)+dTRecsShifted, AnalysisEvents(end)}; % +dTRecsShifted because these are end dates and include an hour of rec
+        AnalysisIndices  = [ find(abs(minutes(GeneralDatesEnd-AnalysisInterval{1})) <= 1), ...
+                             find(abs(minutes(GeneralDatesEnd-AnalysisInterval{2})) <= 1) ];
 
-        StabilityEventsAnalysed = length(AnalysisEvents); % Number of stability analysis
+        NumOfEventsAnalysed = length(AnalysisEvents); % Number of stability analysis
+
+        StabilityAnalysis = {NumOfEventsAnalysed, AnalysisEvents, AnalysisIndices};
         
-        StabilityAnalysis = {StabilityEventsAnalysed, AnalysisEvents, RainfallSetIndex};
-
         if StatusPrevAnalysis == 1
             DiffNumOfEvents = StabilityAnalysis{1} ~= StabilityAnalysisOld{1};
-            DiffDates       = any(StabilityAnalysis{2} ~= StabilityAnalysisOld{2});
+            DiffDates       = not(isequal(StabilityAnalysis{2}, StabilityAnalysisOld{2}));
             DiffIndices     = any(StabilityAnalysis{3} ~= StabilityAnalysisOld{3});
             if DiffNumOfEvents || DiffDates || DiffIndices
                 StatusPrevAnalysis = 0;
             end
         end
            
-        IndexInterpolation = RainfallSetIndex(1):RainfallSetIndex(end);
-        VariablesInterpolation = {'IndexInterpolation'};
-        RainfallEvents = AnalysisEvents;
+        IndexInterpolation = AnalysisIndices(1) : AnalysisIndices(end);
+        VariablesInterpol  = [VariablesInterpol, {'IndexInterpolation'}];
 
-        if AnswerRainfallFor == 1; ForecastChoice = AnalysisDates(ChoiceEvent); end % Investigate this line
+        if AnswerTypeFor == 1; ForecastChoice = PossibleAnalysisDates(ChoiceEvent); end % Investigate this line
                     
         VariablesAnalysisSLIP = {'StabilityAnalysis', 'AnalysisDateMaxRange', 'StatusPrevAnalysis'};
         save([fold_var,sl,'AnalysisInformation.mat'], VariablesAnalysisSLIP{:});
 
     case 'Other'
         %% General process
-        if AnswerRainfallFor == 1
-            RainfallDates = unique(cat(1,ForecastData{:,2}));
+        if AnswerTypeFor == 1
+            RecDatesEndCommon = unique(cat(1,ForecastData{:,2}));
         end
         
-        ChoiceRain = listdlg('PromptString',{'Select event(s):',''}, ...
-                             'ListString',RainfallDates);
-        RainfallEvents = string(RainfallDates(ChoiceRain));
-        RainfallEvents = datetime(RainfallEvents, 'Format','dd/MM/yyyy HH:mm');
+        ChoiceEvent    = checkbox2(string(RecDatesEndCommon), 'Title',{'Select event(s):'}, 'OutType','NumInd');
+        AnalysisEvents = RecDatesEndCommon(ChoiceEvent);
+        AnalysisEvents.Format = 'dd/MM/yyyy HH:mm';
 
         drawnow % Remember to remove if in Standalone version
         figure(Fig) % Remember to remove if in Standalone version
 
-        if AnswerRainfallFor == 1
-            ForecastChoice = RainfallDates(ChoiceRain);
+        if AnswerTypeFor == 1
+            ForecastChoice = RecDatesEndCommon(ChoiceEvent);
         else
-            GeneralDatesStart = datetime(GeneralDatesStart, 'Format','dd/MM/yyyy HH:mm:ss');
-            RainfallSetIndex = zeros(1, size(RainfallEvents,2));
-            for i3 = 1:size(RainfallEvents,2)
-                RainfallSetIndex(i3) = find(abs(minutes(GeneralDatesStart-RainfallEvents(i3)))<=1);
+            AnalysisIndices = zeros(1, size(AnalysisEvents,2));
+            for i1 = 1:size(AnalysisEvents,2)
+                AnalysisIndices(i1) = find(abs(minutes(GeneralDatesEnd-AnalysisEvents(i1)))<=1);
             end
-            VariablesInterpolation = {'RainfallSetIndex'};
+            IndexInterpolation = AnalysisIndices;
+            VariablesInterpol  = [VariablesInterpol, {'IndexInterpolation'}];
         end
 end
 
 %% Indexing for forecast rainfall
-if AnswerRainfallFor == 1
+if AnswerTypeFor == 1
     %% General with forecast
     for i1 = 1:size(ForecastChoice,1)
-        Ind1 = 1;
+        IndTemp = 1;
         RunNumber = [];
         PossibleHours = [];
         for i2 = 1:size(ForecastData,1)
             Indgood = find(ForecastChoice(i1)==ForecastData{i2,2});
             if ~isempty(Indgood)
-                RunNumber(Ind1) = i2;
-                PossibleHours(Ind1) = hours(ForecastData{i2,3}(Indgood));
-                Ind1 = Ind1+1;
+                RunNumber(IndTemp) = i2;
+                PossibleHours(IndTemp) = hours(ForecastData{i2,3}(Indgood));
+                IndTemp = IndTemp+1;
             end
         end
         
         if size(ForecastChoice,1) == 1
-            ChoiceForcst = listdlg('PromptString',{'Select forcasted hours:',''}, ...
-                                   'ListString',string(PossibleHours));
+            ChoiceForcst = checkbox2(string(PossibleHours), 'Title',{'Select forcasted hours:'}, 'OutType','NumInd');
             SelectedHoursRun{1,1} = PossibleHours(ChoiceForcst);
             SelectedHoursRun{1,2} = RunNumber(ChoiceForcst);
         else
             [SelectedHoursRun{i1,1}, PosMin] = min(PossibleHours);
             SelectedHoursRun{i1,2} = RunNumber(PosMin);
         end
-
-
     end    
 
-    %% SLIP and forecast
+    %% SLIP with forecast
     if strcmp(AnalysisCase,'SLIP')
         SelectedHoursRun(:,1) = cellfun(@(x) 1:x, SelectedHoursRun(:,1), 'UniformOutput',false);
     end
-
-    VariablesInterpolation = [VariablesInterpolation, {'SelectedHoursRun'}];
+    VariablesInterpol = [VariablesInterpol, {'SelectedHoursRun'}];
 end
 
 %% Saving
 ProgressBar.Message = strcat("Saving data...");
-drawnow
+
+NameInterp  = [ShortName,'Interpolated.mat'];
+NameGeneral = ['General',DataRead,'.mat'];
+AnswerType  = {'AnswerTypeRec', 'AnswerTypeFor', 'InterpDuration'};
 
 SaveNewFile = true;
 if exist([fold_var,sl,'RainInterpolated.mat'], 'file')
@@ -256,12 +301,12 @@ if exist([fold_var,sl,'RainInterpolated.mat'], 'file')
 end
 
 if SaveNewFile
-    saveswitch([fold_var,sl,'RainInterpolated.mat'], VariablesInterpolation);
+    saveswitch([fold_var,sl,NameInterp], VariablesInterpol);
 else
-    save([fold_var,sl,'RainInterpolated.mat'], VariablesInterpolation{:}, '-append');
+    save([fold_var,sl,NameInterp], VariablesInterpol{:}, '-append');
 end
 
-save([fold_var,sl,'UserTimeSens_Answers.mat'], NameFile{:}, 'AnalysisCase', AnswerRainfall{:});
-save([fold_var,sl,'GeneralRainfall.mat'], VariablesRainfall{:});
+save([fold_var,sl,'UserTimeSens_Answers.mat'], VariablesFilenames{:},'AnalysisCase',AnswerType{:});
+save([fold_var,sl,NameGeneral],                VariablesRecorded{:});
 
-% close(Fig) % Remember to comment this line if is app version
+close(ProgressBar) % Remember to replace ProgressBar with Fig if you are in standalone version

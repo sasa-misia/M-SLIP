@@ -10,12 +10,16 @@ load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon','StudyAreaPolygo
 
 cd(fold_raw_dtm)
 % Import tif and tfw file names
+SepWrldFl = false;
 switch DTMType
     case 0
+        SepWrldFl = true;
         NameFile1 = FileName_DTM(contains(FileName_DTM,'tif'));
         NameFile2 = FileName_DTM(contains(FileName_DTM,'tfw'));
+
     case 1
         NameFile1 = FileName_DTM;
+
     case 2
         NameFile1 = FileName_DTM;
 end
@@ -29,38 +33,16 @@ for i1 = 1:length(NameFile1)
     ProgressBar.Message = strcat("Analyzing DTM n. ",num2str(i1)," of ", num2str(length(NameFile1)));
     ProgressBar.Value   = i1/length(NameFile1);
 
-    switch DTMType
-        case 0
-            RasterData = imread([fold_raw_dtm,sl,char(NameFile1(i1))]);
-            RasterInfo = worldfileread([fold_raw_dtm,sl, ...
-                                        char(NameFile2(i1))], 'planar', size(RasterData));
-        case 1
-            [RasterData, RasterInfo] = readgeoraster([fold_raw_dtm,sl, ...
-                                                      char(NameFile1(i1))], 'OutputType','native');
-        case 2
-            [RasterData, RasterInfo] = readgeoraster([fold_raw_dtm,sl, ...
-                                                      char(NameFile1(i1))], 'OutputType','double');
-    end
+    [RasterData, RasterRef] = readgeorast2([fold_raw_dtm,sl,char(NameFile1(i1))], 'SeparateWorldFile',SepWrldFl);
         
-    if strcmp(RasterInfo.CoordinateSystemType,"planar")
-        if isempty(RasterInfo.ProjectedCRS) && i1==1
-            EPSG = str2double(inputdlg2({'DTM EPSG (Sicily -> 32633, Emilia Romagna -> 25832):'}, 'DefInp',{'25832'}));
-            RasterInfo.ProjectedCRS = projcrs(EPSG);
-        elseif isempty(RasterInfo.ProjectedCRS) && i1>1
-            RasterInfo.ProjectedCRS = projcrs(EPSG);
-        end
+    if strcmp(RasterRef.CoordinateSystemType,"planar")
+        OriginalProjCRS{i1} = RasterRef.ProjectedCRS;
+        [xTBS,yTBS] = worldGrid(RasterRef);
+        dX = RasterRef.CellExtentInWorldX;
+        dY = RasterRef.CellExtentInWorldY;
 
-        OriginalProjCRS{i1} = RasterInfo.ProjectedCRS;
-        [xTBS,yTBS] = worldGrid(RasterInfo);
-        dX = RasterInfo.CellExtentInWorldX;
-        dY = RasterInfo.CellExtentInWorldY;
-
-    elseif strcmp(RasterInfo.CoordinateSystemType,"geographic")
-        if isempty(RasterInfo.GeographicCRS)
-            RasterInfo.GeographicCRS = geocrs(4326); % It will be applied the standard
-        end
-
-        [yTBS, xTBS] = geographicGrid(RasterInfo);
+    elseif strcmp(RasterRef.CoordinateSystemType,"geographic")
+        [yTBS, xTBS] = geographicGrid(RasterRef);
         dX = acos(sind(yTBS(1,1))*sind(yTBS(1,2))+cosd(yTBS(1,1))*cosd(yTBS(1,2))*cosd(xTBS(1,2)-xTBS(1,1)))*earthRadius;
         dY = acos(sind(yTBS(1,1))*sind(yTBS(2,1))+cosd(yTBS(1,1))*cosd(yTBS(2,1))*cosd(xTBS(2,1)-xTBS(1,1)))*earthRadius;
     end
@@ -79,19 +61,19 @@ for i1 = 1:length(NameFile1)
     Elevation = max(RasterData(1:ScaleFactorX:end, 1:ScaleFactorY:end), 0); % Sometimes raster have big negative elevation values for sea
     clear('RasterData')
     
-    if strcmp(RasterInfo.CoordinateSystemType,"planar")
-        [yLat,xLong] = projinv(RasterInfo.ProjectedCRS, xScaled, yScaled);
-        [yLatExt, xLongExt] = projinv(RasterInfo.ProjectedCRS, RasterInfo.XWorldLimits, RasterInfo.YWorldLimits);
+    if strcmp(RasterRef.CoordinateSystemType,"planar")
+        [yLat   , xLong   ] = projinv(RasterRef.ProjectedCRS, xScaled, yScaled);
+        [yLatExt, xLongExt] = projinv(RasterRef.ProjectedCRS, RasterRef.XWorldLimits, RasterRef.YWorldLimits);
         RastInfoGeo = georefcells(yLatExt, xLongExt, size(Elevation), 'ColumnsStartFrom','north'); % Remember to automatize this parameter (ColumnsStartFrom) depending on emisphere!
-        RastInfoGeo.GeographicCRS = RasterInfo.ProjectedCRS.GeographicCRS;
+        RastInfoGeo.GeographicCRS = RasterRef.ProjectedCRS.GeographicCRS;
 
-    elseif strcmp(RasterInfo.CoordinateSystemType,"geographic")
+    elseif strcmp(RasterRef.CoordinateSystemType,"geographic")
         xLong = xScaled;
         yLat  = yScaled;
-        RastInfoGeo  = RasterInfo;
+        RastInfoGeo  = RasterRef;
     end
 
-    clear('xScaled', 'yScaled', 'RasterInfo')
+    clear('xScaled', 'yScaled', 'RasterRef')
 
     xLongAll{i1} = xLong;
     clear('xLong')

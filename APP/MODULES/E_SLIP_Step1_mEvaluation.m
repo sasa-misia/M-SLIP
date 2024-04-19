@@ -10,9 +10,9 @@ load([fold_var,sl,'GridCoordinates.mat'],      'xLongAll','IndexDTMPointsInsideS
 load([fold_var,sl,'SoilParameters.mat'],       'KtAll')
 load([fold_var,sl,'RainInterpolated.mat'],     'RainInterpolated')
 load([fold_var,sl,'AnalysisInformation.mat'],  'StabilityAnalysis')
-load([fold_var,sl,'UserTimeSens_Answers.mat'], 'AnswerRainfallFor')
-if not(exist('AnswerRainfallFor','var')); AnswerRainfallFor = false; end
-if AnswerRainfallFor
+load([fold_var,sl,'UserTimeSens_Answers.mat'], 'AnswerTypeFor')
+if not(exist('AnswerTypeFor','var')); AnswerTypeFor = false; end
+if AnswerTypeFor
     load([fold_var,sl,'RainInterpolated.mat'], 'SelectedHoursRun')
 end
 
@@ -27,7 +27,7 @@ RainStart = StabilityAnalysis{3}(1);
 RW = 30*24;
 dt = (RW:-1:1);
 
-if AnswerRainfallFor == 1
+if AnswerTypeFor == 1
     HoursPrediction = cellfun(@max,SelectedHoursRun(:,1));
 end
 
@@ -47,7 +47,7 @@ for i1 = 1:AnalysisNumber
                            num2str(i1),' of ',num2str(AnalysisNumber)];
     if ProgressBar.CancelRequested; break; end
     
-    if AnswerRainfallFor == 1
+    if AnswerTypeFor == 1
         RunForecast  = SelectedHoursRun{i1,2};
         load([fold_var_rain_for,sl,'RainForecastInterpolated',num2str(RunForecast)], 'RainForecastInterpolated');
 
@@ -61,7 +61,7 @@ for i1 = 1:AnalysisNumber
             ProgressBar.Value = (numel(dt)*(NumberOfDTM*(i1-1)+(i2-1))+i3)/Steps;
 
             RainTmp = RainInterpolated{IndRnAn{i1}(i3), i2};
-            if AnswerRainfallFor == 1 && any(IndToReplace == i3)
+            if AnswerTypeFor == 1 && any(IndToReplace == i3)
                 IndFor  = IndToReplace == i3;
                 RainTmp = RainForecast{IndFor, 1}; % PLEASE REMEMBER TO MODIFY! NOT EVERYTIME LAST INDEX OF FORECAST IS THE SAME OF RECS, BUT JUST WITH ANALYSES IN THE PAST! INVESTIGATE ALSO ON 1 AS COLUMN!
                 warning('Not yet tested! Please contact the support in case of issues!')

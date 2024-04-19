@@ -139,7 +139,7 @@ end
 
 % Excel reading
 cd(fold_user)
-SubSoilClasses   = readcell('ClassesML.xlsx', 'Sheet','Sub soil');
+SubSoilClasses = readcell('ClassesML.xlsx', 'Sheet','Sub soil');
 TopSoilClasses = readcell('ClassesML.xlsx', 'Sheet','Top soil');
 LandUseClasses = readcell('ClassesML.xlsx', 'Sheet','Land use');
 VegClasses     = readcell('ClassesML.xlsx', 'Sheet','Vegetation');
@@ -298,7 +298,7 @@ end
 TypeParam = [TypeParam, repmat(3, 1, length(TimeSensitiveParam))];
 
 %% Concatenation, quantiles, and extremes
-InfoFieldnames   = fieldnames(Info);
+InfoFieldnames = fieldnames(Info);
 [QuantsPerField, LimitsPerField, ...
         ValsCatPerField, ClassAssociation] = deal(cell(1, length(InfoFieldnames)));
 for i1 = 1:length(InfoFieldnames)

@@ -62,10 +62,8 @@ if SpecificWindow
 
     switch ChoiceWindow
         case 'SingleWindow'
-            CoordinatesWindow = inputdlg({'Lon_{min} (°):'
-                                          'Lon_{max} (°):'
-                                          'Lat_{min} (°):'
-                                          'Lat_{max} (°):'});    
+            CoordinatesWindow = inputdlg2({'Lon min [°]:', 'Lon max [°]:', ...
+                                           'Lat min [°]:', 'Lat max [°]:'}); 
             CoordinatesWindow = cat(1,cellfun(@eval,CoordinatesWindow));
             PolWindow = polyshape( [CoordinatesWindow(1), CoordinatesWindow(2), ...
                                     CoordinatesWindow(2), CoordinatesWindow(1)], ...
@@ -76,17 +74,18 @@ if SpecificWindow
         case 'MultiWindows'
             xLongDet = [InfoDetectedSoilSlips{IndDefInfoDet}{:,5}];
             yLatDet  = [InfoDetectedSoilSlips{IndDefInfoDet}{:,6}];
-            WindowSide = str2double(inputdlg("Set side of each window (m)", '', 1, {'1200'}));
-            dLatHalfSide  = rad2deg(WindowSide/2/earthRadius); % /2 to have half of the size from the centre
-            PolWindow = repmat(polyshape, 1, length(xLongDet));
+            WindSide = str2double(inputdlg2('Side of each window [m]', 'DefInp',{'1200'}));
+            dLatHalf = rad2deg(WindSide/2/earthRadius); % /2 to have half of the size from the centre
+            PolWind  = repmat(polyshape, 1, length(xLongDet));
             for i1 = 1:length(xLongDet)
-                dLongHalfSide = rad2deg(acos( (cos(WindowSide/2/earthRadius)-sind(yLatDet(i1))^2)/cosd(yLatDet(i1))^2 )); % /2 to have half of the size from the centre
-                PolWindow(i1) = polyshape( [xLongDet(i1)-dLongHalfSide, xLongDet(i1)+dLongHalfSide, ...
-                                            xLongDet(i1)+dLongHalfSide, xLongDet(i1)-dLongHalfSide], ...
-                                           [yLatDet(i1)-dLatHalfSide,  yLatDet(i1)-dLatHalfSide, ...
-                                            yLatDet(i1)+dLatHalfSide,  yLatDet(i1)+dLatHalfSide ] );
+                dLongHalf   = rad2deg(acos( (cos(WindSide/2/earthRadius)-sind(yLatDet(i1))^2)/cosd(yLatDet(i1))^2 )); % /2 to have half of the size from the centre
+                PolWind(i1) = polyshape( [ xLongDet(i1)-dLongHalf, xLongDet(i1)+dLongHalf, ...
+                                           xLongDet(i1)+dLongHalf, xLongDet(i1)-dLongHalf ], ...
+                                         [ yLatDet(i1)-dLatHalf  ,  yLatDet(i1)-dLatHalf , ...
+                                           yLatDet(i1)+dLatHalf  ,  yLatDet(i1)+dLatHalf  ] );
             end
-            StudyAreaPolygon = union(PolWindow);
+            StudyAreaPolygon = union(PolWind);
+            PolWindow = PolWind;
     end
 
     StudyAreaPolygonClean = StudyAreaPolygon;

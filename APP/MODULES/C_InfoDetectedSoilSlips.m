@@ -12,7 +12,7 @@ load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygonClean')
 
 %% Preliminary operations
 Files = {dir([fold_raw_det_ss,sl,'*.xlsx']).name};
-FilesDetectedSoilSlip = string(checkbox2(Files, 'Title',{'Choose file (even multiple):'}));
+FilesDetectedSoilSlip = string(checkbox2(Files, 'Title',{'Choose file (even multiple):'})); % Maybe it is better the full path!
 
 if length(FilesDetectedSoilSlip) == 1
     IndDefInfoDet = 1;

@@ -5,7 +5,7 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
 drawnow
 
 %% File loading
-load([fold_var,sl,'StudyAreaVariables.mat'],   'StudyAreaPolygon')
+load([fold_var,sl,'StudyAreaVariables.mat'],   'StudyAreaPolygon','MunPolygon')
 load([fold_var,sl,'GridCoordinates.mat'],      'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
 load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll','OriginallyProjected','SameCRSForAll')
 
@@ -30,8 +30,16 @@ end
 [PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon);
 
 %% Options
+PltGrayIm = uiconfirm(Fig, 'Do you want to plot relief in gray?', ...
+                           'Gray plot', 'Options',{'Yes','No'}, 'DefaultOption',2);
+if strcmp(PltGrayIm,'Yes'); PltGrayIm = true; else; PltGrayIm = false; end
+
+ShowMunis = uiconfirm(Fig, 'Do you want to show municipalities?', ...
+                           'Municipalities', 'Options',{'Yes','No'}, 'DefaultOption',2);
+if strcmp(ShowMunis,'Yes'); ShowMunis = true; else; ShowMunis = false; end
+
 ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
-                           'Show Plots', 'Options',{'Yes','No'}, 'DefaultOption',2);
+                           'Show plots', 'Options',{'Yes','No'}, 'DefaultOption',2);
 if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
 
 %% Merge DTMs
@@ -110,6 +118,9 @@ for i1 = 1:length(xLongAll)
 
     ShdColorsAll{i1}    = zeros(size(xLongAll{i1}, 1), size(xLongAll{i1}, 2), 3);
     ShdColorsAll{i1}(:) = [RedTemp(IdxToUse); GreenTemp(IdxToUse); BlueTemp(IdxToUse)];
+    if PltGrayIm
+        ShdColorsAll{i1} = repmat(rgb2gray(ShdColorsAll{i1}), 1, 1, 3);
+    end
 end
 
 %% Plot
@@ -118,7 +129,11 @@ ProgressBar.Message = "Plotting...";
 filename1 = 'Hillshade';
 curr_fig  = figure('Visible','off');
 curr_ax   = axes('Parent',curr_fig); 
-hold(curr_ax,'on'); 
+hold(curr_ax,'on');
+
+if PltGrayIm
+    filename1 = [filename1,'BW'];
+end
 
 set(curr_fig, 'Name',filename1);
 
@@ -127,7 +142,9 @@ for i1 = 1:length(xLongAll)
 end
 
 plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5, 'Parent',curr_ax)
-% plot(MunPolygon,       'FaceColor','none', 'LineWidth',1,   'Parent',curr_ax) % ASK FOR IT!
+if ShowMunis
+    plot(MunPolygon, 'FaceColor','none', 'LineWidth',1, 'Parent',curr_ax)
+end
 
 fig_settings(fold0)
 

@@ -20,9 +20,13 @@ function [OutVals] = checkbox2(Values, varargin)
 %   you want the numerical index (referred to the possibilities for that
 %   field), or 'LogInd' if you want a logical array. If no value is specified, 
 %   then 'CellStr' will be taken as default!
+%   
+%   - 'DefInp', logical : is to define the default checkbox value for each
+%   entry! It must have the same size of 'Values'. If no value is specified,
+%   then an array with false values will be take as default.
 
 %% Input Check
-if not(iscell(Values)) && not(isstring(Values)) && not(ischar(Values))
+if not(iscell(Values)) && not(isstring(Values)) && not(ischar(Values)) && not(isdatetime(Values))
     error(['First input must be a cell containing string or chars, or ' ...
            'directly a string array or a char array!'])
 end
@@ -50,6 +54,8 @@ PosWind = [800, 300, ...
 CnfBtSz = [100, 22];   % Default
 PnlSize = [xPn, yPn];  % Default
 CBSize  = [xPn-5, 22]; % Default
+DefInps = false(size( ...
+            Values)); % Default
 
 if ~isempty(varargin)
     StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
@@ -60,10 +66,17 @@ if ~isempty(varargin)
     InputTitle    = find(cellfun(@(x) all(strcmpi(x, "title"   )), vararginCp));
     InputPosition = find(cellfun(@(x) all(strcmpi(x, "position")), vararginCp));
     InputOutType  = find(cellfun(@(x) all(strcmpi(x, "outtype" )), vararginCp));
+    InputDefInps  = find(cellfun(@(x) all(strcmpi(x, "definp"  )), vararginCp));
 
     if InputTitle   ; Title   = varargin{InputTitle+1    }; end
     if InputPosition; PosWind = varargin{InputPosition+1 }; end
     if InputOutType ; OutType = vararginCp{InputOutType+1}; end
+    if InputDefInps ; DefInps = varargin{InputDefInps+1  }; end
+end
+
+if not(islogical(DefInps)) || (numel(DefInps) ~= numel(Values))
+    error(['DefInp variable is not a logical array or it ' ...
+           'does not have the same size of Values variable!'])
 end
 
 %% Initialization
@@ -99,7 +112,7 @@ PnlCB  = cell(1, numel(Values));
 for i1 = 1:BoxNum
     for i2 = 1:numel(Values)
         PnlCBPs   = [(PnlSize(1)-CBSize(1))/2, ExCBSz*(i2-1)+(ExCBSz-CBSize(2))/2, CBSize(1), CBSize(2)];
-        PnlCB{i2} = uicheckbox(Panels{i1}, 'Text',Values{i2}, 'Position',PnlCBPs);
+        PnlCB{i2} = uicheckbox(Panels{i1}, 'Text',Values{i2}, 'Position',PnlCBPs, 'Value',DefInps(i2));
     end
 end
 
