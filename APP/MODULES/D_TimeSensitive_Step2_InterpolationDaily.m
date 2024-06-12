@@ -1,6 +1,6 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
-                                 'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Cancelable','off', 'Message','Reading files...');
 drawnow
 
 %% Loading data
@@ -10,15 +10,24 @@ DataRead = uiconfirm(Fig, 'What type of data do you want to read?', ...
                           'Reading Data', 'Options',Options, 'DefaultOption',1);
 switch DataRead
     case 'Rainfall'
-        GeneralFileName = 'GeneralRainfall.mat';
-        ShortName       = 'Rain';
+        GenrlFlnm = 'GeneralRainfall.mat';
+        ShortName = 'Rain';
+        AggrgMode = 'sum';
+        
     case 'Temperature'
-        GeneralFileName = 'GeneralTemperature.mat';
-        ShortName       = 'Temp';
+        GenrlFlnm = 'GeneralTemperature.mat';
+        ShortName = 'Temp';
+        AggrgMode = char(listdlg2({'Operation for aggregation:'}, {'avg','min','max'}));
 end
 
-load([fold_var,sl,GeneralFileName],       'GeneralData','Gauges','RecDatesEndCommon') % Remember that RainfallDates are referred at the end of your registration period
+load([fold_var,sl,GenrlFlnm            ], 'GeneralData','GenDataProps','Gauges','RecDatesEndCommon') % Remember that RainfallDates are referred at the end of your registration period
 load([fold_var,sl,'GridCoordinates.mat'], 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
+
+IndPrp2Use = 1;
+if not(iscell(GeneralData)); error('Please, update Generaldata (run again Select file(s))'); end
+if numel(GeneralData) > 1
+    IndPrp2Use = listdlg2({'Property to interpolate:'}, GenDataProps, 'OutType','NumInd');
+end
 
 %% Elaboration of data and selection of dates
 ProgressBar.Message = "Selection od dates...";
@@ -30,45 +39,48 @@ MaxDaysPoss  = caldays(between(RecDatesEndCommon(1), RecDatesEndCommon(EndDateIn
 NumberOfDays = str2double(inputdlg2({['Days to consider? (Max possible: ', ...
                                       num2str(MaxDaysPoss)]}, 'DefInp',{num2str(MaxDaysPoss)}));
 
-EndDate          = RecDatesEndCommon(EndDateInd);
-StartDate        = RecDatesEndCommon(EndDateInd) - days(NumberOfDays);
-StartDateInd     = find(abs(minutes(RecDatesEndCommon - StartDate)) <= 1);
-dTRecordings     = RecDatesEndCommon(2) - RecDatesEndCommon(1);
-StepForEntireDay = int64(days(1)/dTRecordings);
-
 if (NumberOfDays > MaxDaysPoss) || (NumberOfDays <= 0)
     error(strcat('You have to specify a number that go from 1 to ',num2str(MaxDaysPoss)))
 end
 
+dTRecsOrg = RecDatesEndCommon(2) - RecDatesEndCommon(1);
+EndDate   = RecDatesEndCommon(EndDateInd);
+StartDate = RecDatesEndCommon(EndDateInd) - days(NumberOfDays);
+EndDtsCmm = RecDatesEndCommon;
+StrDtsCmm = RecDatesEndCommon - dTRecsOrg;
+GenrlProp = GeneralData(IndPrp2Use);
+
 %% Interpolation
 ProgressBar.Message = "Interpolation...";
-DataDaily = zeros(size(GeneralData,1), NumberOfDays);
-for i1 = 1:NumberOfDays
-    switch DataRead
-        case 'Rainfall'
-            DataDaily(:,i1) = sum(  GeneralData(:, (StartDateInd+StepForEntireDay*(i1-1)+1) : StartDateInd+StepForEntireDay*(i1)), 2 );
-
-        case 'Temperature'
-            DataDaily(:,i1) = mean( GeneralData(:, (StartDateInd+StepForEntireDay*(i1-1)+1) : StartDateInd+StepForEntireDay*(i1)), 2 );
-    end
+[StrDtsCmm1d, EndDtsCmm1d, ...
+        GenrlProp1d] = newdeltarecords(StrDtsCmm, EndDtsCmm, ...
+                                       GenrlProp, hours(24), 'AggrMode',AggrgMode, ...
+                                                             'StartDate',StartDate, ...
+                                                             'EndDate',EndDate);
+if numel(GenrlProp1d) > 1
+    error(['Property to interpolate is not single after ', ...
+           'apply the new delta, please contact the support!'])
 end
+
+DataDaily = GenrlProp1d{:};
+DateInterpolationStarts = StrDtsCmm1d;
 
 Options = {'linear', 'nearest', 'natural'};
 InterpMethod = uiconfirm(Fig, 'What interpolation method do you want to use?', ...
                               'Interpolation methods', 'Options',Options);
 ProgressBar.Indeterminate = 'off';
-DataInterpolated = cell(size(DataDaily,2), size(xLongAll,2));
-for i1 = 1:size(DataDaily,2)
-    ProgressBar.Value = i1/size(DataDaily,2);
-    ProgressBar.Message = strcat("Interpolating day ", string(i1)," of ", string(size(DataDaily,2)));
+DataInterpolated = cell(size(DataDaily,1), size(xLongAll,2));
+for i1 = 1:size(DataDaily,1)
+    ProgressBar.Value = i1/size(DataDaily,1);
+    ProgressBar.Message = strcat("Interpolating day ", string(i1)," of ", string(size(DataDaily,1)));
 
-    CurrInterpolation = scatteredInterpolant(xLongSta, yLatSta, DataDaily(:,i1), InterpMethod); 
+    CurrInterpolation = scatteredInterpolant(xLongSta, yLatSta, DataDaily(i1,:)', InterpMethod); 
     for i2 = 1:size(xLongAll,2)
         xLong = xLongAll{i2}(IndexDTMPointsInsideStudyArea{i2});
         yLat  = yLatAll{i2}(IndexDTMPointsInsideStudyArea{i2});
         switch DataRead
             case 'Rainfall'
-                TempValues = max(CurrInterpolation(xLong,yLat), 0);
+                TempValues = max(CurrInterpolation(xLong,yLat), 0); % Rain has a bottom limit: 0 mm!
             case 'Temperature'
                 TempValues = CurrInterpolation(xLong,yLat);
         end
@@ -76,8 +88,6 @@ for i1 = 1:size(DataDaily,2)
     end      
 end
 ProgressBar.Indeterminate = 'on';
-
-DateInterpolationStarts = RecDatesEndCommon(StartDateInd) : days(1) : RecDatesEndCommon(StartDateInd)+days(NumberOfDays-1); % -1 because normally you would take 00:00 of the day after the desired, for having the complete interpolation of the past day.
 
 %% Saving...
 ProgressBar.Message = "Saving...";

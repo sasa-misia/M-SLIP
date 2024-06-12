@@ -36,7 +36,7 @@ ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
 if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
 
 DatetimesPredicted = [EventsInfo{'PredictionDate',:}{:}];
-if length(DatetimesPredicted) == 1
+if isscalar(DatetimesPredicted)
     DatetimeChosed = DatetimesPredicted;
     EventNameChosed = EventsInfo.Properties.VariableNames;
 else

@@ -1,38 +1,31 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
-                                 'Message','Initializing', 'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Cancelable','off', 'Message','Reading files...');
 drawnow
 
 %% Options
 ProgressBar.Message = 'General options...';
 
-AreaFltAns = uiconfirm(Fig, 'Do you want to filter polygons based on the area?', ...
-                            'Poly filter', 'Options',{'Yes','No'}, 'DefaultOption',1);
-if strcmp(AreaFltAns,'Yes'); AreaFilter = true; else; AreaFilter = false; end
+AnsFilters = checkbox2({'Polygon filter based on area', 'Polygon filter based on ID'}, 'OutType','LogInd');
+AreaFilter = AnsFilters(1);
+PlIDFilter = AnsFilters(2);
 
 if AreaFilter
-    MaxLimArea = str2num(string(inputdlg2({'Max limit area [m2]'}, 'DefInp',{'70*70'})));
-    
-    figure(Fig)
-    drawnow
+    MaxLimArea = str2num(char(inputdlg2({'Max limit area [m2]'}, 'DefInp',{'70*70'})));
 end
 
-BufferSize  = str2double(string(inputdlg2({'Buffer for point or linear geometries [m]'}, 'DefInp',{'15'})));
+BufferSize  = str2double(inputdlg2({'Buffer for point or linear geometries [m]'}, 'DefInp',{'15'}));
 OrderEvents = uiconfirm(Fig, 'How do you want to order polygons?', ...
                              'Poly order', 'Options',{'Dates','NumOfEvents'}, 'DefaultOption',1);
-figure(Fig)
-drawnow
 
 %% File selection
 ProgressBar.Message = 'Selection of files...';
 
 sl = filesep;
 
-cd(fold_var)
-load('StudyAreaVariables.mat', 'StudyAreaPolygon','MaxExtremes','MinExtremes');
+load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon','MaxExtremes','MinExtremes');
 
-cd(fold_raw_det_ss);
-[FlNmShp, FlPthShp] = uigetfile('*.shp', 'Choose your shapefile', 'MultiSelect','on');
+[FlNmShp, FlPthShp] = uigetfile([fold_raw_det_ss,sl,'*.shp'], 'Choose your shapefile', 'MultiSelect','on');
 if not(iscell(FlNmShp)); FlNmShp = {FlNmShp}; end
 ShpPaths = strcat(FlPthShp, FlNmShp);
 
@@ -55,7 +48,7 @@ switch SrcType
     case 'Shp'
 
     case 'Excel+Shp'
-        [FlNmXlsx, FlPthXlsx] = uigetfile('*.xlsx', 'Choose your shapefile', 'MultiSelect','off');
+        [FlNmXlsx, FlPthXlsx] = uigetfile('*.xlsx', 'Choose your excel file', 'MultiSelect','off');
         InventoryExcelPath = [FlPthXlsx, FlNmXlsx];
 
         % Copy in case of files taken from other folders
@@ -113,7 +106,6 @@ end
 ShpFldPrp = cellfun(@(x) ['ID field in ',x,': '], FlNmShp, 'UniformOutput',false);
 ShpFields = cellfun(@(x) [{x.Attributes.Name},"None of these"], ShpInfo, 'UniformOutput',false);
 ShpFldsID = listdlg2(ShpFldPrp, ShpFields);
-
 NotFldShp = cellfun(@(x) strcmp(x, 'None of these'), ShpFldsID);
 if any(NotFldShp)
     warning(['Since you have selected "None of these", ' ...
@@ -130,6 +122,39 @@ end
 
 switch SrcType
     case 'Shp'
+        ShpFldPrp = cellfun(@(x) ['Datetime field in ',x,': '], FlNmShp, 'UniformOutput',false);
+        ShpFldsDt = listdlg2(ShpFldPrp, ShpFields);
+
+        DttmAss = cell(1, numel(ShpInfo));
+        for i1 = 1:numel(ShpInfo)
+            NumDts = 1;
+            ShpIDs = extractfield(ShpRead{i1}, ShpFldsID{i1});
+            ShpDts = NaT(size(ShpIDs));
+            if not(strcmpi(ShpFldsDt(i1), 'None of these'))
+                ShpDtsR = extractfield(ShpRead{i1}, ShpFldsDt{i1});
+                for i2 = 1:numel(ShpDtsR)
+                    if isdatetime(ShpDtsR(i2))
+                        ShpDts(i2) = ShpDtsR(i2);
+                    elseif ( iscell(ShpDtsR(i2)) && (ischar(ShpDtsR{i2}) ...
+                             || isstring(ShpDtsR{i2})) ) || ischar(ShpDtsR(i2)) || isstring(ShpDtsR(i2))
+                        if NumDts > 1
+                            ShpDts(i2) = datetime(cellstr(ShpDtsR(i2)), 'InputFormat',DttmFrmt{:});
+                        else
+                            ShpDtTmp   = cellstr(ShpDtsR(i2));
+                            DttmFrmt   = inputdlg2({['Datetime format for ',ShpDtTmp{:}]}, 'DefInp',{'yyyyMMdd'});
+                            ShpDts(i2) = datetime(ShpDtTmp, 'InputFormat',DttmFrmt{:});
+                            NumDts = NumDts + 1;
+                        end
+                    end
+                end
+            end
+            DttmAss{i1} = [cellstr(string(ShpIDs))', num2cell(ShpDts)'];
+        end
+
+        DttmAss = cat(1, DttmAss{:});
+
+        InvLandsTbl = table;
+        InvTbColID  = repmat({'ID'}, 1, numel(ShpRead));
 
     case 'Excel+Shp'
         InvLandsCell = readcell(InventoryExcelPath);
@@ -141,13 +166,11 @@ switch SrcType
 
         ExclFldPrp = cellfun(@(x, y) ['Excel ID for ',x,' (',y,')'], ShpFldsID, FlNmShp, 'UniformOutput',false);
         ExclFields = InvLandsTbl.Properties.VariableNames;
-        ExclFldsID = listdlg2(ExclFldPrp, ExclFields);
+        InvTbColID = listdlg2(ExclFldPrp, ExclFields);
 
     otherwise
         error('Source type not recognized!')
 end
-
-cd(fold0)
 
 %% Polygons from shapefile
 ProgressBar.Message = 'Creation of polygons...';
@@ -156,33 +179,45 @@ ProgressBar.Indeterminate = 'off';
 [LandsOrgCoords, LandsMrgdPolys, ...
         LandsUnShpIDs, LndUnShIDInds] = deal(cell(1, numel(ShpInfo)));
 for i1 = 1:numel(ShpInfo)
-    ShpIDs = extractfield(ShpRead{i1}, ShpFldsID{i1});
-    
-    if isnumeric(ShpIDs)
-        EffShpIDs = not(ShpIDs == 0);
-        NumShpIDs = sum(EffShpIDs);
-    else
-        warning(['Attention, you do not have a numeric array in ID (', ...
-                 FlNmShp{i1},')! The script could not work properly...'])
-    end
-    
+    ShpIDs   = extractfield(ShpRead{i1}, ShpFldsID{i1});
     UnShpIDs = unique(ShpIDs);
-    UnShpIDs(UnShpIDs == 0) = []; % To exclude ID n. 0!
-    
-    NumUnShpIDs = numel(UnShpIDs);
-    
-    IndUnShpIDs = cell(1, NumUnShpIDs);
-    for i2 = 1:NumUnShpIDs
-        IndUnShpIDs{i2} = find(UnShpIDs(i2) == ShpIDs);
+
+    if PlIDFilter
+        ID2Use = checkbox2(string(UnShpIDs), 'Title',{['ID to consider (file ',num2str(i1),') :']}, ...
+                                             'OutType','NumInd', 'DefInp',true(1, numel(UnShpIDs)));
+        if not(isempty(ID2Use))
+            UnShpIDs = UnShpIDs(ID2Use);
+        end
+    end
+      
+    if isnumeric(ShpIDs)
+        IndsW0 = UnShpIDs == 0;
+        if any(IndsW0)
+            UnShpIDs(IndsW0) = []; % To exclude ID n. 0!
+            warning(['IDs equal to 0 found in file n. ',num2str(i1),'. They ', ...
+                     'will be removed, contact the support if you need them!'])
+        end
+
+    elseif isstring(ShpIDs) || ischar(ShpIDs) || iscellstr(ShpIDs)
+        warning(['Attention, you do not have a numeric array in ID (', ...
+                 FlNmShp{i1},')! The script may not work properly...'])
+
+    else
+        error(['ID field data type not recognized for file ',FlNmShp{i1}])
     end
 
-    LandsUnShpIDs{i1} = UnShpIDs;
+    IndUnShpIDs = cell(1, numel(UnShpIDs)); 
+    for i2 = 1:numel(UnShpIDs)
+        IndUnShpIDs{i2} = find(ismember(ShpIDs, UnShpIDs(i2)));
+    end
+
+    LandsUnShpIDs{i1} = cellstr(string(UnShpIDs));
     LndUnShIDInds{i1} = IndUnShpIDs;
     
     % Poligon creation
-    LandsOrgCoords{i1} = cell(1, NumUnShpIDs);
-    LandsMrgdPolys{i1} = repmat(polyshape, 1, NumUnShpIDs);
-    for i2 = 1:length(IndUnShpIDs)
+    LandsOrgCoords{i1} = cell(1, numel(UnShpIDs));
+    LandsMrgdPolys{i1} = repmat(polyshape, 1, numel(UnShpIDs));
+    for i2 = 1:numel(IndUnShpIDs)
         ProgressBar.Value = i2/length(IndUnShpIDs);
         ProgressBar.Message = ['Polygon n. ',num2str(i2),' of ',num2str(length(IndUnShpIDs)),' (from ',FlNmShp{i1},')'];
 
@@ -245,21 +280,21 @@ LndsUnPlysStudy = LndsUnPlysStudy(not(MptyLndsPlyStdy));
 NewUnIDs = unique(LndsUnShIDStudy);
 ToMerge  = (numel(NewUnIDs) ~= numel(LndsUnShIDStudy));
 if ToMerge
-    IndToUse = cell(1, numel(NewUnIDs));
+    Inds2Mrg = cell(1, numel(NewUnIDs));
     for i1 = 1:numel(NewUnIDs)
-        IndToUse{i1} = find(NewUnIDs(i1) == LndsUnShIDStudy); % This is relative to LndsUnShIDStudy
+        Inds2Mrg{i1} = find(ismember(LndsUnShIDStudy, NewUnIDs(i1))); % This is relative to LndsUnShIDStudy
     end
-    NumDup = cellfun(@numel, IndToUse);
-    IndDup = find(NumDup > 1); % This is relative to IndToUse or NumDup
-    IDsDup = LndsUnShIDStudy(arrayfun(@(x) IndToUse{x}(1), IndDup));
+    NumDup = cellfun(@numel, Inds2Mrg);
+    IndDup = find(NumDup > 1); % This is relative to Inds2Mrg or NumDup
+    IDsDup = LndsUnShIDStudy(arrayfun(@(x) Inds2Mrg{x}(1), IndDup));
     WrnStr = ['Attention, ',num2str(numel(IndDup)),' repetitions (IDs: ', ...
-              num2str(IDsDup),' for respectively ',num2str(NumDup(IndDup)), ...
+              strjoin(IDsDup, ' | '),' for respectively ',num2str(NumDup(IndDup)), ...
               ' times). These reps will be merged into single polygons!'];
     warning(WrnStr)
 
     LndsUnShIDStudy = NewUnIDs;
-    LndsUnOrCrStudy = cellfun(@(x) [LndsUnOrCrStudy{x}], IndToUse, 'UniformOutput',false);
-    LndsUnPlysStudy = cellfun(@(x) union([LndsUnPlysStudy(x)]), IndToUse);
+    LndsUnOrCrStudy = cellfun(@(x) [LndsUnOrCrStudy{x}], Inds2Mrg, 'UniformOutput',false);
+    LndsUnPlysStudy = cellfun(@(x) union([LndsUnPlysStudy(x)]), Inds2Mrg);
 end
 
 %% Adding columns
@@ -274,6 +309,32 @@ for i1 = 1:size(CmbsInd,2)
     Cls2Add{CmbsInd(1,i1), CmbsInd(2,i1)} = [Cntnt{CmbsInd(1,i1)},'_',ClNms{CmbsInd(2,i1)}];
 end
 
+if isempty(InvLandsTbl)
+    InvLandsTbl = array2table(reshape(LndsUnShIDStudy, numel(LndsUnShIDStudy), 1), 'VariableNames',{'ID'});
+
+    Dttm2Wrt = cell(size(InvLandsTbl, 1), 1);
+    for i1 = 1:size(InvLandsTbl, 1)
+        IndIDwDt = find(ismember(DttmAss(:,1), LndsUnShIDStudy(i1)));
+        if isempty(IndIDwDt)
+            error('No match between ID of table and original ones!')
+        elseif numel(IndIDwDt) >= 2
+            PssDates = DttmAss(IndIDwDt, 2);
+            IndDtTmp = listdlg2({['Datetime to use for ID ',LndsUnShIDStudy{i1}]}, ...
+                                {[DttmAss{IndIDwDt,2}]}, 'OutType','NumInd');
+            TmpDates = PssDates(IndDtTmp);
+        else
+            TmpDates = DttmAss(IndIDwDt, 2);
+        end
+        Dttm2Wrt(i1) = TmpDates;
+    end
+
+    InvLandsTbl.Date = Dttm2Wrt;
+
+    % Cleaning of rows without dates
+    EmptyDates = cellfun(@isnat, InvLandsTbl.Date);
+    InvLandsTbl(EmptyDates, :) = [];
+end
+
 ProgressBar.Indeterminate = 'off';
 [InvLandsTbl{:,Cls2Add(1,:)}, InvLandsTbl{:,Cls2Add(2,:)}] = deal(cell(size(InvLandsTbl,1), numel(ClNms)));
 % InvLandsTbl{:,Cls2Add(2,:)} = repmat(polyshape, size(InvLandsTbl,1), numel(ClNms));
@@ -282,7 +343,7 @@ for i1 = 1:numel(LandsMrgdPolys)
     ProgressBar.Message = ['Adding single polygons, shapefile n. ',num2str(i1),' of ',num2str(numel(LandsMrgdPolys))];
 
     for i2 = 1:numel(LandsMrgdPolys{i1})
-        IndsMatchPolys = (LandsUnShpIDs{i1}(i2) == [InvLandsTbl.(ExclFldsID{i1}){:}]);
+        IndsMatchPolys = ismember(InvLandsTbl.(InvTbColID{i1}), LandsUnShpIDs{i1}(i2));
         InvLandsTbl{IndsMatchPolys,Cls2Add(1,i1)} = LandsOrgCoords{i1}(i2);
         InvLandsTbl{IndsMatchPolys,Cls2Add(2,i1)} = {LandsMrgdPolys{i1}(i2)};
     end
@@ -355,18 +416,14 @@ switch OrderEvents
 end
 
 PmptForDts = strcat(string(DttmsLndsUnOrd, 'dd-MMM-yyyy')," (",string(LndsPerDtUnOrd)," landslides)");
-IndEvents  = listdlg('PromptString',{'Choose date(s) you want to consider: ',''}, ...
-                     'ListString',PmptForDts, 'SelectionMode','multiple');
+IndEvents  = checkbox2(PmptForDts, 'Title',{'Date(s) to consider: '}, 'OutType','NumInd');
 DtsChosen  = DttmsLndsUnOrd(IndEvents);
-
-figure(Fig)
-drawnow
 
 CloseDates = uiconfirm(Fig, 'Do you want to search also for dates near to the one selected?', ...
                             'Near dates', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
 
 if strcmp(CloseDates, 'Yes')
-    DaysRange  = str2double(inputdlg("Specify how many days to consider for search per day : ", '', 1, {'5'}));
+    DaysRange  = str2double(inputdlg2({'Days to consider for search: '}, 'DefInp',{'5'}));
     IndDtInRng = cell(1, length(DtsChosen));
     for i1 = 1:length(DtsChosen)
         IndDtInRng{i1} = (DttmsLndsUnOrd >= DtsChosen(i1)-days(DaysRange)) & (DttmsLndsUnOrd <= DtsChosen(i1)+days(DaysRange));

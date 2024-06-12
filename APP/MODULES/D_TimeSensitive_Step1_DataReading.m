@@ -1,7 +1,6 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
-                                 'Message','Reading files...', 'Cancelable','on', ...
-                                 'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Cancelable','on', 'Message','Reading files...');
 drawnow
 
 %% Data import
@@ -58,83 +57,42 @@ if AnswerTypeRec == 1
     FileName_DataRec   = char(listdlg2({'Choose a file:'}, Files));
     VariablesFilenames = {'FileName_DataRec'};
 
-    drawnow % Remember to remove if in Standalone version
-    figure(Fig) % Remember to remove if in Standalone version
-
     FullNmeRec = [fold_raw_data,sl,FileName_DataRec];
     FileSheets = sheetnames(FullNmeRec);
     Sheets2Use = listdlg2({'Data table:', 'Stations table:'}, FileSheets);
+    ReadOption = listdlg2({'Auto fill (missing data):', 'Filter to stations:'}, ...
+                          { {'OtherSta','Zeros','AverageYr','AverageLNE','NaN'}, ...
+                            {'Yes','No'} });
+    AutFllMode = ReadOption{1};
+    if strcmp(ReadOption{2}, 'Yes'); StatFilt = true; else; StatFilt = false; end
 
     [RecDatesStartsPerSta, RecDatesEndsPerSta, ...
-        RecNumDataPerSta, Gauges] = readtimesenscell(FullNmeRec, 'AutoFill','OtherSta', ...
-                                                                 'StatsFilt',true, ...
+        RecNumDataPerSta, Gauges] = readtimesenscell(FullNmeRec, 'AutoFill',AutFllMode, ...
+                                                                 'StatsFilt',StatFilt, ...
                                                                  'DataSheet',Sheets2Use{1}, ...
                                                                  'StationSheet',Sheets2Use{2});
 
-    %% Adjustment of dates
-    dTRecsRaw = RecDatesStartsPerSta{1}(2)-RecDatesStartsPerSta{1}(1);
-    if dTRecsRaw < minutes(59)
-        ShiftApprox = 'minute';
-        if strcmp(AnalysisCase,'SLIP')
-            warning(['Rain data is discretized in less than 1 hour. ', ...
-                     'It could become too large and it may not work! ', ...
-                     'Please contanct the support.'])
-        end
+    %% Adjustment of data and dates
+    dTRecRaw = RecDatesStartsPerSta{1}(2)-RecDatesStartsPerSta{1}(1);
+    DltaTime = hours(str2double(inputdlg2({['Delta time rec (current is ',num2str(hours(dTRecRaw)),' h):']}, 'DefInp',{'1'}))); % In hours!!!
+    PrmptsMd = strcat({'Aggregation mode, column '},string(1:size(RecNumDataPerSta{1}, 2)),{':'});
+    AggrMode = listdlg2(PrmptsMd, {'sum', 'avg', 'min', 'max'});
+    [GeneralDatesStart, GeneralDatesEnd, ...
+            GeneralData] = adjustrecords(RecDatesStartsPerSta, ...
+                                         RecDatesEndsPerSta, ...
+                                         RecNumDataPerSta, 'DeltaTime',DltaTime, ...
+                                                           'AggrMode',AggrMode, ...
+                                                           'ReplaceVal',[nan, 0; -999, 0]);
 
-    elseif dTRecsRaw < hours(23) && dTRecsRaw >= minutes(59)
-        ShiftApprox = 'hour';
+    GenDataProps = inputdlg2(strcat({'Label name for '},DataRead,{' '}, ...
+                                    string(1:numel(GeneralData))), ...
+                                'DefInp',repmat(DataRead, numel(GeneralData), 1));
 
-    elseif dTRecsRaw >= hours(23)
-        ShiftApprox = 'day';
-        if strcmp(AnalysisCase,'SLIP')
-            warning(['Rain data is discretized in more than 1 hour. ', ...
-                     'It may not work! Please contanct the support.'])
-        end
-
-    else
-        error('Time discretization of excel not recognized!')
-    end
-
-    RecDatesStartsPerStaShifted = cellfun(@(x) dateshift(x, 'start',ShiftApprox, 'nearest'), RecDatesStartsPerSta, 'UniformOutput',false);
-    RecDatesEndsPerStaShifted   = cellfun(@(x) dateshift(x, 'start',ShiftApprox, 'nearest'), RecDatesEndsPerSta  , 'UniformOutput',false);
-
-    StartDateCommon = max(cellfun(@min, RecDatesEndsPerStaShifted)); % Start in end dates
-    EndDateCommon   = min(cellfun(@max, RecDatesEndsPerStaShifted)); % End in end dates
-
-    IndIntersecated = cellfun(@(x) find(x == StartDateCommon) : find(x == EndDateCommon), RecDatesEndsPerStaShifted, 'UniformOutput',false);
-
-    NumOfCommonRecs = unique(cellfun(@numel, IndIntersecated));
-
-    if length(NumOfCommonRecs) > 1
-        error('You have a different timing among stations, please check your excel!')
-    end
-
-    DataNotConsidered = cellfun(@(x) length(x) > NumOfCommonRecs, RecDatesEndsPerStaShifted);
-    if any(DataNotConsidered)
-        warning(strcat('Attention! Some stations (', strjoin(Stations(DataNotConsidered), ', '), ...
-                       ') have more recs than others. Recs outside common dates will be excluded.'))
-    end
-
-    GeneralDatesStart = RecDatesStartsPerStaShifted{1}(IndIntersecated{1}); % Taking only the firs one
-    GeneralDatesEnd   = RecDatesEndsPerStaShifted{1}(IndIntersecated{1}); % Taking only the firs one
+    dTRecsAdj = GeneralDatesStart(2) - GeneralDatesStart(1);
 
     RecDatesEndCommon = GeneralDatesEnd;
-    if strcmp(ShiftApprox, 'minute')
-        RecDatesEndCommon.Format = 'dd/MM/yyyy HH:mm:ss';
-    elseif strcmp(ShiftApprox, 'hour')
-        RecDatesEndCommon.Format = 'dd/MM/yyyy HH:mm';
-    elseif strcmp(ShiftApprox, 'day')
-        RecDatesEndCommon.Format = 'dd/MM/yyyy';
-    end
 
-    %% Numeric data writing
-    GeneralData = cell2mat(cellfun(@(x,y) x(y), RecNumDataPerSta', IndIntersecated', 'UniformOutput',false));
-    
-    GeneralData(isnan(GeneralData))  = 0;
-    GeneralData(GeneralData == -999) = 0;
-    GeneralData = GeneralData';
-
-    VariablesRecorded = {'GeneralData', 'Gauges', 'RecDatesEndCommon'};
+    VariablesRecorded = {'GeneralData', 'Gauges', 'RecDatesEndCommon', 'GenDataProps'};
 end
     
 %% Rainfall Forecast
@@ -161,7 +119,13 @@ if AnswerTypeFor == 1
         InstantsTime = datetime(Instants, 'ConvertFrom','datenum');
         InstantsTime.Format = 'dd/MM/yyyy HH:mm'; % HH:mm:ss if analysis time range < 1 hour
         ModelRunTime = InstantsTime(1,1);
-        ForecastTime = InstantsTime(:,2);   
+        ForecastTime = InstantsTime(:,2);
+
+        dTForsRaw = ForecastTime(2) - ForecastTime(1);
+        if dTForsRaw ~= dTRecsAdj
+            error(['Delta time in recordings is different from forecast! ', ...
+                   'Please uniform it or contact the support.'])
+        end
         
         HoursForecast = ForecastTime-ModelRunTime;
         ForecastData{i1,1} = ModelRunTime;
@@ -179,6 +143,15 @@ end
 %% Analysis type
 switch AnalysisCase
     case 'SLIP'
+        if hours(dTRecsAdj) < 1
+            error(['Rain data is discretized in less than 1 hour. ', ...
+                   'It could become too large and it may not work! ', ...
+                   'Please contanct the support.'])
+        elseif hours(dTRecsAdj) > 1
+            error(['Rain data is discretized in more than 1 hour. ', ...
+                   'It may not work! Please contanct the support.'])
+        end
+
         %% SLIP process
         dTRecsShifted         = RecDatesEndCommon(2)-RecDatesEndCommon(1);
         AnalysisDateMaxRange  = [min(RecDatesEndCommon)+days(30), max(RecDatesEndCommon)];

@@ -149,10 +149,8 @@ if not(exist('Fig', 'var')); Fig = uifigure; end
 ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
                                  'Message','Dataset: reading files for dataset creation...', ...
                                  'Indeterminate','on');
-drawnow
 
-% OS identification
-if ispc; sl = '\'; elseif ismac; sl = '/'; else; error('Platform not supported'); end
+sl = filesep;
 
 % Main files
 load([fold0,sl,'os_folders.mat'],         'fold_var','fold_user')
@@ -458,7 +456,7 @@ if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
             AssSubSoilDescr(i1) = Sheet_Info_Div.('Sub soil'){:}(RowToTakeGlb, ColWithDescript);
         end
     
-        IndNumPart = cellfun(@(x) isnumeric(x), AssSubSoilClass);
+        IndNumPart = cellfun(@(x) isnumeric(x) && not(isempty(x)), AssSubSoilClass);
         AssSubSoilClass(IndNumPart) = cellfun(@(x) num2str(x), AssSubSoilClass(IndNumPart), 'UniformOutput',false); % To convert all numerical values to char
 
         IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssSubSoilClass);
@@ -487,6 +485,7 @@ if any(contains([FeatsToUse{:}], ["sub", "allfeats"]))
             [pp1,ee1] = getnan2([SubSoilPolygons(i1).Vertices; nan, nan]);
             IndsInsideSubSoilPolygon = cellfun(@(x,y) inpoly([x,y],pp1,ee1), xLongStudy, yLatStudy, 'Uniform',false);
             for i2 = 1:size(xLongAll,2)
+                if not(any(IndsInsideSubSoilPolygon{i2})); continue; end
                 if CategVars
                     SubSoilStudy{i2}(IndsInsideSubSoilPolygon{i2}) = string(AssSubSoilClassUnq{i1});
                 else
@@ -571,7 +570,7 @@ if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
             AssTopSoilDescr(i1) = Sheet_Info_Div.('Top soil'){:}(RowToTakeGlb, ColWithDescript);
         end
     
-        IndNumPart = cellfun(@(x) isnumeric(x), AssTopSoilClass);
+        IndNumPart = cellfun(@(x) isnumeric(x) && not(isempty(x)), AssTopSoilClass);
         AssTopSoilClass(IndNumPart) = cellfun(@(x) num2str(x), AssTopSoilClass(IndNumPart), 'UniformOutput',false); % To convert all numerical values to char
 
         IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssTopSoilClass);
@@ -600,6 +599,7 @@ if any(contains([FeatsToUse{:}], ["top", "allfeats"]))
             [pp1,ee1] = getnan2([TopSoilPolygons(i1).Vertices; nan, nan]);
             IndexInsideTopSoilPolygon = cellfun(@(x,y) inpoly([x,y],pp1,ee1), xLongStudy, yLatStudy, 'Uniform',false);
             for i2 = 1:size(xLongAll,2)
+                if not(any(IndexInsideTopSoilPolygon{i2})); continue; end
                 if CategVars
                     TopSoilStudy{i2}(IndexInsideTopSoilPolygon{i2}) = string(AssTopSoilClassUnq{i1});
                 else
@@ -684,7 +684,7 @@ if any(contains([FeatsToUse{:}], ["land", "allfeats"]))
             AssLandUseDescr(i1) = Sheet_Info_Div.('Land use'){:}(RowToTakeGlb, ColWithDescript);
         end
     
-        IndNumPart = cellfun(@(x) isnumeric(x), AssLandUseClass);
+        IndNumPart = cellfun(@(x) isnumeric(x) && not(isempty(x)), AssLandUseClass);
         AssLandUseClass(IndNumPart) = cellfun(@(x) num2str(x), AssLandUseClass(IndNumPart), 'UniformOutput',false); % To convert all numerical values to char
 
         IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssLandUseClass);
@@ -797,7 +797,7 @@ if any(contains([FeatsToUse{:}], ["vegetation", "allfeats"]))
             AssVegetDescr(i1) = Sheet_Info_Div.('Vegetation'){:}(RowToTakeGlb, ColWithDescript);
         end
     
-        IndNumPart = cellfun(@(x) isnumeric(x), AssVegetClass);
+        IndNumPart = cellfun(@(x) isnumeric(x) && not(isempty(x)), AssVegetClass);
         AssVegetClass(IndNumPart) = cellfun(@(x) num2str(x), AssVegetClass(IndNumPart), 'UniformOutput',false); % To convert all numerical values to char
 
         IndStrPart = cellfun(@(x) ischar(x)||isstring(x), AssVegetClass);

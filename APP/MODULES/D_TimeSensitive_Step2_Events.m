@@ -1,42 +1,48 @@
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
-                                 'Indeterminate','on');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Cancelable','off', 'Message','Reading files...');
 drawnow
 
 %% Loading data
 ProgressBar.Message = "Loading data...";
-Options = {'Rainfall', 'Temperature'};
+Options  = {'Rainfall', 'Temperature'};
 DataRead = uiconfirm(Fig, 'What type of data do you want to read?', ...
                           'Reading Data', 'Options',Options, 'DefaultOption',1);
 switch DataRead
     case 'Rainfall'
-        GeneralFileName = 'GeneralRainfall.mat';
-        ShortName       = 'Rain';
+        GenrlFlnm = 'GeneralRainfall.mat';
+        ShortName = 'Rain';
     case 'Temperature'
-        GeneralFileName = 'GeneralTemperature.mat';
-        ShortName       = 'Temp';
+        GenrlFlnm = 'GeneralTemperature.mat';
+        ShortName = 'Temp';
 end
 
-load([fold_var,sl,GeneralFileName],       'GeneralData','Gauges','RecDatesEndCommon') % Remember that RainfallDates are referred at the end of your registration period
+sl = filesep;
+load([fold_var,sl,GenrlFlnm            ], 'GeneralData','Gauges','RecDatesEndCommon') % Remember that RainfallDates are referred at the end of your registration period
 load([fold_var,sl,'GridCoordinates.mat'], 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
+
+IndPrp2Use = 1;
+if not(iscell(GeneralData)); error('Please, update Generaldata (run again Select file(s))'); end
+if numel(GeneralData) > 1
+    IndPrp2Use = listdlg2({'Property to interpolate:'}, GenDataProps, 'OutType','NumInd');
+end
+GenrlProp = GeneralData{IndPrp2Use};
 
 %% TS options
 switch DataRead
     case 'Rainfall'
-        InpMinValsEvent = inputdlg({"Set the threshold [mm/h] above which you have an event : ", ...
-                                    "Set the minimum number of hours to define events [h] : " ...
-                                    "Set the minimum number of hours to separate events [h] : " ...
-                                    "Set the maximum number of hours for an event [h] : "}, ...
-                                    '', 1, {'0.2', '6', '4', '120'});
+        InpMinValsEvent = inputdlg2({'Rain threshold [mm/h] for event:', ...
+                                     'Min number of hours for events [h]:', ...
+                                     'Min num of hours to separate events [h]:', ...
+                                     'Max number of hours for an event [h]:'}, ...
+                                    'DefInp',{'0.2', '6', '4', '120'});
         MinThresh = str2double(InpMinValsEvent{1});
         MinHours  = str2double(InpMinValsEvent{2});
         MinSepdT  = str2double(InpMinValsEvent{3});
         MaxHours  = str2double(InpMinValsEvent{4});
 
-        drawnow % Remember to remove if in Standalone version
-        figure(Fig) % Remember to remove if in Standalone version
-
     case 'Temperature'
+        error('Not yet implemented!!! Please contact the support.')
         if exist([fold_var,sl,'RainEvents.mat'], 'file')
             load([fold_var,sl,'RainEvents.mat'], 'RainRecDatesPerEvent')
         else
@@ -64,23 +70,23 @@ switch DataRead
         end
         
         % IndsPossEvents = find(any(GeneralData >  MinThresh, 1)); % At least 1 row should have a rainfall > than min
-        NoEventLogic = all(GeneralData <= MinThresh, 1); % All rows should have a rainfall <= than min to be NO EVENT days
+        NoEventLogic = all(GenrlProp <= MinThresh, 2); % All columns of a row must have a rainfall <= than min to be NO EVENT days
         IndsNoEvents = find(NoEventLogic);
         DiffNoEvents = diff(IndsNoEvents);
         IndsOfStarts = find(DiffNoEvents > 1); % All events not contiguous (separated by at least 1 dTRecorgings)
-        ColsOfStarts = IndsNoEvents(IndsOfStarts) + 1; % + 1 because you have to start from the next row after the last non event
-        ColsOfEnds   = IndsNoEvents(IndsOfStarts+1) - 1; % - 1 because you have to end in the previous row before the first non event
+        RowsOfStarts = IndsNoEvents(IndsOfStarts) + 1; % + 1 because you have to start from the next row after the last non event
+        RowsOfEnds   = IndsNoEvents(IndsOfStarts+1) - 1; % - 1 because you have to end in the previous row before the first non event
         if not(NoEventLogic(1)) % If your first element is a possible event, then you have to add it manually
-            ColsOfStarts = [1                , ColsOfStarts];
-            ColsOfEnds   = [IndsNoEvents(1)-1, ColsOfEnds  ];
+            RowsOfStarts = [1                , RowsOfStarts];
+            RowsOfEnds   = [IndsNoEvents(1)-1, RowsOfEnds  ];
         end
         if not(NoEventLogic(end)) % If your last element is a possible event, then you have to add it manually
-            ColsOfStarts(end+1) = IndsNoEvents(end) + 1;
-            ColsOfEnds(end+1)   = size(GeneralData,2);
+            RowsOfStarts(end+1) = IndsNoEvents(end) + 1;
+            RowsOfEnds(end+1)   = size(GenrlProp, 1);
         end
         
-        ColsRecsPerEventRaw = arrayfun(@(x,y) x:y, ColsOfStarts, ColsOfEnds, 'UniformOutput',false);
-        RecDatesPerEventRaw = cellfun(@(x) RecDatesEndCommon(x), ColsRecsPerEventRaw, 'UniformOutput',false);
+        RowsRecsPerEventRaw = arrayfun(@(x,y) x:y, RowsOfStarts, RowsOfEnds, 'UniformOutput',false);
+        RecDatesPerEventRaw = cellfun(@(x) RecDatesEndCommon(x), RowsRecsPerEventRaw, 'UniformOutput',false);
         DurationPerEventRaw = cellfun(@(x) x(end)-x(1)+dTRecordings, RecDatesPerEventRaw); % +dTRecordings because if you think just at one date, remember that that one is the end of a period that last for dTRecordings
         dTBetweenEvents  = duration(strings(1, length(DurationPerEventRaw)-1));
         for i1 = 1:length(dTBetweenEvents)
@@ -90,7 +96,7 @@ switch DataRead
         IndToMergeSx  = find(dTBetweenEvents < hours(MinSepdT));
         IndToMergeDx  = IndToMergeSx + 1;
         IndToMerge    = unique([IndToMergeSx, IndToMergeDx]);
-        IndToNotMerge = 1:length(ColsRecsPerEventRaw);
+        IndToNotMerge = 1:length(RowsRecsPerEventRaw);
         IndToNotMerge(ismember(IndToNotMerge, IndToMerge)) = [];
         
         if not(isempty(IndToMerge))
@@ -102,23 +108,23 @@ switch DataRead
         
         IndsEventsNew = [num2cell(IndToNotMerge), IndToMerge];
         
-        ColsRecsPerEventReord = cellfun(@(x,y) [ColsRecsPerEventRaw{x}], IndsEventsNew, 'UniformOutput',false);
+        RowsRecsPerEventReord = cellfun(@(x,y) [RowsRecsPerEventRaw{x}], IndsEventsNew, 'UniformOutput',false);
         RecDatesPerEventReord = cellfun(@(x) cat(1,RecDatesPerEventRaw{x}), IndsEventsNew, 'UniformOutput',false);
         DurationPerEventReord = cellfun(@(x) max(x)-min(x), RecDatesPerEventReord);
         
         EventsToMantain = DurationPerEventReord >= hours(MinHours);
         
-        ColsRecsPerEvent = ColsRecsPerEventReord(EventsToMantain);
-        ColsRecsPerEvent = cellfun(@(x) min(x) : max(x), ColsRecsPerEvent, 'UniformOutput',false); % To fill holes in datetime
-        RecDatesPerEvent = cellfun(@(x) RecDatesEndCommon(x), ColsRecsPerEvent, 'UniformOutput',false);
+        IndsRecsPerEvent = RowsRecsPerEventReord(EventsToMantain);
+        IndsRecsPerEvent = cellfun(@(x) min(x) : max(x), IndsRecsPerEvent, 'UniformOutput',false); % To fill holes in datetime
+        RecDatesPerEvent = cellfun(@(x) RecDatesEndCommon(x), IndsRecsPerEvent, 'UniformOutput',false);
         DurationPerEvent = cellfun(@(x) x(end)-x(1)+dTRecordings, RecDatesPerEvent);
         
         EventsToReduce = DurationPerEvent > hours(MaxHours);
         if any(EventsToReduce)
             warning('Some events contain more than 120 hours. They will be automatically cutted to 120!')
         
-            ColsRecsPerEvent(EventsToReduce) = cellfun(@(x) x(1 : MaxColsNumForEvent), ColsRecsPerEvent(EventsToReduce), 'UniformOutput',false);
-            RecDatesPerEvent = cellfun(@(x) RecDatesEndCommon(x), ColsRecsPerEvent, 'UniformOutput',false);
+            IndsRecsPerEvent(EventsToReduce) = cellfun(@(x) x(1 : MaxColsNumForEvent), IndsRecsPerEvent(EventsToReduce), 'UniformOutput',false);
+            RecDatesPerEvent = cellfun(@(x) RecDatesEndCommon(x), IndsRecsPerEvent, 'UniformOutput',false);
             DurationPerEvent = cellfun(@(x) x(end)-x(1)+dTRecordings, RecDatesPerEvent);
             
             if any(DurationPerEvent > hours(MaxHours))
@@ -127,8 +133,8 @@ switch DataRead
         end
 
     case 'Temperature'
-        ColsRecsPerEvent = cell(size(RainRecDatesPerEvent));
-        for i1 = 1:length(ColsRecsPerEvent)
+        IndsRecsPerEvent = cell(size(RainRecDatesPerEvent));
+        for i1 = 1:length(IndsRecsPerEvent)
             TempDates = nan(size(RainRecDatesPerEvent{i1}));
             for i2 = 1:length(TempDates)
                 TempInd = find(abs(RainRecDatesPerEvent{i1}(i2)-RecDatesEndCommon) < minutes(1));
@@ -136,25 +142,25 @@ switch DataRead
                     TempDates(i2) = TempInd;
                 end
             end
-            ColsRecsPerEvent{i1} = TempDates;
+            IndsRecsPerEvent{i1} = TempDates;
         end
 
-        ColsWithNoDateMatch = cellfun(@(x) any(isnan(x)), ColsRecsPerEvent);
+        RowsWithNoDateMatch = cellfun(@(x) any(isnan(x)), IndsRecsPerEvent);
 
-        ColsRecsPerEvent(ColsWithNoDateMatch) = [];
-        RecDatesPerEvent = cellfun(@(x) RecDatesEndCommon(x), ColsRecsPerEvent, 'UniformOutput',false);
+        IndsRecsPerEvent(RowsWithNoDateMatch) = [];
+        RecDatesPerEvent = cellfun(@(x) RecDatesEndCommon(x), IndsRecsPerEvent, 'UniformOutput',false);
         DurationPerEvent = cellfun(@(x) x(end)-x(1), RecDatesPerEvent);
 end
 
 %% Elaboration of Trigger and Peak values
 switch DataRead
     case 'Rainfall'
-        AmountPerEvent  = cellfun(@(x) sum(GeneralData(:, x), 2),     ColsRecsPerEvent, 'UniformOutput',false);
-        MaxPeakPerEvent = cellfun(@(x) max(GeneralData(:, x), [], 2), ColsRecsPerEvent, 'UniformOutput',false); % Maybe this is not the better one (but the faster). You should first interpolate and then search for max.
+        AmountPerEvent  = cellfun(@(x) sum(GenrlProp(x, :), 1),     IndsRecsPerEvent, 'UniformOutput',false);
+        MaxPeakPerEvent = cellfun(@(x) max(GenrlProp(x, :), [], 1), IndsRecsPerEvent, 'UniformOutput',false); % Maybe this is not the better one (but the faster). You should first interpolate and then search for max.
 
     case 'Temperature'
-        AmountPerEvent  = cellfun(@(x) mean(GeneralData(:, x), 2),    ColsRecsPerEvent, 'UniformOutput',false);
-        MaxPeakPerEvent = cellfun(@(x) max(GeneralData(:, x), [], 2), ColsRecsPerEvent, 'UniformOutput',false); % Maybe this is not the better one (but the faster). You should first interpolate and then search for max.
+        AmountPerEvent  = cellfun(@(x) mean(GenrlProp(x, :), 1),    IndsRecsPerEvent, 'UniformOutput',false);
+        MaxPeakPerEvent = cellfun(@(x) max(GenrlProp(x, :), [], 1), IndsRecsPerEvent, 'UniformOutput',false); % Maybe this is not the better one (but the faster). You should first interpolate and then search for max.
 end
 
 ProgressBar.Indeterminate = 'off';
@@ -185,19 +191,18 @@ ProgressBar.Indeterminate = 'on';
 
 %% Saving...
 ProgressBar.Message = "Saving...";
-cd(fold_var)
+
 eval([ShortName,'AmountPerEventInterp = AmountPerEventInterp;'])
-% clear('AmountPerEventInterp')
+clear('AmountPerEventInterp')
 eval([ShortName,'MaxPeakPerEventInterp = MaxPeakPerEventInterp;'])
-% clear('MaxPeakPerEventInterp')
+clear('MaxPeakPerEventInterp')
 eval([ShortName,'RecDatesPerEvent = RecDatesPerEvent;'])
-% clear('RecDatesPerEvent')
+clear('RecDatesPerEvent')
 eval([ShortName,'dTRecordings = dTRecordings;'])
 
 VariablesEvents = {[ShortName,'AmountPerEventInterp'], [ShortName,'MaxPeakPerEventInterp'], ...
                    [ShortName,'RecDatesPerEvent'], [ShortName,'dTRecordings']};
 
-save([ShortName,'Events.mat'], VariablesEvents{:}, '-v7.3');
-cd(fold0)
+saveswitch([fold_var,sl,ShortName,'Events.mat'], VariablesEvents);
 
 close(ProgressBar)

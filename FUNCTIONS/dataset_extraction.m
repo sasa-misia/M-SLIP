@@ -1,4 +1,4 @@
-function DatasetsExtracted = dataset_extraction(DatasetInfo)
+function DatasetsExtracted = dataset_extraction(DatasetInfo, varargin)
 
 % EXTRACT DATASET FROM DATASETINFO TABLE (M-SLIP Internal function)
 %   
@@ -6,7 +6,19 @@ function DatasetsExtracted = dataset_extraction(DatasetInfo)
 %   Datasets: table containing all the possible datasets to extract.
 %   
 % Required arguments:
-%   - DatasetInfo : table containing datasets separated.
+%   - DatasetInfo : table or structure containing datasets info (both model
+%   A or B). Feats, x.Features and x.Outputs fields must be present!
+%   
+% Optional arguments:
+%   - 'ReplaceValues', logical : is to declare if you want to replace some
+%   values in the features dataset. If no entry is specified, then false 
+%   will be assumed as default!
+%   
+%   - 'ValuesAssociation', numeric : is to declare what values you want to
+%   replace (1st column) and the new replacing ones (2nd column). It must
+%   be a nx2 numeric matrix. If no entry is specified, then [NaN, 0] will
+%   be assumed as default! Note: it will not have effect if ReplaceValues
+%   is set to false!
 
 %% Preliminary check
 if not(istable(DatasetInfo) || isstruct(DatasetInfo))
@@ -14,160 +26,453 @@ if not(istable(DatasetInfo) || isstruct(DatasetInfo))
 end
 
 if istable(DatasetInfo)
-    error('Dataset as table not yet implemented! Please contct the support...')
+    DatasetInfo = table2struct(DatasetInfo);
 end
 
 FldsOf1st = fieldnames(DatasetInfo(1).Datasets);
 FtsNms1st = DatasetInfo(1).Datasets.Feats;
+DtsNms1st = fieldnames(DatasetInfo(1).Datasets.Total);
 for i1 = 1:length(DatasetInfo) % In case of Table could be wrong!!!
-    ChckEqFlds = isequal(FldsOf1st, fieldnames(DatasetInfo(i1).Datasets));
-    ChckEqFts  = isequal(FtsNms1st, DatasetInfo(i1).Datasets.Feats);
-    if not(ChckEqFlds)
+    ChckEqFds = isequal(FldsOf1st, fieldnames(DatasetInfo(i1).Datasets));
+    ChckEqFts = isequal(FtsNms1st, DatasetInfo(i1).Datasets.Feats);
+    ChckEqDts = isequal(DtsNms1st, fieldnames(DatasetInfo(i1).Datasets.Total));
+    if not(ChckEqFds)
         error(['The fields of the dataset n. ',num2str(i1),' are different from the 1st!'])
     end
     if not(ChckEqFts)
         error(['The features of the dataset n. ',num2str(i1),' are different from the 1st!'])
     end
+    if not(ChckEqDts)
+        error(['The type of datasets for dataset n. ',num2str(i1),' are different from the 1st!'])
+    end
+end
+
+ExtraDset = false;
+IdDstExtr = not(ismember(DtsNms1st, {'Features', 'Outputs'}));
+FtsNmExtr = DtsNms1st(IdDstExtr); % Extra features
+if not(isempty(FtsNmExtr))
+    ExtraDset = true;
+end
+
+%% Settings
+RepVals = false;    % Default
+ValsAss = [NaN, 0]; % Default
+
+if ~isempty(varargin)
+    StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
+
+    vararginCp = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
+    vararginCp(StringPart) = cellfun(@(x) lower(string(x)), varargin(StringPart),  'Uniform',false);
+
+    InputRepVals = find(cellfun(@(x) all(strcmpi(x, "ReplaceValues"    )), vararginCp));
+    InputValsAss = find(cellfun(@(x) all(strcmpi(x, "ValuesAssociation")), vararginCp));
+
+    if InputRepVals; RepVals = varargin{InputRepVals+1}; end
+    if InputValsAss; ValsAss = varargin{InputValsAss+1}; end
+
+    varargin([ InputRepVals, InputRepVals+1, ...
+               InputValsAss, InputValsAss+1 ]) = [];
+    if not(isempty(varargin))
+        error(['Some optional inputs were not recognized: ', ...
+               char(join(string(varargin), ', ')),'. Please check it!'])
+    end
+end
+
+if not(islogical(RepVals))
+    error('ReplaceValues must be logical!')
+end
+
+if not(isnumeric(ValsAss) && (size(ValsAss, 2)==2))
+    error('ValuesAssociation must be numeric and must contain 2 columns!')
 end
 
 %% Options
-CrossVal = false;
-if any(strcmp(FldsOf1st, 'CvTrain')) && any(strcmp(FldsOf1st, 'CvValid'))
-    CrossVal = true;
-end
-
 NormVal = false;
 if any(strcmp(FldsOf1st, 'NvTrain')) && any(strcmp(FldsOf1st, 'NvValid'))
     NormVal = true;
 end
 
-%% Core
-% Initialization
-[DatasetEvsFeats, DatasetEvsFeatsTrain, DatasetEvsFeatsTest, ...
-        ExpectedOutputs, ExpectedOutputsTrain, ExpectedOutputsTest] = deal(cell(length(DatasetInfo), 1));
-if CrossVal
-    [DatasetFeatsCvTrnTmp, DatasetFeatsCvValTmp, ...
-            ExpOutputsCvTrnTmp, ExpOutputsCvValTmp] = deal(cell(length(DatasetInfo), ...
-                                                                length(DatasetInfo(1).Datasets.CvTrain)));
-end
-if NormVal
-    [DatasetEvsFeatsNvTrn, DatasetEvsFeatsNvVal, ...
-        ExpectedOutputsNvTrn, ExpectedOutputsNvVal] = deal(cell(length(DatasetInfo), 1));
+CrossVal = false;
+if any(strcmp(FldsOf1st, 'CvValid'))
+    CrossVal = true;
 end
 
-% Extraction
-for i1 = 1:length(DatasetInfo)
-    DatasetEvsFeats{i1}      = DatasetInfo(i1).Datasets.Total.Features;
-    DatasetEvsFeatsTrain{i1} = DatasetInfo(i1).Datasets.Train.Features;
-    DatasetEvsFeatsTest{i1}  = DatasetInfo(i1).Datasets.Test.Features;
+%% Core
+%% Initialization
+[DsetFeatsTotTmp, DsetFeatsTrnTmp, DsetFeatsTstTmp, ...
+    ExpctOutsTotTmp, ExpctOutsTrnTmp, ExpctOutsTstTmp] = deal(cell(size(DatasetInfo,1), 1));
+if NormVal
+    [DsetFeatsNvTrnTmp, DsetFeatsNvValTmp, ...
+        ExpctOutsNvTrnTmp, ExpctOutsNvValTmp] = deal(cell(size(DatasetInfo,1), 1));
+end
+if CrossVal
+    [DsetFeatsCvTrnTmp, DsetFeatsCvValTmp, ...
+        ExpctOutsCvTrnTmp, ExpctOutsCvValTmp] = deal(cell(size(DatasetInfo,1), ...
+                                                          numel(DatasetInfo(1).Datasets.CvValid)));
+end
+
+if ExtraDset
+    [DsetExtraTotTmp, DsetExtraTrnTmp, DsetExtraTstTmp] = deal(cell(size(DatasetInfo,1), numel(FtsNmExtr)));
+    if NormVal
+        [DsetExtraNvTrnTmp, DsetExtraNvValTmp] = deal(cell(size(DatasetInfo,1), numel(FtsNmExtr)));
+    end
+    if CrossVal
+        [DsetExtraCvTrnTmp, DsetExtraCvValTmp] = deal(cell(1, numel(FtsNmExtr)));
+        for i1 = 1:numel(FtsNmExtr)
+            [DsetExtraCvTrnTmp{i1}, DsetExtraCvValTmp{i1}] = deal(cell(size(DatasetInfo,1), ...
+                                                                       numel(DatasetInfo(1).Datasets.CvValid)));
+        end
+    end
+end
+
+%% Extraction
+for i1 = 1:size(DatasetInfo,1)
+    DsetFeatsTotTmp{i1} = DatasetInfo(i1).Datasets.Total.Features;
+    DsetFeatsTrnTmp{i1} = DatasetInfo(i1).Datasets.Train.Features;
+    DsetFeatsTstTmp{i1} = DatasetInfo(i1).Datasets.Test.Features;
     
-    ExpectedOutputs{i1}      = DatasetInfo(i1).Datasets.Total.Outputs;
-    ExpectedOutputsTrain{i1} = DatasetInfo(i1).Datasets.Train.Outputs;
-    ExpectedOutputsTest{i1}  = DatasetInfo(i1).Datasets.Test.Outputs;
+    ExpctOutsTotTmp{i1} = DatasetInfo(i1).Datasets.Total.Outputs;
+    ExpctOutsTrnTmp{i1} = DatasetInfo(i1).Datasets.Train.Outputs;
+    ExpctOutsTstTmp{i1} = DatasetInfo(i1).Datasets.Test.Outputs;
+
+    if NormVal
+        DsetFeatsNvTrnTmp{i1} = DatasetInfo(i1).Datasets.NvTrain.Features;
+        DsetFeatsNvValTmp{i1} = DatasetInfo(i1).Datasets.NvValid.Features;
+
+        ExpctOutsNvTrnTmp{i1} = DatasetInfo(i1).Datasets.NvTrain.Outputs;
+        ExpctOutsNvValTmp{i1} = DatasetInfo(i1).Datasets.NvValid.Outputs;
+    end
     
     if CrossVal
-        for i2 = 1:length(DatasetInfo(1).Datasets.CvTrain)
-            DatasetFeatsCvTrnTmp{i1,i2} = DatasetInfo(i1).Datasets.CvTrain(i2).Features;
-            DatasetFeatsCvValTmp{i1,i2} = DatasetInfo(i1).Datasets.CvValid(i2).Features;
-        
-            ExpOutputsCvTrnTmp{i1,i2} = DatasetInfo(i1).Datasets.CvTrain(i2).Outputs;
-            ExpOutputsCvValTmp{i1,i2} = DatasetInfo(i1).Datasets.CvValid(i2).Outputs;
+        for i2 = 1:numel(DatasetInfo(1).Datasets.CvValid)
+            DsetFeatsCvValTmp{i1,i2} = DatasetInfo(i1).Datasets.CvValid(i2).Features;
+            ExpctOutsCvValTmp{i1,i2} = DatasetInfo(i1).Datasets.CvValid(i2).Outputs;
         end
     end
 
+    if ExtraDset % Extra part
+        for i2 = 1:numel(FtsNmExtr)
+            DsetExtraTotTmp{i1,i2} = DatasetInfo(i1).Datasets.Total.(FtsNmExtr{i2});
+            DsetExtraTrnTmp{i1,i2} = DatasetInfo(i1).Datasets.Train.(FtsNmExtr{i2});
+            DsetExtraTstTmp{i1,i2} = DatasetInfo(i1).Datasets.Test.(FtsNmExtr{i2});
+
+            if NormVal
+                DsetExtraNvTrnTmp{i1,i2} = DatasetInfo(i1).Datasets.NvTrain.(FtsNmExtr{i2});
+                DsetExtraNvValTmp{i1,i2} = DatasetInfo(i1).Datasets.NvValid.(FtsNmExtr{i2});
+            end
+    
+            if CrossVal
+                for i3 = 1:numel(DatasetInfo(1).Datasets.CvValid)
+                    DsetExtraCvValTmp{i2}{i1,i3} = DatasetInfo(i1).Datasets.CvValid(i3).(FtsNmExtr{i2});
+                end
+            end
+        end
+    end
+end
+
+% Creation of Cv train
+if CrossVal
+    for i1 = 1:size(DatasetInfo,1)
+        for i2 = 1:numel(DatasetInfo(1).Datasets.CvValid)
+            Ids2TkTmp = true(1, numel(DatasetInfo(1).Datasets.CvValid));
+            Ids2TkTmp(i2) = false;
+
+            DsetFeatsCvTrnTmp{i1,i2} = cat(1, DatasetInfo(i1).Datasets.CvValid(Ids2TkTmp).Features);
+            ExpctOutsCvTrnTmp{i1,i2} = cat(1, DatasetInfo(i1).Datasets.CvValid(Ids2TkTmp).Outputs );
+
+            if ExtraDset % Extra part
+                for i3 = 1:numel(FtsNmExtr)
+                    DsetExtraCvTrnTmp{i3}{i1,i2} = cat(1, DatasetInfo(i1).Datasets.CvValid(Ids2TkTmp).(FtsNmExtr{i3}));
+                end
+            end
+        end
+    end
+end
+
+%% Concatenation
+DsetFeatsTot = cat(1, DsetFeatsTotTmp{:});
+DsetFeatsTrn = cat(1, DsetFeatsTrnTmp{:});
+DsetFeatsTst = cat(1, DsetFeatsTstTmp{:});
+
+ExpctOutsTot = cat(1, ExpctOutsTotTmp{:});
+ExpctOutsTrn = cat(1, ExpctOutsTrnTmp{:});
+ExpctOutsTst = cat(1, ExpctOutsTstTmp{:});
+
+if NormVal
+    DsetFeatsNvTrn = cat(1, DsetFeatsNvTrnTmp{:});
+    DsetFeatsNvVal = cat(1, DsetFeatsNvValTmp{:});
+
+    ExpctOutsNvTrn = cat(1, ExpctOutsNvTrnTmp{:});
+    ExpctOutsNvVal = cat(1, ExpctOutsNvValTmp{:});
+end
+
+if CrossVal
+    [DsetFeatsCvTrn, DsetFeatsCvVal, ...
+        ExpctOutsCvTrn, ExpctOutsCvVal] = deal(cell(1, size(DsetFeatsCvTrnTmp, 2)));
+    for i1 = 1:size(DsetFeatsCvTrnTmp, 2)
+        DsetFeatsCvTrn{i1} = cat(1, DsetFeatsCvTrnTmp{:,i1});
+        DsetFeatsCvVal{i1} = cat(1, DsetFeatsCvValTmp{:,i1});
+    
+        ExpctOutsCvTrn{i1} = cat(1, ExpctOutsCvTrnTmp{:,i1});
+        ExpctOutsCvVal{i1} = cat(1, ExpctOutsCvValTmp{:,i1});
+    end
+end
+
+if ExtraDset
+    [DsetExtraTot, DsetExtraTrn, DsetExtraTst] = deal(cell(1, numel(FtsNmExtr)));
     if NormVal
-        DatasetEvsFeatsNvTrn{i1} = DatasetInfo(i1).Datasets.NvTrain.Features;
-        DatasetEvsFeatsNvVal{i1} = DatasetInfo(i1).Datasets.NvValid.Features;
+        [DsetExtraNvTrn, DsetExtraNvVal] = deal(cell(1, numel(FtsNmExtr)));
+    end
+    if CrossVal
+        [DsetExtraCvTrn, DsetExtraCvVal] = deal(cell(1, numel(FtsNmExtr)));
+        for i1 = 1:numel(FtsNmExtr)
+            [DsetExtraCvTrn{i1}, DsetExtraCvVal{i1}] = deal(cell(1, size(DsetExtraCvTrnTmp{i1}, 2)));
+        end
+    end
 
-        ExpectedOutputsNvTrn{i1} = DatasetInfo(i1).Datasets.NvTrain.Outputs;
-        ExpectedOutputsNvVal{i1} = DatasetInfo(i1).Datasets.NvValid.Outputs;
+    for i1 = 1:numel(FtsNmExtr)
+        DsetExtraTot{i1} = cat(1, DsetExtraTotTmp{:,i1});
+        DsetExtraTrn{i1} = cat(1, DsetExtraTrnTmp{:,i1});
+        DsetExtraTst{i1} = cat(1, DsetExtraTstTmp{:,i1});
+
+        if NormVal
+            DsetExtraNvTrn{i1} = cat(1, DsetExtraNvTrnTmp{:,i1});
+            DsetExtraNvVal{i1} = cat(1, DsetExtraNvValTmp{:,i1});
+        end
+
+        if CrossVal
+            for i2 = 1:size(DsetExtraCvTrnTmp{i1}, 2)
+                DsetExtraCvTrn{i1}{i2} = cat(1, DsetExtraCvTrnTmp{i1}{:,i2});
+                DsetExtraCvVal{i1}{i2} = cat(1, DsetExtraCvValTmp{i1}{:,i2});
+            end
+        end
     end
 end
 
-% Concatenation
-DatasetEvsFeats      = cat(1, DatasetEvsFeats{:});
-DatasetEvsFeatsTrain = cat(1, DatasetEvsFeatsTrain{:});
-DatasetEvsFeatsTest  = cat(1, DatasetEvsFeatsTest{:});
+%% Conversion into numeric (just for filtering)
+DsetFeatsTotNum = DsetFeatsTot;
+DsetFeatsTrnNum = DsetFeatsTrn;
+DsetFeatsTstNum = DsetFeatsTst;
 
-ExpectedOutputs      = cat(1, ExpectedOutputs{:});
-ExpectedOutputsTrain = cat(1, ExpectedOutputsTrain{:});
-ExpectedOutputsTest  = cat(1, ExpectedOutputsTest{:});
+ColsNoNumTot = varfun(@(x) not(isnumeric(x)), DsetFeatsTotNum, 'OutputFormat','uniform');
+ColsNoNumTrn = varfun(@(x) not(isnumeric(x)), DsetFeatsTrnNum, 'OutputFormat','uniform');
+ColsNoNumTst = varfun(@(x) not(isnumeric(x)), DsetFeatsTstNum, 'OutputFormat','uniform');
 
-if CrossVal
-    [DatasetFeatsCvTrn, DatasetFeatsCvVal, ...
-            ExpOutputsCvTrn, ExpOutputsCvVal] = deal(cell(1, size(DatasetFeatsCvTrnTmp, 2)));
-    for i1 = 1:size(DatasetFeatsCvTrnTmp, 2)
-        DatasetFeatsCvTrn{i1} = cat(1, DatasetFeatsCvTrnTmp{:,i1});
-        DatasetFeatsCvVal{i1} = cat(1, DatasetFeatsCvValTmp{:,i1});
-    
-        ExpOutputsCvTrn{i1} = cat(1, ExpOutputsCvTrnTmp{:,i1});
-        ExpOutputsCvVal{i1} = cat(1, ExpOutputsCvValTmp{:,i1});
-    end
-end
+DsetFeatsTotNum(:,ColsNoNumTot) = array2table(repmat(-999, size(DsetFeatsTotNum,1), sum(ColsNoNumTot))); % Necessary, otherwise table2array would not work!
+DsetFeatsTrnNum(:,ColsNoNumTrn) = array2table(repmat(-999, size(DsetFeatsTrnNum,1), sum(ColsNoNumTrn))); % Necessary, otherwise table2array would not work!
+DsetFeatsTstNum(:,ColsNoNumTst) = array2table(repmat(-999, size(DsetFeatsTstNum,1), sum(ColsNoNumTst))); % Necessary, otherwise table2array would not work!
 
 if NormVal
-    DatasetEvsFeatsNvTrn = cat(1, DatasetEvsFeatsNvTrn{:});
-    DatasetEvsFeatsNvVal = cat(1, DatasetEvsFeatsNvVal{:});
-
-    ExpectedOutputsNvTrn = cat(1, ExpectedOutputsNvTrn{:});
-    ExpectedOutputsNvVal = cat(1, ExpectedOutputsNvVal{:});
+    DsetFeatsNvTrnNum = DsetFeatsNvTrn;
+    DsetFeatsNvValNum = DsetFeatsNvVal;
+    
+    ColsNoNumNvTrn = varfun(@(x) not(isnumeric(x)), DsetFeatsNvTrnNum, 'OutputFormat','uniform');
+    ColsNoNumNvVal = varfun(@(x) not(isnumeric(x)), DsetFeatsNvValNum, 'OutputFormat','uniform');
+    
+    DsetFeatsNvTrnNum(:,ColsNoNumNvTrn) = array2table(repmat(-999, size(DsetFeatsNvTrnNum,1), sum(ColsNoNumNvTrn))); % Necessary, otherwise table2array would not work!
+    DsetFeatsNvValNum(:,ColsNoNumNvVal) = array2table(repmat(-999, size(DsetFeatsNvValNum,1), sum(ColsNoNumNvVal))); % Necessary, otherwise table2array would not work!
 end
 
-% Filter
-NansIndsTot = any(isnan(table2array(DatasetEvsFeats)),2);
-NansIndsTrn = any(isnan(table2array(DatasetEvsFeatsTrain)),2);
-NansIndsTst = any(isnan(table2array(DatasetEvsFeatsTest)),2);
-
-DatasetEvsFeats(NansIndsTot, :)      = [];
-DatasetEvsFeatsTrain(NansIndsTrn, :) = [];
-DatasetEvsFeatsTest(NansIndsTst, :)  = [];
-
-ExpectedOutputs(NansIndsTot, :)      = [];
-ExpectedOutputsTrain(NansIndsTrn, :) = [];
-ExpectedOutputsTest(NansIndsTst, :)  = [];
-
 if CrossVal
-    [NansIndsCrossTrn, NansIndsCrossVal] = deal(cell(1, size(DatasetFeatsCvTrn, 2)));
-    for i1 = 1:size(DatasetFeatsCvTrn, 2)
-        NansIndsCrossTrn{i1} = any(isnan(table2array(DatasetFeatsCvTrn{i1})),2);
-        NansIndsCrossVal{i1} = any(isnan(table2array(DatasetFeatsCvVal{i1})),2);
-    
-        DatasetFeatsCvTrn{i1}(NansIndsCrossTrn{i1}, :) = [];
-        DatasetFeatsCvVal{i1}(NansIndsCrossVal{i1}, :) = [];
-    
-        ExpOutputsCvTrn{i1}(NansIndsCrossTrn{i1}, :) = [];
-        ExpOutputsCvVal{i1}(NansIndsCrossVal{i1}, :) = [];
+    [DsetFeatsCvTrnNum, DsetFeatsCvValNum] = deal(cell(size(DsetFeatsCvTrn)));
+    for i1 = 1:size(DsetFeatsCvTrn, 2)
+        DsetFeatsCvTrnNum{i1} = DsetFeatsCvTrn{i1};
+        DsetFeatsCvValNum{i1} = DsetFeatsCvVal{i1};
+        
+        ColsNoNumCvTrn = varfun(@(x) not(isnumeric(x)), DsetFeatsCvTrnNum{i1}, 'OutputFormat','uniform');
+        ColsNoNumCvVal = varfun(@(x) not(isnumeric(x)), DsetFeatsCvValNum{i1}, 'OutputFormat','uniform');
+        
+        DsetFeatsCvTrnNum{i1}(:,ColsNoNumCvTrn) = array2table(repmat(-999, size(DsetFeatsCvTrnNum{i1},1), sum(ColsNoNumCvTrn))); % Necessary, otherwise table2array would not work!
+        DsetFeatsCvValNum{i1}(:,ColsNoNumCvVal) = array2table(repmat(-999, size(DsetFeatsCvValNum{i1},1), sum(ColsNoNumCvVal))); % Necessary, otherwise table2array would not work!
     end
 end
 
-if NormVal
-    NansIndsNvTrn = any(isnan(table2array(DatasetEvsFeatsNvTrn)),2);
-    NansIndsNvVal = any(isnan(table2array(DatasetEvsFeatsNvVal)),2);
+%% Replacing values
+if RepVals
+    for i1 = 1:size(ValsAss,1)
+        
+        Ids2RepTot = table2array(DsetFeatsTotNum) == ValsAss(i1,1) | and(isnan(table2array(DsetFeatsTotNum)), isnan(ValsAss(i1,1)));
+        Ids2RepTrn = table2array(DsetFeatsTrnNum) == ValsAss(i1,1) | and(isnan(table2array(DsetFeatsTrnNum)), isnan(ValsAss(i1,1)));
+        Ids2RepTst = table2array(DsetFeatsTstNum) == ValsAss(i1,1) | and(isnan(table2array(DsetFeatsTstNum)), isnan(ValsAss(i1,1)));
 
-    DatasetEvsFeatsNvTrn(NansIndsNvTrn, :) = [];
-    DatasetEvsFeatsNvVal(NansIndsNvVal, :) = [];
+        for i2 = 1:size(Ids2RepTot,2)
+            DsetFeatsTot{Ids2RepTot(:,i2), i2} = ValsAss(i1,2);
+            DsetFeatsTrn{Ids2RepTrn(:,i2), i2} = ValsAss(i1,2);
+            DsetFeatsTst{Ids2RepTst(:,i2), i2} = ValsAss(i1,2);
 
-    ExpectedOutputsNvTrn(NansIndsNvTrn, :) = [];
-    ExpectedOutputsNvVal(NansIndsNvVal, :) = [];
+            DsetFeatsTotNum{Ids2RepTot(:,i2), i2} = ValsAss(i1,2); % Necessary here because otherwise below you will read again old vals!
+            DsetFeatsTrnNum{Ids2RepTrn(:,i2), i2} = ValsAss(i1,2); % Necessary here because otherwise below you will read again old vals!
+            DsetFeatsTstNum{Ids2RepTst(:,i2), i2} = ValsAss(i1,2); % Necessary here because otherwise below you will read again old vals!
+        end
+
+        if NormVal
+            Ids2RepNvTrn = table2array(DsetFeatsNvTrnNum) == ValsAss(i1,1) | and(isnan(table2array(DsetFeatsNvTrnNum)), isnan(ValsAss(i1,1)));
+            Ids2RepNvVal = table2array(DsetFeatsNvValNum) == ValsAss(i1,1) | and(isnan(table2array(DsetFeatsNvValNum)), isnan(ValsAss(i1,1)));
+    
+            for i2 = 1:size(Ids2RepNvTrn,2)
+                DsetFeatsNvTrn{Ids2RepNvTrn(:,i2), i2} = ValsAss(i1,2);
+                DsetFeatsNvVal{Ids2RepNvVal(:,i2), i2} = ValsAss(i1,2);
+
+                DsetFeatsNvTrnNum{Ids2RepNvTrn(:,i2), i2} = ValsAss(i1,2); % Necessary here because otherwise below you will read again old vals!
+                DsetFeatsNvValNum{Ids2RepNvVal(:,i2), i2} = ValsAss(i1,2); % Necessary here because otherwise below you will read again old vals!
+            end
+        end
+
+        if CrossVal
+            for i2 = 1:size(DsetFeatsCvTrn, 2)
+                Ids2RepCvTrn = table2array(DsetFeatsCvTrnNum{i2}) == ValsAss(i1,1) | and(isnan(table2array(DsetFeatsCvTrnNum{i2})), isnan(ValsAss(i1,1)));
+                Ids2RepCvVal = table2array(DsetFeatsCvValNum{i2}) == ValsAss(i1,1) | and(isnan(table2array(DsetFeatsCvValNum{i2})), isnan(ValsAss(i1,1)));
+        
+                for i3 = 1:size(Ids2RepCvTrn,2)
+                    DsetFeatsCvTrn{i2}{Ids2RepCvTrn(:,i3), i3} = ValsAss(i1,2);
+                    DsetFeatsCvVal{i2}{Ids2RepCvVal(:,i3), i3} = ValsAss(i1,2);
+        
+                    DsetFeatsCvTrnNum{i2}{Ids2RepCvTrn(:,i3), i3} = ValsAss(i1,2); % Necessary here because otherwise below you will read again old vals!
+                    DsetFeatsCvValNum{i2}{Ids2RepCvVal(:,i3), i3} = ValsAss(i1,2); % Necessary here because otherwise below you will read again old vals!
+                end
+            end
+        end
+
+    end
 end
 
-DatasetsExtracted = array2table(cell(7, 2), 'RowNames',{'Total', 'Train', 'Test', ...
-                                                        'CvTrain', 'CvValid', ...
-                                                        'NvTrain', 'NvValid'}, ...
+%% Filter rows and columns
+NansColsTot = all(isnan(table2array(DsetFeatsTotNum)),1); % Since you converted dataset to numeric, table2array will work also with categories!
+% NansColsTrn = all(isnan(table2array(DsetFeatsTrnNum)),1); % Since you converted dataset to numeric, table2array will work also with categories!
+% NansColsTst = all(isnan(table2array(DsetFeatsTstNum)),1); % Since you converted dataset to numeric, table2array will work also with categories!
+
+if any(NansColsTot)
+    error(['Columns n. ',char(strjoin(string(find(NansColsTot)), ' - ')), ...
+           ' contains all NaNs! Consider to use ReplaceVals to replace them!'])
+end
+
+% DsetFeatsTot{:, NansColsTot} = 0;
+% DsetFeatsTrn{:, NansColsTrn} = 0;
+% DsetFeatsTst{:, NansColsTst} = 0;
+
+% DsetFeatsTotNum{:, NansColsTot} = 0; % Necessary here because otherwise the rows will read again old NaNs!
+% DsetFeatsTrnNum{:, NansColsTrn} = 0; % Necessary here because otherwise the rows will read again old NaNs!
+% DsetFeatsTstNum{:, NansColsTst} = 0; % Necessary here because otherwise the rows will read again old NaNs!
+
+NansRowsTot = any(isnan(table2array(DsetFeatsTotNum)),2); % Since you converted dataset to numeric, table2array will work also with categories!
+NansRowsTrn = any(isnan(table2array(DsetFeatsTrnNum)),2); % Since you converted dataset to numeric, table2array will work also with categories!
+NansRowsTst = any(isnan(table2array(DsetFeatsTstNum)),2); % Since you converted dataset to numeric, table2array will work also with categories!
+
+if any(NansRowsTot)
+    warning('Some rows with NaNs detected, they will be removed!')
+end
+
+DsetFeatsTot(NansRowsTot, :) = [];
+DsetFeatsTrn(NansRowsTrn, :) = [];
+DsetFeatsTst(NansRowsTst, :) = [];
+
+ExpctOutsTot(NansRowsTot, :) = [];
+ExpctOutsTrn(NansRowsTrn, :) = [];
+ExpctOutsTst(NansRowsTst, :) = [];
+
+if NormVal
+    % NansColsNvTrn = all(isnan(table2array(DsetFeatsNvTrnNum)),1);
+    % NansColsNvVal = all(isnan(table2array(DsetFeatsNvValNum)),1);
+
+    % DsetFeatsNvTrn{:, NansColsNvTrn} = 0;
+    % DsetFeatsNvVal{:, NansColsNvVal} = 0;
+
+    % DsetFeatsNvTrnNum{:, NansColsNvTrn} = 0; % Necessary here because otherwise the rows will read again old NaNs!
+    % DsetFeatsNvValNum{:, NansColsNvVal} = 0; % Necessary here because otherwise the rows will read again old NaNs!
+
+    NansRowsNvTrn = any(isnan(table2array(DsetFeatsNvTrnNum)),2);
+    NansRowsNvVal = any(isnan(table2array(DsetFeatsNvValNum)),2);
+
+    DsetFeatsNvTrn(NansRowsNvTrn, :) = [];
+    DsetFeatsNvVal(NansRowsNvVal, :) = [];
+
+    ExpctOutsNvTrn(NansRowsNvTrn, :) = [];
+    ExpctOutsNvVal(NansRowsNvVal, :) = [];
+end
+
+if CrossVal
+    [NansRowsCrossTrn, NansRowsCrossVal] = deal(cell(1, size(DsetFeatsCvTrn, 2)));
+    % [NansColsCrossTrn, NansColsCrossVal] = deal(cell(1, size(DsetFeatsCvTrn, 2)));
+    for i1 = 1:size(DsetFeatsCvTrn, 2)
+        % NansColsCrossTrn{i1} = all(isnan(table2array(DsetFeatsCvTrnNum{i1})),1);
+        % NansColsCrossVal{i1} = all(isnan(table2array(DsetFeatsCvValNum{i1})),1);
+
+        % DsetFeatsCvTrn{i1}{:, NansColsCrossTrn{i1}} = 0;
+        % DsetFeatsCvVal{i1}{:, NansColsCrossVal{i1}} = 0;
+        
+        % DsetFeatsCvTrnNum{:, NansColsCrossTrn{i1}} = 0;
+        % DsetFeatsCvValNum{:, NansColsCrossVal{i1}} = 0;
+
+        NansRowsCrossTrn{i1} = any(isnan(table2array(DsetFeatsCvTrnNum{i1})),2);
+        NansRowsCrossVal{i1} = any(isnan(table2array(DsetFeatsCvValNum{i1})),2);
+    
+        DsetFeatsCvTrn{i1}(NansRowsCrossTrn{i1}, :) = [];
+        DsetFeatsCvVal{i1}(NansRowsCrossVal{i1}, :) = [];
+    
+        ExpctOutsCvTrn{i1}(NansRowsCrossTrn{i1}, :) = [];
+        ExpctOutsCvVal{i1}(NansRowsCrossVal{i1}, :) = [];
+    end
+end
+
+%% Extra dataset filtering (just rows)
+if ExtraDset
+    for i1 = 1:numel(FtsNmExtr)
+        DsetExtraTot{i1}(NansRowsTot, :) = [];
+        DsetExtraTrn{i1}(NansRowsTrn, :) = [];
+        DsetExtraTst{i1}(NansRowsTst, :) = [];
+
+        if NormVal
+            DsetExtraNvTrn{i1}(NansRowsNvTrn, :) = [];
+            DsetExtraNvVal{i1}(NansRowsNvVal, :) = [];
+        end
+
+        if CrossVal
+            for i2 = 1:size(DsetExtraCvTrn{i1}, 2)
+                DsetExtraCvTrn{i1}{i2}(NansRowsCrossTrn{i2}, :) = [];
+                DsetExtraCvVal{i1}{i2}(NansRowsCrossVal{i2}, :) = [];
+            end
+        end
+    end
+end
+
+%% Creation of output table
+DatasetsExtracted = array2table(cell(7, 2), 'RowNames',{ 'Total', ...
+                                                         'Train', 'Test', ...
+                                                         'NvTrain', 'NvValid', ...
+                                                         'CvTrain', 'CvValid' }, ...
                                             'VariableNames',{'Feats','ExpOuts'});
 
-DatasetsExtracted{{'Total', 'Train', 'Test'}, {'Feats','ExpOuts'}} = {DatasetEvsFeats     , ExpectedOutputs     ;
-                                                                      DatasetEvsFeatsTrain, ExpectedOutputsTrain;
-                                                                      DatasetEvsFeatsTest , ExpectedOutputsTest  };
-
-if CrossVal
-    DatasetsExtracted{{'CvTrain', 'CvValid'}, {'Feats','ExpOuts'}} = {DatasetFeatsCvTrn, ExpOutputsCvTrn;
-                                                                      DatasetFeatsCvVal, ExpOutputsCvVal };
-end
+DatasetsExtracted{{'Total', 'Train', 'Test'}, {'Feats','ExpOuts'}} = {DsetFeatsTot, ExpctOutsTot;
+                                                                      DsetFeatsTrn, ExpctOutsTrn;
+                                                                      DsetFeatsTst, ExpctOutsTst};
 
 if NormVal
-    DatasetsExtracted{{'NvTrain', 'NvValid'}, {'Feats','ExpOuts'}} = {DatasetEvsFeatsNvTrn, ExpectedOutputsNvTrn;
-                                                                      DatasetEvsFeatsNvVal, ExpectedOutputsNvVal };
+    DatasetsExtracted{{'NvTrain', 'NvValid'}, {'Feats','ExpOuts'}} = {DsetFeatsNvTrn, ExpctOutsNvTrn;
+                                                                      DsetFeatsNvVal, ExpctOutsNvVal};
+end
+
+if CrossVal
+    DatasetsExtracted{{'CvTrain', 'CvValid'}, {'Feats','ExpOuts'}} = {DsetFeatsCvTrn, ExpctOutsCvTrn;
+                                                                      DsetFeatsCvVal, ExpctOutsCvVal};
+end
+
+if ExtraDset
+    DatasetsExtracted{:,FtsNmExtr} = cell(size(DatasetsExtracted,1), numel(FtsNmExtr));
+    for i1 = 1:numel(FtsNmExtr)
+        DatasetsExtracted{{'Total', 'Train', 'Test'}, FtsNmExtr(i1)} = {DsetExtraTot{i1};
+                                                                        DsetExtraTrn{i1};
+                                                                        DsetExtraTst{i1}};
+
+        if NormVal
+            DatasetsExtracted{{'NvTrain', 'NvValid'}, FtsNmExtr(i1)} = {DsetExtraNvTrn{i1};
+                                                                        DsetExtraNvVal{i1}};
+        end
+    
+        if CrossVal
+            DatasetsExtracted{{'CvTrain', 'CvValid'}, FtsNmExtr(i1)} = {DsetExtraCvTrn{i1};
+                                                                        DsetExtraCvVal{i1}};
+        end
+    end
 end
 
 end

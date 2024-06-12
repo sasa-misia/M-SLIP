@@ -1,190 +1,236 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
-                                 'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
 rng(10) % For reproducibility of the model
 
 %% Loading data, extraction and initialization of variables
-load([fold_var,sl,'DatasetML.mat'],    'DatasetMLInfo','DatasetMLCoords','DatasetMLFeats', ...
-                                       'DatasetMLClasses','DatasetMLDates','RangesForNorm')
+sl = filesep;
+load([fold_var,sl,'DatasetMLB.mat'], 'DatasetInfo','Rngs4Norm')
 
-UnstablePolygons   = cat(1, DatasetMLInfo.PolysUnstable{:});
-IndecisionPolygons = cat(1, DatasetMLInfo.PolysIndecision{:});
-StablePolygons     = cat(1, DatasetMLInfo.PolysStable{:});
+UnstabPolygons = cat(1, DatasetInfo.PolysUnstable{:});
+IndecnPolygons = cat(1, DatasetInfo.PolysIndecision{:});
+StablePolygons = cat(1, DatasetInfo.PolysStable{:});
 
-TimeSensMode  = 'NoTimeSens';
-TimeSensExist = any(strcmp('TimeSensitive', DatasetMLInfo{1,'FeaturesTypes'}{:}));
-if TimeSensExist
-    EventDates   = DatasetMLInfo.EventDate;
-    TimeSensMode = DatasetMLInfo{1,'TimeSensitiveMode'};
-    TSParameters = DatasetMLInfo{1,'TSParameters'}{:};
-    DaysForTS    = DatasetMLInfo{1,'DaysForTS'};
-    if DatasetMLInfo{1,'MultipleDayAnalysis'}
-        DaysBeforeEventWhenStable = DatasetMLInfo{1,'DayBeforeEventForStablePoints'};
+TmSensMode = 'NoTimeSens';
+TimeSensEx = any(strcmp('TimeSensitive', DatasetInfo{1,'FeaturesTypes'}{:}));
+if TimeSensEx
+    EventDates = DatasetInfo.EventDate;
+    TmSensMode = DatasetInfo{1,'TimeSensMode'};
+    TmSnParams = DatasetInfo{1,'TSParameters'}{:};
+    Days4TmSns = DatasetInfo{1,'DaysForTS'};
+    if DatasetInfo{1,'MultipleDays'}
+        DaysBeforeEventWhenStable = DatasetInfo{1,'DayBeforeEvent'};
     end
 end
 
-ExpectedOutputs = double(DatasetMLClasses.ExpectedOutput);
-FeaturesNames   = DatasetMLInfo{1,'FeaturesNames'}{:};
-FeaturesNotTS   = not(strcmp('TimeSensitive', DatasetMLInfo{1,'FeaturesTypes'}{:}));
-ResampleMode    = DatasetMLInfo.ResampleModeDatasetML;
+ExistNrV = DatasetInfo{1,'NormValidSet' };
+ExistCrV = DatasetInfo{1,'CrossValidSet'};
 
-ModelInfo = table("ANN FF FC", 'VariableNames',{'Type'});
+if ExistCrV
+    kFldNm = DatasetInfo{1, 'DsetSplitMetr'}.CVFolds;
+end
+
+FeatsNms = DatasetInfo{1,'FeaturesNames'}{:};
+FeatsNTS = not(strcmp('TimeSensitive', DatasetInfo{1,'FeaturesTypes'}{:}));
+
+ModelInfo = table("ANN FF FC", {DatasetInfo}, 'VariableNames',{'Type', 'DatasetInfo'});
+
+%% Dataset options
+DsetTbl = dataset_extraction(DatasetInfo);
+
+DsetTpe = char(listdlg2({'Dataset to consider?'}, {'1T', '2T', 'All', 'Manual'}));
+switch DsetTpe
+    case '1T'
+        DatesToMantain = DatasetInfo.EventDate(DatasetInfo.LandslideEvent);
+
+    case '2T'
+        DatesToMantain = [ DatasetInfo.EventDate(DatasetInfo.LandslideEvent)
+                           DatasetInfo.BeforeEventDate(DatasetInfo.LandslideEvent) ];
+
+    case 'All'
+        DatesToMantain = unique(DsetTbl{'Total','Dates'}{:}{:,'Datetime'});
+
+    case 'Manual'
+        DatesChoosable = unique(DsetTbl{'Total','Dates'}{:}{:,'Datetime'});
+        IndsDatesChose = checkbox2(DatesChoosable, 'Title',{'Choose dates: '}, 'OutType','NumInd');
+        DatesToMantain = DatesChoosable(IndsDatesChose);
+end
+
+IndsToMantain = cell(size(DsetTbl,1), 1);
+for i1 = 1:numel(IndsToMantain)
+    if iscell(DsetTbl{i1,'Dates'}{:})
+        IndsToMantain{i1} = cell(1, numel(DsetTbl{i1,'Dates'}{:}));
+        for i2 = 1:numel(DsetTbl{i1,'Dates'}{:})
+            IndsToMantTmp = arrayfun(@(x) DsetTbl{i1,'Dates'}{:}{i2}{:,'Datetime'} == x, DatesToMantain, 'UniformOutput',false);
+            IndsToMantain{i1}{i2} = any([IndsToMantTmp{:}], 2);
+            for i3 = 1:size(DsetTbl,2)
+                DsetTbl{i1,i3}{:}{i2}(not(IndsToMantain{i1}{i2}), :) = []; % Cleaning of dates not to maintain
+            end
+        end
+    else
+        IndsToMantTmp = arrayfun(@(x) DsetTbl{i1,'Dates'}{:}{:,'Datetime'} == x, DatesToMantain, 'UniformOutput',false);
+        IndsToMantain{i1} = any([IndsToMantTmp{:}], 2);
+        for i2 = 1:size(DsetTbl,2)
+            DsetTbl{i1,i2}{:}(not(IndsToMantain{i1}), :) = []; % Cleaning of dates not to maintain
+        end
+    end
+end
 
 %% ANN Options
-ProgressBar.Message = "ANN options...";
+ProgressBar.Message = 'ANN options...';
 
-if strcmp(ResampleMode, 'Oversampling') % You should fix also random split because if you have just one polygon it will not work!
-    TestMode = 'PolySplit';
-else
-    Options  = {'RandomSplit', 'PolySplit'};
-    TestMode = uiconfirm(Fig, 'How do you want to define test dataset?', ...
-                              'Test dataset', 'Options',Options, 'DefaultOption',1);
-end
-
-switch TestMode
-    case 'RandomSplit'
-        TrainPerc = str2double(inputdlg2('Percentage for training (0 - 1): ', 'DefInp',{'0.8'}));
-        if TrainPerc <= 0 || TrainPerc >= 1
-            error('You have to specify a number between 0 and 1! (extremes not included)')
-        end
-
-    case 'PolySplit'
-        if (numel(UnstablePolygons) == 1) || (numel(UnstablePolygons) ~= numel(StablePolygons))
-            error(['You can not apply this approach with your polygons ' ...
-                   '(they should be multi-polys and same numbers between Stables and Unstables)!'])
-        end
-        IndsLogicTestPolys = checkbox2(string(1:numel(UnstablePolygons)), 'Title','Polygons for test dataset:', 'OutType','LogInd');
-
-        figure(Fig)
-        drawnow
-
-        TestPoly  = union([UnstablePolygons(IndsLogicTestPolys) ; StablePolygons(IndsLogicTestPolys)] );
-        TrainPoly = union([UnstablePolygons(~IndsLogicTestPolys); StablePolygons(~IndsLogicTestPolys)]);
-end
-
-switch TimeSensMode
+switch TmSensMode
     case 'SeparateDays'
-        Options = {'With Validation Data', 'With Loss Function', 'Auto [slow]'};
-        FeaturesNamesTS = cellfun(@(x) strcat(x,'-',string(1:DaysForTS)','daysBefore'), TSParameters, 'UniformOutput',false); % Remember to change this line if you change feats names in datasetstudy_creation function!
+        FeatsNmsTS = cellfun(@(x) strcat(x,'-',string(1:Days4TmSns)','daysBefore'), TmSnParams, 'UniformOutput',false); % Remember to change this line if you change feats names in datasetstudy_creation function!
 
     case {'CondensedDays', 'TriggerCausePeak', 'NoTimeSens'}
-        Options = {'With Validation Data', 'With Loss Function', 'Cross Validation (K-Fold) [slow]', 'Cross Validation (Polygons)'};
-end
-
-ANNMode = listdlg2('Type of train?', Options);
-
-if not(strcmp(ANNMode, 'Auto'))
-    Options = {'sigmoid', 'relu', 'tanh', 'none'};
-    LayerActivation = uiconfirm(Fig, 'What activation function do you want to use?', ...
-                                     'Activation function', 'Options',Options, 'DefaultOption',1);
-    
-    Options = {'Yes', 'No'};
-    StandardizeAns = uiconfirm(Fig, 'Do you want to standardize inputs?', ...
-                                    'Standardize', 'Options',Options, 'DefaultOption',1);
-    if strcmp(StandardizeAns,'Yes'); Standardize = true; else; Standardize = false; end
-    
-    StructureInput = inputdlg2({'Max num of hiddens:', ...
-                                'Max neurons per layer:', ...
-                                'Neuron increase step:'}, ...
-                                'DefInp',{'6', '[100, 200, 100, 50, 20, 10]', '10'});
-    
-    MaxNumOfHiddens   = str2double(StructureInput{1});
-    MaxNumOfNeurons   = str2num(StructureInput{2});
-    NeurToAddEachStep = str2double(StructureInput{3});
-    
-    if MaxNumOfHiddens > numel(MaxNumOfNeurons)
-        error('You have to select the max number of neurons for each hidden layers (Format: [NumNeuronsHid1, NumNeuronsHid2, ...])')
-    end
-
-    % Creation of permutations for possible structures
-    [NumOfNeuronToTrainEachHidden, ModelNeurCombs] = deal(cell(1, MaxNumOfHiddens));
-    for i1 = 1:MaxNumOfHiddens
-        NumOfNeuronToTrainEachHidden{i1} = [1, NeurToAddEachStep:NeurToAddEachStep:MaxNumOfNeurons(i1)];
-        if NeurToAddEachStep == 1; NumOfNeuronToTrainEachHidden{i1}(1) = []; end
-        ModelNeurCombs{i1} = combvec(NumOfNeuronToTrainEachHidden{1:i1});
-    end
-
-    NumOfCombs = sum(cellfun(@(x) size(x, 2), ModelNeurCombs));
-    LayerSize  = cell(1, NumOfCombs);
-    i3 = 1;
-    for i1 = 1:MaxNumOfHiddens
-        for i2 = 1:size(ModelNeurCombs{i1}, 2)
-            LayerSize{i3} = ModelNeurCombs{i1}(:,i2)';
-            i3 = i3+1;
-        end
-    end
-end
-
-Options = {'MATLAB', 'MaximizeRatio-TPR-FPR', 'MaximizeArea-TPR-TNR'};
-MethodBestThreshold = uiconfirm(Fig, 'How do you want to find the optimal threshold for ROC curves?', ...
-                                     'Optimal ratio ROC', 'Options',Options, 'DefaultOption',1);
-
-PlotCheckAns = uiconfirm(Fig, 'Do you want to plot a check figure?', ...
-                              'Check plot', 'Options',{'Yes', 'No'}, 'DefaultOption',2);
-if strcmp(PlotCheckAns,'Yes'); PlotCheck = true; else; PlotCheck = false; end
-
-%% Adding vars to ModelInfo
-ModelInfo.ANNMode      = ANNMode;
-ModelInfo.TestMode     = TestMode;
-if strcmp(TestMode,'RandomSplit')
-    ModelInfo.TrainPerc = TrainPerc;
-    ModelInfo.TestPerc  = 1-TrainPerc;
-elseif strcmp(TestMode,'PolySplit')
-    ModelInfo.TrainPoly = TrainPoly;
-    ModelInfo.TestPoly  = TestPoly;
-else
-    error('Test mode not recognized!')
-end
-ModelInfo.TimeSensMode = TimeSensMode;
-if not(strcmp(ANNMode, 'Auto'))
-    ModelInfo.ActivationFunUsed = LayerActivation;
-    ModelInfo.StandardizedInput = Standardize;
-    ModelInfo.ANNsStructures    = array2table(ModelNeurCombs, 'VariableNames',strcat(string(1:length(ModelNeurCombs)),"Layers"));
-end
-ModelInfo.MethodForOptThreshold = MethodBestThreshold;
-ModelInfo.RangesForNorm         = {RangesForNorm};
-
-%% Partitioning of dataset for ML
-rng(7) % For reproducibility of the model
-switch TestMode
-    case 'RandomSplit'
-        PartitionTrain   = cvpartition(ExpectedOutputs, 'Holdout',(1-TrainPerc));
-
-        IndsTrainLogical = training(PartitionTrain); % Indices for the training set
-        IndsTestLogical  = test(PartitionTrain); % Indices for the test set
-
-    case 'PolySplit'        
-        [pp1, ee1] = getnan2([TrainPoly.Vertices; nan, nan]);
-        IndsTrainLogical = inpoly([DatasetMLCoords.Longitude,DatasetMLCoords.Latitude], pp1,ee1);
-
-        [pp2, ee2] = getnan2([TestPoly.Vertices; nan, nan]);
-        IndsTestLogical  = inpoly([DatasetMLCoords.Longitude,DatasetMLCoords.Latitude], pp2,ee2);
 
     otherwise
-        error('Test mode not recognized!')
+        error('Time sensitive mode not recognized!')
 end
 
-IndsTrainNumeric = find(IndsTrainLogical);
-IndsTestNumeric  = find(IndsTestLogical);
+MdlOpt = checkbox2({'Compact models', 'Structures filter', 'Standardize inputs', ...
+                    'Manual structures', 'Check plot', 'Modified cost', 'DeepPlot'}, ...
+                                'DefInp',[1, 0, 1, 0, 0, 0, 0], 'OutType','LogInd');
+CmpMdl = MdlOpt(1);
+StrFlt = MdlOpt(2); % To implement! Look Model A!
+StdInp = MdlOpt(3);
+MnStrc = MdlOpt(4);
+ChkPlt = MdlOpt(5);
+CstMod = MdlOpt(6);
+DpPlot = MdlOpt(7);
 
-ExpectedOutputsTrain = ExpectedOutputs(IndsTrainLogical);
-ExpectedOutputsTest  = ExpectedOutputs(IndsTestLogical);
+LaySizeRw = {nan}; % Default, when you have for example 'Auto' mode!
 
-DatasetMLFeatsTrain = DatasetMLFeats(IndsTrainLogical,:);
-DatasetMLFeatsTest  = DatasetMLFeats(IndsTestLogical,:);
+Options = {'Classic (V)', 'Classic (L)', 'Auto', ...
+           'Cross Validation (K-Fold M)', ...
+           'Cross Validation (K-Fold V)', ...
+           'Deep (L)', 'Deep (V)'};
+ANNMode = char(listdlg2('Type of train?', Options));
+if not(contains(ANNMode, 'Auto', 'IgnoreCase',true))
+    if MnStrc
+        Strct2Use = inputdlg2({'Specify structure n.1:'}, 'Extendable',true, 'DefInp',{'[1, 1, 1, 1]'});
+        LaySizeRw = cellfun(@str2num, Strct2Use, 'UniformOutput',false);
+        HiddenNum = max(cellfun(@numel, LaySizeRw));
+
+    else 
+        StructInp = inputdlg2({'Max neurons per layer:', 'Increase of neurons:'}, 'DefInp',{'[100, 200]', '20'});
+        
+        MaxNmNeur = str2num(StructInp{1});
+        Nr2Add4St = str2double(StructInp{2});
+
+        HiddenNum = numel(MaxNmNeur);
+    
+        % Creation of permutations for possible structures
+        [Neur2Trn4Mdl, MdlNeurCmbs] = deal(cell(1, HiddenNum));
+        for i1 = 1:HiddenNum
+            Neur2Trn4Mdl{i1} = [1, Nr2Add4St:Nr2Add4St:MaxNmNeur(i1)];
+            if Nr2Add4St == 1; Neur2Trn4Mdl{i1}(1) = []; end
+            MdlNeurCmbs{i1} = combvec(Neur2Trn4Mdl{1:i1});
+        end
+    
+        CmbntsNum = sum(cellfun(@(x) size(x, 2), MdlNeurCmbs));
+        LaySizeRw = cell(1, CmbntsNum);
+        i3 = 1;
+        for i1 = 1:HiddenNum
+            for i2 = 1:size(MdlNeurCmbs{i1}, 2)
+                LaySizeRw{i3} = MdlNeurCmbs{i1}(:,i2)';
+                i3 = i3+1;
+            end
+        end
+
+        if StrFlt
+            if numel(LaySizeRw) > 1000
+                StrHidd = str2double(inputdlg2('Min num of hidden layers:', 'DefInp',{'2'}));
+                if StrHidd > numel(MaxNmNeur)
+                    error(['You can not select a minimum number of hidden ', ...
+                           'greater than your structure defined earlier!'])
+                end
+                IdLyr2Mnt = cellfun(@(x) numel(x)>=StrHidd, LaySizeRw);
+                LaySizeRw = LaySizeRw(IdLyr2Mnt);
+            else
+                PrmptsFlt = cellfun(@(x) join(string(x),'_'), LaySizeRw);
+                IdLyr2Mnt = checkbox2(PrmptsFlt, 'OutType','NumInd');
+                LaySizeRw = LaySizeRw(IdLyr2Mnt);
+            end
+        end
+    end
+
+    LayOpt = {'sigmoid', 'relu', 'tanh', 'none'};
+    if contains(ANNMode, 'Deep', 'IgnoreCase',true)
+        LayOpt = [LayOpt, {'elu','gelu','softplus'}];
+    end
+    LyrPrm = strcat({'Activation fn layer '},string(1:HiddenNum));
+    LyrAct = listdlg2(LyrPrm, LayOpt);
+
+    if contains(ANNMode, 'Deep', 'IgnoreCase',true)
+        HypParDp1 = listdlg2({'Solver:', 'Final model:', 'Drop learn rate:', 'Weights initializer:', 'Droput?'}, ...
+                             { {'sgdm','rmsprop','adam','lbfgs'}, ...
+                               {'last-iteration','best-validation'}, ...
+                               {'No','Yes'}, ...
+                               {'glorot','he','zeros','orthogonal'}, ...
+                               {'No', 'Yes'} });
+        DeepSolvr = HypParDp1{1};
+        FinOutNet = HypParDp1{2};
+        DropSched = HypParDp1{3};
+        WghtsInit = HypParDp1{4};
+        UseDrpOut = HypParDp1{5};
+
+        if strcmp(DropSched,'Yes'); DropSched = true; else; DropSched = false; end
+        if strcmp(UseDrpOut,'Yes'); UseDrpOut = true; else; UseDrpOut = false; end
+
+        HypParDp2 = inputdlg2({'Initial learn rate:'}, 'DefInp',{'0.015'});
+        InitLrnRt = str2double(HypParDp2{1});
+
+        if DpPlot
+            DpMetr = checkbox2({'auc', 'fscore', 'precision', 'recall'}, ...
+                               'Title',{'Metrics to plot with deep net:'}, 'DefInp',[1, 1, 1, 1]);
+        end
+    end
+
+    TunPar = inputdlg2({'Iterations limit:', 'L2 Regularization:', ...
+                        'Gradient tolerance:', 'LossTolerance:', ...
+                        'Step tolerance:'}, 'DefInp',{'300', '1e-7', '1e-8', '1e-5', '1e-7'});
+    ItrLim = str2double(TunPar{1});
+    RegStg = str2double(TunPar{2});
+    GrdTol = str2double(TunPar{3});
+    LssTol = str2double(TunPar{4});
+    StpTol = str2double(TunPar{5});
+
+    if strcmpi(ANNMode, 'Deep (V)') || contains(ANNMode, 'Validation', 'IgnoreCase',true)
+        TunPr2 = inputdlg2({'Validation frequency:', 'Validation patience:'}, 'DefInp',{'4', '8'});
+        ValFrq = str2double(TunPr2{1});
+        ValPat = str2double(TunPr2{2});
+    end
+    
+    ClssNum = unique(DsetTbl{'Total','ExpOuts'}{:});
+    CostMat = ones(numel(ClssNum), numel(ClssNum)) - eye(numel(ClssNum), numel(ClssNum));
+    if CstMod
+        NewCost = str2double(inputdlg2({'New cost for landslide class:'}, 'DefInp',{'3'}));
+        IndRows = ClssNum ~= 0;
+        CostMat(IndRows, :) = NewCost.*CostMat(IndRows,:);
+    end
+end
+
+if contains(ANNMode, 'Auto', 'IgnoreCase',true)
+    MaxAutoEvs = str2double(inputdlg2({'Maximum number of evaluations:'}, 'DefInp',{'20'}));
+end
+
+BstThrMthd = char(listdlg2({'Optimal threshold mode?'}, ...
+                           {'MATLAB', 'MaximizeRatio-TPR-FPR', 'MaximizeArea-TPR-TNR'}));
 
 %% Adding vars to ModelInfo
-ModelInfo.DatasetInfo        = {DatasetMLInfo};
-ModelInfo.DatasetFeatsTrain  = {DatasetMLFeatsTrain};
-ModelInfo.DatasetFeatsTest   = {DatasetMLFeatsTest};
-ModelInfo.DatasetCoordsTrain = {DatasetMLCoords(IndsTrainLogical,:)};
-ModelInfo.DatasetCoordsTest  = {DatasetMLCoords(IndsTestLogical,:)};
-ModelInfo.ExpextedOutsTrain  = {ExpectedOutputsTrain};
-ModelInfo.ExpextedOutsTest   = {ExpectedOutputsTest};
-ModelInfo.DatasetDatesTrain  = {DatasetMLDates(IndsTrainLogical,:)};
-ModelInfo.DatasetDatesTest   = {DatasetMLDates(IndsTestLogical,:)};
+ModelInfo.ANNMode  = ANNMode;
+ModelInfo.TimeSensMode = TmSensMode;
+if not(strcmp(ANNMode, 'Auto'))
+    ModelInfo.ActivationFunUsed = LyrAct;
+    ModelInfo.StandardizedInput = StdInp;
+    % ModelInfo.ANNsStructures = array2table(MdlNeurCmbs, 'VariableNames',strcat(string(1:length(MdlNeurCmbs)),"Layers"));
+end
+ModelInfo.BestThrMethod = BstThrMthd;
+ModelInfo.RangesForNorm = {Rngs4Norm};
 
 %% Initialization of variables for loops
 ANNsRows = {'Model', 'FeatsConsidered', 'Structure'}; % If you touch these, please modify row below when you write ANNs
@@ -193,364 +239,352 @@ ANNs     = table('RowNames',ANNsRows);
 ANNsResRows = {'ProbsTrain', 'ProbsTest'}; % If you touch these, please modify row below when you write ANNsRes
 ANNsRes     = table('RowNames',ANNsResRows);
 
-if strcmp(ANNMode, 'Cross Validation (Polygons)')
-    ANNsCrossRows = {'Models', 'MSE', 'AUC', 'BestModel', 'Convergence', 'ProbsTest'}; % If you touch these, please modify row below when you write ANNsCross
-    ANNsCross     = table('RowNames',ANNsCrossRows);
-
-    DatasetsCrossRows = {'Polygons', 'DatasetCrossFeatsTest', 'DatasetCrossFeatsTrain', ...
-                         'DatasetCrossCoordsTest', 'DatasetCrossCoordsTrain', ...
-                         'ExpOutsCrossTest', 'ExpOutsCrossTrain'}; % If you touch these, please modify row below when you write DatasetsCross
-    DatasetsCross     = table('RowNames',DatasetsCrossRows);
-
-    if (numel(UnstablePolygons) <= 1) || (numel(UnstablePolygons) ~= numel(StablePolygons))
-        error(['You can not use Cross Validation with Polygons if you have only 1 ' ...
-               'polygon or if num of Stable and Unstable polys do not match!'])
-    elseif (numel(UnstablePolygons) < 10) && (numel(UnstablePolygons) > 1)
-        IndsPolyCross = num2cell(1:numel(UnstablePolygons));
-    elseif numel(UnstablePolygons) >= 10
-        [StartInd, EndInd] = deal(0);
-        CrossParts = 10;
-        PolyXCross = int64(numel(UnstablePolygons)/CrossParts);
-        IndsCross  = {};
-        while EndInd < numel(UnstablePolygons)
-            StartInd  = StartInd + 1;
-            EndInd    = min(StartInd + PolyXCross - 1, numel(UnstablePolygons));
-            IndsCross = [IndsCross, {StartInd : EndInd}];
-            StartInd  = EndInd;
-        end
-    end
-
-    [CrossPoly, DatasetsCrossCoordsTest, DatasetsCrossFeatsTest, ExpOutsCrossTest] = deal(cell(1, numel(IndsCross)));
-    for i1 = 1:numel(IndsCross)
-        CrossPoly{i1} = union([UnstablePolygons(IndsCross{i1}); StablePolygons(IndsCross{i1})]);
-
-        [pp3, ee3] = getnan2([CrossPoly{i1}.Vertices; nan, nan]);
-        IndsCrossLogical = inpoly([DatasetMLCoords.Longitude,DatasetMLCoords.Latitude], pp3,ee3);
-
-        DatasetsCrossCoordsTest{i1} = DatasetMLCoords(IndsCrossLogical,:);
-        DatasetsCrossFeatsTest{i1}  = DatasetMLFeats(IndsCrossLogical,:);
-        ExpOutsCrossTest{i1}        = ExpectedOutputs(IndsCrossLogical);
-    end
-
-    [DatasetsCrossCoordsTrain, DatasetsCrossFeatsTrain, ExpOutsCrossTrain] = deal(cell(1, numel(IndsCross))); % You have to do in this way because not(IndsCrossLogical) is not correct!
-    for i1 = 1:numel(IndsCross)
-        DatasetCoordsTemp = DatasetsCrossCoordsTest;
-        DatasetFeatsTemp  = DatasetsCrossFeatsTest;
-        ExpOutTemp        = ExpOutsCrossTest;
-
-        DatasetCoordsTemp(i1) = [];
-        DatasetFeatsTemp(i1)  = [];
-        ExpOutTemp(i1)        = [];
-
-        DatasetsCrossCoordsTrain{i1} = cat(1, DatasetCoordsTemp{:});
-        DatasetsCrossFeatsTrain{i1}  = cat(1, DatasetFeatsTemp{:});
-        ExpOutsCrossTrain{i1}        = cat(1, ExpOutTemp{:});
-    end
-
-    DatasetsCross{DatasetsCrossRows, 1:numel(IndsCross)} = [CrossPoly; DatasetsCrossFeatsTest; DatasetsCrossFeatsTrain; ...
-                                                            DatasetsCrossCoordsTest; DatasetsCrossCoordsTrain; ...
-                                                            ExpOutsCrossTest; ExpOutsCrossTrain]; % Pay attention to the order!
+CrssVal = false;
+if contains(ANNMode, 'Cross Validation', 'IgnoreCase',true)
+    CrssVal = true;
+    % ANNsCrossRows = {'Models', 'MSE', 'AUC', 'BestModel', 'Convergence', 'ProbsTest'}; % If you touch these, please modify row below when you write ANNsCross
+    % ANNsCross     = table('RowNames',ANNsCrossRows);
 end
 
-%% Loop for ANN models
-ProgressBar.Indeterminate = 'off';
-switch TimeSensMode
+%% feats to consider for each model
+switch TmSensMode
     case 'SeparateDays'
         %% Separate Days
-        NumberOfANNs = DaysForTS*length(LayerSize); % DaysForTS because you repeat the same structure n times as are the number of days 
-                                                    % that I can consider independently.
-        [TrainLoss, TrainMSE, TestLoss, TestMSE] = deal(zeros(1,NumberOfANNs));
+        ANNsNumber = Days4TmSns*length(LaySizeRw); % DaysForTS because you repeat the same structure n times as are the number of days that I can consider independently.
+        [FeatsCnsid, LayerSizes] = deal(cell(1, ANNsNumber));
         i3 = 0;
-        for i1 = 1:length(LayerSize)
-            for i2 = 1:DaysForTS
+        for i1 = 1:length(LaySizeRw)
+            for i2 = 1:Days4TmSns
                 i3 = i3 + 1;
-                ProgressBar.Value = i3/NumberOfANNs;
-                ProgressBar.Message = strcat("Training model n. ", string(i3)," of ", string(NumberOfANNs));
+                ProgressBar.Value = i3/ANNsNumber;
+                ProgressBar.Message = ['Training model n. ',num2str(i3),' of ',num2str(ANNsNumber)];
 
-                TSFeatsToTake = cellfun(@(x) x(1:i2)', FeaturesNamesTS, 'UniformOutput',false);
+                TSFeatsToTake = cellfun(@(x) x(1:i2)', FeatsNmsTS, 'UniformOutput',false); % WRONG!
                 TSFeatsToTake = cellstr(cat(2, TSFeatsToTake{:}));
 
-                FeatsConsidered = [FeaturesNames(FeaturesNotTS), TSFeatsToTake];
-                 
-                DatasetTrain = DatasetMLFeatsTrain(:,FeatsConsidered);
-                DatasetTest  = DatasetMLFeatsTest(:,FeatsConsidered);
-                
-                switch ANNMode
-                    case 'With Validation Data'
-                        Model = fitcnet(DatasetTrain, ExpectedOutputsTrain, 'ValidationData',{DatasetTest, ExpectedOutputsTest}, ...
-                                                                   'ValidationFrequency',5, 'ValidationPatience',35, ...
-                                                                   'LayerSizes',LayerSize{i1}, 'Activations',LayerActivation, ...
-                                                                   'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',8e3);
-    
-                        FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
-                        if FailedConvergence
-                            warning(strcat("ATTENTION! Model n. ", string(i3), " failed to converge! Please analyze it."))
-                        end
-    
-                    case 'Auto'
-                        Model = fitcnet(DatasetTrain, ExpectedOutputsTrain, 'OptimizeHyperparameters','all', ...
-                                                                   'MaxObjectiveEvaluations',20);
-
-                    case 'With Loss Function'
-                        Model = fitcnet(DatasetTrain, ExpectedOutputsTrain, 'LayerSizes',LayerSize{i1}, 'Activations',LayerActivation, ...
-                                                                   'Standardize',Standardize, 'Lambda',1.2441e-09);
-                end
-    
-                FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
-                if FailedConvergence
-                    warning(strcat("ATTENTION! Model n. ", string(i3), " failed to converge! Please analyze it."))
-                end
-                
-                [PredClassTrain, PredProbsTrain] = predict(Model, DatasetTrain);
-                [PredClassTest,  PredProbsTest]  = predict(Model, DatasetTest);
-
-                PredProbsTrain = PredProbsTrain(:,2);
-                PredProbsTest  = PredProbsTest(:,2);
-            
-                TrainLoss(i3) = loss(Model, DatasetTrain, ExpectedOutputsTrain);
-                TestLoss(i3)  = loss(Model, DatasetTest, ExpectedOutputsTest);
-
-                TrainMSE(i3)  = mse(PredProbsTrain, ExpectedOutputsTrain);
-                TestMSE(i3)   = mse(PredProbsTest , ExpectedOutputsTest );
-            
-                ANNs{ANNsRows, i3} = {Model; FeatsConsidered; LayerSize{i1}}; % Pay attention to the order!
-                ANNsRes{ANNsResRows, i3} = {PredProbsTrain; PredProbsTest}; % Pay attention to the order!
+                FeatsCnsid{i3} = [FeatsNms(FeatsNTS), TSFeatsToTake];
+                LayerSizes{i3} = LaySizeRw{i1}; % Structures must be repeated because you have different inputs!
             end
-        end
-
-        if (i3) ~= NumberOfANNs
-            error('Not all possible models were trained. Check the script!')
         end
 
     case {'CondensedDays', 'TriggerCausePeak', 'NoTimeSens'}
-        %% Condensed Days
-        NumberOfANNs = length(LayerSize);
-        [TrainLoss, TrainMSE, TestLoss, TestMSE] = deal(zeros(1,NumberOfANNs));
-        for i1 = 1:NumberOfANNs
-            ProgressBar.Value = i1/NumberOfANNs;
-            ProgressBar.Message = strcat("Training model n. ", string(i1)," of ", string(NumberOfANNs));
-             
-            DatasetTrain = DatasetMLFeatsTrain;
-            DatasetTest  = DatasetMLFeatsTest;
+        ANNsNumber = length(LaySizeRw);
+        LayerSizes = LaySizeRw;
+        FeatsCnsid = repmat({FeatsNms}, 1, ANNsNumber);
 
-            switch ANNMode
-                case 'With Validation Data'
-                    Model = fitcnet(DatasetTrain, ExpectedOutputsTrain, 'ValidationData',{DatasetTest, ExpectedOutputsTest}, ...
-                                                               'ValidationFrequency',5, 'ValidationPatience',35, ...
-                                                               'LayerSizes',LayerSize{i1}, 'Activations',LayerActivation, ...
-                                                               'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',8e3);
-
-                    FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
-                    if FailedConvergence
-                        warning(strcat("ATTENTION! Model n. ", string(i1), " failed to converge! Please analyze it."))
-                    end
-
-                case 'Cross Validation (K-Fold) [slow]'
-                    ModelCV = fitcnet(DatasetTrain, ExpectedOutputsTrain, ...
-                                                'LayerSizes',LayerSize{i1}, 'Activations',LayerActivation, ...
-                                                'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',8e3, ...
-                                                'LossTolerance',1e-6, 'StepTolerance',1e-6, ...
-                                                'Crossval','on', 'KFold',10); % Remember that instead of 'KFold' you can use for example: 'Holdout',0.1
-
-                    % [PredictionOfModelCV, ProbabilitiesOfModelCV] = kfoldPredict(ModelCV); % To have the predictions of the cross validated model
-                    % ConfusionTrain = confusionchart(ExpectedOutputsTrain, PredictionOfModelCV); % To see visually how well the cross validated model predict
-
-                    LossesOfModels = kfoldLoss(ModelCV, 'Mode','individual');
-                    [~, IndBestModel] = min(LossesOfModels);
-                    Model = ModelCV.Trained{IndBestModel};
-
-                case 'With Loss Function'
-                    Model = fitcnet(DatasetTrain, ExpectedOutputsTrain, 'LayerSizes',LayerSize{i1}, 'Activations',LayerActivation, ...
-                                                               'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',8e3, ...
-                                                               'LossTolerance',1e-5, 'StepTolerance',1e-6);
-
-                    FailedConvergence = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
-                    if FailedConvergence
-                        warning(strcat("ATTENTION! Model n. ", string(i1), " failed to converge! Please analyze it."))
-                    end
-                
-                case 'Cross Validation (Polygons)'
-                    [ModelsCross, ProbsTest] = deal(cell(1, numel(DatasetsCrossFeatsTest)));
-                    FailedConv = false(1, numel(DatasetsCrossFeatsTest));
-                    [CrossMSE, CrossAUC] = deal(zeros(1, numel(DatasetsCrossFeatsTest)));
-                    for i2 = 1:numel(DatasetsCrossFeatsTest)
-                        ModelsCross{i2} = fitcnet(DatasetsCrossFeatsTrain{i2}, ExpOutsCrossTrain{i2}, ...
-                                                                   'ValidationData',{DatasetsCrossFeatsTest{i2}, ExpOutsCrossTest{i2}}, ...
-                                                                   'ValidationFrequency',5, 'ValidationPatience',35, ...
-                                                                   'LayerSizes',LayerSize{i1}, 'Activations',LayerActivation, ...
-                                                                   'Standardize',Standardize, 'Lambda',1e-9, 'IterationLimit',8e3);
-
-                        FailedConv(i2)  = contains(ModelsCross{i2}.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
-
-                        [~, ProbsCrossTest] = predict(ModelsCross{i2}, DatasetsCrossFeatsTest{i2});
-                        CrossMSE(i2) = mse(ExpOutsCrossTest{i2}, ProbsCrossTest(:,2));
-
-                        [~, ~, ~, CrossAUC(i2), ~] = perfcurve(ExpOutsCrossTest{i2}, ProbsCrossTest(:,2), 1);
-
-                        ProbsTest{i2} = ProbsCrossTest(:,2);
-                    end
-
-                    [~, IndBestModel] = min(CrossMSE);
-                    Model = ModelsCross{IndBestModel};
-
-                    DatasetTrain = DatasetsCrossFeatsTrain{IndBestModel};
-                    DatasetTest  = DatasetsCrossFeatsTest{IndBestModel};
-
-                    ExpectedOutputsTrain = ExpOutsCrossTrain{IndBestModel};
-                    ExpectedOutputsTest  = ExpOutsCrossTest{IndBestModel};
-
-                    ANNsCross{ANNsCrossRows, i1} = {ModelsCross; CrossMSE; CrossAUC; IndBestModel; FailedConv; ProbsTest}; % Pay attention to the order!
-                    if any(FailedConv)
-                        warning(strcat("ATTENTION! Some models in cross n. ", string(i1), " failed to converge! Please analyze it."))
-                    end
-            end
-            
-            [PredClassTrain, PredProbsTrain] = predict(Model, DatasetTrain);
-            [PredClassTest,  PredProbsTest]  = predict(Model, DatasetTest);
-
-            PredProbsTrain = PredProbsTrain(:,2);
-            PredProbsTest  = PredProbsTest(:,2);
-        
-            TrainLoss(i1) = loss(Model, DatasetTrain, ExpectedOutputsTrain);
-            TestLoss(i1)  = loss(Model, DatasetTest, ExpectedOutputsTest);
-
-            TrainMSE(i1)  = mse(PredProbsTrain, ExpectedOutputsTrain);
-            TestMSE(i1)   = mse(PredProbsTest , ExpectedOutputsTest );
-        
-            ANNs{ANNsRows, i1} = {Model; FeaturesNames; LayerSize{i1}}; % Pay attention to the order!
-            ANNsRes{ANNsResRows, i1} = {PredProbsTrain; PredProbsTest}; % Pay attention to the order!
-        end
+    otherwise
+        error('Time Sensitive mode not recognized while defining features to take!')
 end
 
-ANNsCols = strcat("ANN",string(1:NumberOfANNs));
+%% Training loops
+[TrnLss, TrnMSE, TstLss, TstMSE] = deal(zeros(1,ANNsNumber));
+if ExistCrV
+    [CrossMdls, CrossTrnInd, CrossValInd] = deal(cell(kFldNm, ANNsNumber));
+    [CrossTrnMSE, CrossValMSE, CrossTstMSE, ...
+        CrossTrnAUC, CrossValAUC, CrossTstAUC] = deal(zeros(kFldNm, ANNsNumber));
+end
+
+for i1 = 1:ANNsNumber
+    ProgressBar.Value = i1/ANNsNumber;
+    ProgressBar.Message = ['Training model n. ',num2str(i1),' of ',num2str(ANNsNumber)];
+
+    DsetTrn = DsetTbl{'Train','Feats'}{:}(:, FeatsCnsid{i1});
+    DsetTst = DsetTbl{'Test' ,'Feats'}{:}(:, FeatsCnsid{i1});
+
+    ExOtTrn = DsetTbl{'Train','ExpOuts'}{:};
+    ExOtTst = DsetTbl{'Test' ,'ExpOuts'}{:};
+
+    if ExistNrV
+        DsetNvT = DsetTbl{'NvTrain','Feats'}{:}(:, FeatsCnsid{i1});
+        DsetNvV = DsetTbl{'NvValid','Feats'}{:}(:, FeatsCnsid{i1});
+
+        ExOtNvT = DsetTbl{'NvTrain','ExpOuts'}{:};
+        ExOtNvV = DsetTbl{'NvValid','ExpOuts'}{:};
+    end
+
+    if ExistCrV
+        DsetCvT = cellfun(@(x) x(:, FeatsCnsid{i1}), DsetTbl{'CvTrain','Feats'}{:}, 'UniformOutput',false);
+        DsetCvV = cellfun(@(x) x(:, FeatsCnsid{i1}), DsetTbl{'CvValid','Feats'}{:}, 'UniformOutput',false);
+        
+        ExOtCvT = DsetTbl{'CvTrain','ExpOuts'}{:};
+        ExOtCvV = DsetTbl{'CvValid','ExpOuts'}{:};
+    end
+
+    CLN = numel(LayerSizes{i1});
+
+    switch ANNMode
+        case 'Auto'
+            Model = fitcnet(DsetTrn, ExOtTrn, 'OptimizeHyperparameters','all', ...
+                                      'HyperparameterOptimizationOptions', struct('MaxObjectiveEvaluations',MaxEvA, ...
+                                                                                  'Optimizer','bayesopt', 'MaxTime',Inf, ...
+                                                                                  'AcquisitionFunctionName','expected-improvement-plus', ...
+                                                                                  'ShowPlots',true, 'Verbose',1, 'Kfold',kFldNm, ...
+                                                                                  'UseParallel',false, 'Repartition',true));
+            LayerSizes{i1} = Model.LayerSizes;
+
+        case 'Classic (L)'
+            Model = fitcnet(DsetTrn, ExOtTrn, 'LayerSizes',LayerSizes{i1}, 'Activations',LyrAct(1:CLN), ...
+                                              'Standardize',StdInp, 'Lambda',RegStg, ...
+                                              'IterationLimit',ItrLim, 'GradientTolerance',GrdTol, ...
+                                              'LossTolerance',LssTol, 'StepTolerance',StpTol);
+
+            FailCg = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
+            if FailCg
+                warning(strcat("ATTENTION! Model n. ", string(i1), " failed to converge! Please analyze it."))
+            end
+
+        case 'Classic (V)'
+            Model = fitcnet(DsetNvT, ExOtNvT, 'ValidationData',{DsetNvV, ExOtNvV}, ...
+                                              'ValidationFrequency',ValFrq, 'ValidationPatience',ValPat, ...
+                                              'LayerSizes',LayerSizes{i1}, 'Activations',LyrAct(1:CLN), ...
+                                              'Standardize',StdInp, 'Lambda',RegStg, ...
+                                              'IterationLimit',ItrLim, 'Cost',CostMat);
+
+            FailCg = contains(Model.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
+            if FailCg
+                warning(strcat("ATTENTION! Model n. ", string(i1), " failed to converge! Please analyze it."))
+            end
+
+        case 'Cross Validation (K-Fold M)'
+            ModelCV = fitcnet(DsetTrn, ExOtTrn, 'LayerSizes',LayerSizes{i1}, 'Activations',LyrAct(1:CLN), ...
+                                                'Standardize',StdInp, 'Lambda',RegStg, ...
+                                                'IterationLimit',ItrLim, 'GradientTolerance',GrdTol, ...
+                                                'LossTolerance',LssTol, 'StepTolerance',StpTol, ...
+                                                'Crossval','on', 'KFold',kFldNm, 'Cost',CostMat); % Remember that instead of 'KFold' you can use for example: 'Holdout',0.1
+
+            for i2 = 1:kFldNm
+                CrossMdls{i2, i1} = ModelCV.Trained{i2};
+                % if CmpMdl; CrossMdls{i2, i1} = compact(CrossMdls{i2, i1}); end % Already compact!
+
+                CrossTrnInd{i2, i1} = training(ModelCV.Partition, i2);
+                CrossValInd{i2, i1} = test(ModelCV.Partition, i2);
+
+                DsetTrnTmp = DsetTrn(CrossTrnInd{i2, i1}, :);
+                DsetValTmp = DsetTrn(CrossValInd{i2, i1}, :);
+
+                ExOtTrnTmp = ExOtTrn(CrossTrnInd{i2, i1}, :);
+                ExOtValTmp = ExOtTrn(CrossValInd{i2, i1}, :);
+
+                PredsCrossTrnTmp = mdlpredict(ModelCV.Trained{i2}, DsetTrnTmp, 'SingleCol',true); % Thanks to SingleCol, outputs are always in 1 column!
+                PredsCrossValTmp = mdlpredict(ModelCV.Trained{i2}, DsetValTmp, 'SingleCol',true);
+                PredsCrossTstTmp = mdlpredict(ModelCV.Trained{i2}, DsetTst   , 'SingleCol',true);
+
+                CrossTrnMSE(i2, i1) = mse(PredsCrossTrnTmp, double(ExOtTrnTmp >= 1));
+                CrossValMSE(i2, i1) = mse(PredsCrossValTmp, double(ExOtValTmp >= 1));
+                CrossTstMSE(i2, i1) = mse(PredsCrossTstTmp, double(ExOtTst    >= 1));
+    
+                [~, ~, ~, CrossTrnAUC(i2, i1), ~] = perfcurve(double(ExOtTrnTmp >= 1), PredsCrossTrnTmp, 1);
+                [~, ~, ~, CrossValAUC(i2, i1), ~] = perfcurve(double(ExOtValTmp >= 1), PredsCrossValTmp, 1);
+                [~, ~, ~, CrossTstAUC(i2, i1), ~] = perfcurve(double(ExOtTst    >= 1), PredsCrossTstTmp, 1);
+            end
+
+            LossesOfModels = kfoldLoss(ModelCV, 'Mode','individual');
+            [~, IndBstMdl] = min(LossesOfModels);
+            Model = ModelCV.Trained{IndBstMdl};
+        
+        case 'Cross Validation (K-Fold V)'
+            FailCg = false(1, numel(DsetTst));
+            for i2 = 1:kFldNm
+                CurrMdlCV = fitcnet(DsetCvT{i2}, ExOtCvT{i2}, 'ValidationData',{DsetCvV{i2}, ExOtCvV{i2}}, ...
+                                                              'ValidationFrequency',ValFrq, 'ValidationPatience',ValPat, ...
+                                                              'LayerSizes',LayerSizes{i1}, 'Activations',LyrAct(1:CLN), ...
+                                                              'GradientTolerance',GrdTol, 'Standardize',StdInp, ...
+                                                              'Lambda',RegStg, 'IterationLimit',ItrLim, ...
+                                                              'LossTolerance',LssTol, 'Cost',CostMat);
+
+                FailCg(i2) = contains(CurrMdlCV.ConvergenceInfo.ConvergenceCriterion, 'Solver failed to converge.');
+
+                CrossMdls{i2, i1} = CurrMdlCV;
+                if CmpMdl; CrossMdls{i2, i1} = compact(CrossMdls{i2, i1}); end
+
+                DsetTrnTmp = DsetCvT{i2};
+                DsetValTmp = DsetCvV{i2};
+
+                ExOtTrnTmp = ExOtCvT{i2};
+                ExOtValTmp = ExOtCvV{i2};
+
+                PredsCrossTrnTmp = mdlpredict(CurrMdlCV, DsetTrnTmp, 'SingleCol',true); % Thanks to SingleCol, outputs are always in 1 column!
+                PredsCrossValTmp = mdlpredict(CurrMdlCV, DsetValTmp, 'SingleCol',true);
+                PredsCrossTstTmp = mdlpredict(CurrMdlCV, DsetTst   , 'SingleCol',true);
+
+                CrossTrnMSE(i2, i1) = mse(PredsCrossTrnTmp, double(ExOtTrnTmp >= 1));
+                CrossValMSE(i2, i1) = mse(PredsCrossValTmp, double(ExOtValTmp >= 1));
+                CrossTstMSE(i2, i1) = mse(PredsCrossTstTmp, double(ExOtTst    >= 1));
+    
+                [~, ~, ~, CrossTrnAUC(i2, i1), ~] = perfcurve(double(ExOtTrnTmp >= 1), PredsCrossTrnTmp, 1);
+                [~, ~, ~, CrossValAUC(i2, i1), ~] = perfcurve(double(ExOtValTmp >= 1), PredsCrossValTmp, 1);
+                [~, ~, ~, CrossTstAUC(i2, i1), ~] = perfcurve(double(ExOtTst    >= 1), PredsCrossTstTmp, 1);
+            end
+
+            if any(FailCg)
+                warning(['ATTENTION! Some models in cross n. ',num2str(i1),' failed to converge! Please analyze it.'])
+            end
+
+            [~, IndBstMdl] = min(CrossValMSE(:, i1));
+            Model = CrossMdls{IndBstMdl, i1};
+
+        case 'Deep (L)'
+            Model = trainann2(DsetTrn, ExOtTrn, 'Solver',DeepSolvr, 'LayerSizes',LayerSizes{i1}, ...
+                                                'ShowTrainPlot',DpPlot, 'MetricsToUse',DpMetr, ...
+                                                'LayerActivations',LyrAct(1:CLN), 'IterationLimit',ItrLim, ...
+                                                'L2Regularization',RegStg, 'StandardizeInput',StdInp, ...
+                                                'ObjTolerance',LssTol, 'FinalNetwork',FinOutNet, ...
+                                                'WeightsInit',WghtsInit, 'Dropout',UseDrpOut, ...
+                                                'InitialLearnRate',InitLrnRt, 'LRDropSchedule',DropSched, ...
+                                                'GradTolerance',GrdTol, 'StepTolerance',StpTol);
+
+        case 'Deep (V)'
+            Model = trainann2(DsetNvT, ExOtNvT, 'Solver',DeepSolvr, 'LayerSizes',LayerSizes{i1}, ...
+                                                'ShowTrainPlot',DpPlot, 'MetricsToUse',DpMetr, ...
+                                                'LayerActivations',LyrAct(1:CLN), 'IterationLimit',ItrLim, ...
+                                                'L2Regularization',RegStg, 'StandardizeInput',StdInp, ...
+                                                'ObjTolerance',LssTol, 'FinalNetwork',FinOutNet, ...
+                                                'ValidationData',{DsetNvV, ExOtNvV}, ...
+                                                'ValidFrequency',ValFrq, 'ValidPatience',ValPat, ...
+                                                'WeightsInit',WghtsInit, 'Dropout',UseDrpOut, ...
+                                                'InitialLearnRate',InitLrnRt, 'LRDropSchedule',DropSched, ...
+                                                'GradTolerance',GrdTol, 'StepTolerance',StpTol);
+
+        otherwise
+            error('ANNMode not recognized in training!')
+    end
+    
+    PrdPrbsTrn = mdlpredict(Model, DsetTrn);
+    PrdPrbsTst = mdlpredict(Model, DsetTst);
+
+    TrnLss(i1) = crossentropy2(PrdPrbsTrn, ExOtTrn); % 'crossentropy' is appropriate only for neural network models.
+    TstLss(i1) = crossentropy2(PrdPrbsTst, ExOtTst); % 'crossentropy' is appropriate only for neural network models.
+
+    TrnMSE(i1) = mse(PrdPrbsTrn, ExOtTrn);
+    TstMSE(i1) = mse(PrdPrbsTst, ExOtTst);
+
+    if CmpMdl && not(contains(ANNMode, 'Deep', 'IgnoreCase',true)) && not(contains(class(Model), 'Compact', 'IgnoreCase',true))
+        Model = compact(Model); % To eliminate training dataset and reduce size of the object!
+    end
+
+    ANNs{ANNsRows, i1} = {Model; FeatsCnsid{i1}; LayerSizes{i1}}; % Pay attention to the order!
+    ANNsRes{ANNsResRows, i1} = {PrdPrbsTrn; PrdPrbsTst}; % Pay attention to the order!
+end
+
+ANNsCols = strcat("ANN",string(1:ANNsNumber));
 ANNs.Properties.VariableNames    = ANNsCols;
 ANNsRes.Properties.VariableNames = ANNsCols;
 
 %% Evaluation of prediction quality by means of ROC
 ProgressBar.Indeterminate = 'on';
-ProgressBar.Message       = "Analyzing quality of models...";
+ProgressBar.Message       = 'Analyzing quality of models...';
 
-ANNsPerfRows   = {'FPR', 'TPR', 'AUC', 'BestThreshold', 'BestThrInd'};
-ANNsPerf       = table('RowNames',{'ROC','Err'});
-ANNsPerf{'Err','Train'} = {array2table([TrainMSE; TrainLoss], ...
+ANNsPrfR = {'FPR', 'TPR', 'AUC', 'BestThreshold', 'BestThrInd'};
+ANNsPerf = table('RowNames',{'ROC','Err'});
+ANNsPerf{'Err','Train'} = {array2table([TrnMSE; TrnLss], ...
                                             'VariableNames',ANNsCols, ...
                                             'RowNames',{'MSE','Loss'})};
-ANNsPerf{'Err','Test'}  = {array2table([TestMSE; TestLoss], ...
+ANNsPerf{'Err','Test' } = {array2table([TstMSE; TstLss], ...
                                             'VariableNames',ANNsCols, ...
                                             'RowNames',{'MSE','Loss'})};
-ANNsPerf{'ROC',{'Train','Test'}} = {table('RowNames',ANNsPerfRows)};
+ANNsPerf{'ROC',{'Train','Test'}} = {table('RowNames',ANNsPrfR)};
 
-for i1 = 1:NumberOfANNs
-    PredProbsTest  = ANNsRes{'ProbsTest' , i1}{:};
-    PredProbsTrain = ANNsRes{'ProbsTrain', i1}{:};
+for i1 = 1:ANNsNumber
+    PrdPrbsTrn = ANNsRes{'ProbsTrain', i1}{:};
+    PrdPrbsTst = ANNsRes{'ProbsTest' , i1}{:};
 
-    if strcmp(ANNMode,'Cross Validation (Polygons)')
-        MdlToTake = ANNsCross{'BestModel',i1}{:};
+    ExpOutsTrn = DsetTbl{'Train','ExpOuts'}{:};
+    ExpOutsTst = DsetTbl{'Test' ,'ExpOuts'}{:};
 
-        ExpOutsTest  = DatasetsCross{'ExpOutsCrossTest', MdlToTake}{:};
-        ExpOutsTrain = DatasetsCross{'ExpOutsCrossTrain',MdlToTake}{:};
-    else
-        ExpOutsTest  = ExpectedOutputsTest;
-        ExpOutsTrain = ExpectedOutputsTrain;
+    % Train performance
+    [FPR4ROC_Trn, TPR4ROC_Trn, ThresholdsROC_Trn, AUC_Trn, OptPoint_Trn] = perfcurve(ExpOutsTrn, PrdPrbsTrn, 1);
+    switch BstThrMthd
+        case 'MATLAB'
+            % Method integrated in MATLAB
+            IndBest_Trn = find(ismember([FPR4ROC_Trn, TPR4ROC_Trn], OptPoint_Trn, 'rows'));
+            BestThr_Trn = ThresholdsROC_Trn(IndBest_Trn);
+        case 'MaximizeRatio-TPR-FPR'
+            % Method max ratio TPR/FPR
+            RatTPR_FPR_Trn = TPR4ROC_Trn./FPR4ROC_Trn;
+            RatTPR_FPR_Trn(isinf(RatTPR_FPR_Trn)) = nan;
+            [~, IndBest_Trn]  = max(RatTPR_FPR_Trn);
+            BestThr_Trn = ThresholdsROC_Trn(IndBest_Trn);
+        case 'MaximizeArea-TPR-TNR'
+            % Method max product TPR*TNR
+            AreaTPR_TNR_Trn = TPR4ROC_Trn.*(1-FPR4ROC_Trn);
+            [~, IndBest_Trn] = max(AreaTPR_TNR_Trn);
+            BestThr_Trn = ThresholdsROC_Trn(IndBest_Trn);
     end
 
     % Test performance
-    [FPR4ROC_Test, TPR4ROC_Test, ThresholdsROC_Test, AUC_Test, OptPoint_Test] = perfcurve(ExpOutsTest, PredProbsTest, 1); % To adjust ExpectedOutputsTest
-    switch MethodBestThreshold
+    [FPR4ROC_Tst, TPR4ROC_Tst, ThresholdsROC_Tst, AUC_Tst, OptPoint_Tst] = perfcurve(ExpOutsTst, PrdPrbsTst, 1); % To adjust ExpectedOutputsTest
+    switch BstThrMthd
         case 'MATLAB'
             % Method integrated in MATLAB
-            IndBest_Test = find(ismember([FPR4ROC_Test, TPR4ROC_Test], OptPoint_Test, 'rows'));
-            BestThreshold_Test = ThresholdsROC_Test(IndBest_Test);
+            IndBest_Tst = find(ismember([FPR4ROC_Tst, TPR4ROC_Tst], OptPoint_Tst, 'rows'));
+            BestThr_Tst = ThresholdsROC_Tst(IndBest_Tst);
         case 'MaximizeRatio-TPR-FPR'
             % Method max ratio TPR/FPR
-            RatioTPR_FPR_Test = TPR4ROC_Test./FPR4ROC_Test;
-            RatioTPR_FPR_Test(isinf(RatioTPR_FPR_Test)) = nan;
-            [~, IndBest_Test]  = max(RatioTPR_FPR_Test);
-            BestThreshold_Test = ThresholdsROC_Test(IndBest_Test);
+            RatTPR_FPR_Tst = TPR4ROC_Tst./FPR4ROC_Tst;
+            RatTPR_FPR_Tst(isinf(RatTPR_FPR_Tst)) = nan;
+            [~, IndBest_Tst] = max(RatTPR_FPR_Tst);
+            BestThr_Tst = ThresholdsROC_Tst(IndBest_Tst);
         case 'MaximizeArea-TPR-TNR'
             % Method max product TPR*TNR
-            AreaTPR_TNR_Test   = TPR4ROC_Test.*(1-FPR4ROC_Test);
-            [~, IndBest_Test]  = max(AreaTPR_TNR_Test);
-            BestThreshold_Test = ThresholdsROC_Test(IndBest_Test);
-    end
-    
-    % Train performance
-    [FPR4ROC_Train, TPR4ROC_Train, ThresholdsROC_Train, AUC_Train, OptPoint_Train] = perfcurve(ExpOutsTrain, PredProbsTrain, 1);
-    switch MethodBestThreshold
-        case 'MATLAB'
-            % Method integrated in MATLAB
-            IndBest_Train = find(ismember([FPR4ROC_Train, TPR4ROC_Train], OptPoint_Train, 'rows'));
-            BestThreshold_Train = ThresholdsROC_Train(IndBest_Train);
-        case 'MaximizeRatio-TPR-FPR'
-            % Method max ratio TPR/FPR
-            RatioTPR_FPR_Train = TPR4ROC_Train./FPR4ROC_Train;
-            RatioTPR_FPR_Train(isinf(RatioTPR_FPR_Train)) = nan;
-            [~, IndBest_Train]  = max(RatioTPR_FPR_Train);
-            BestThreshold_Train = ThresholdsROC_Train(IndBest_Train);
-        case 'MaximizeArea-TPR-TNR'
-            % Method max product TPR*TNR
-            AreaTPR_TNR_Train   = TPR4ROC_Train.*(1-FPR4ROC_Train);
-            [~, IndBest_Train]  = max(AreaTPR_TNR_Train);
-            BestThreshold_Train = ThresholdsROC_Train(IndBest_Train);
+            AreaTPR_TNR_Tst = TPR4ROC_Tst.*(1-FPR4ROC_Tst);
+            [~, IndBest_Tst] = max(AreaTPR_TNR_Tst);
+            BestThr_Tst = ThresholdsROC_Tst(IndBest_Tst);
     end
     
     % General matrices creation
-    ANNsPerf{'ROC','Test'}{:}{ANNsPerfRows,  i1} = {FPR4ROC_Test;  TPR4ROC_Test;  AUC_Test;  BestThreshold_Test;  IndBest_Test }; % Pay attention to the order!
-    ANNsPerf{'ROC','Train'}{:}{ANNsPerfRows, i1} = {FPR4ROC_Train; TPR4ROC_Train; AUC_Train; BestThreshold_Train; IndBest_Train}; % Pay attention to the order!
+    ANNsPerf{'ROC','Train'}{:}{ANNsPrfR, i1} = {FPR4ROC_Trn; TPR4ROC_Trn; AUC_Trn; BestThr_Trn; IndBest_Trn}; % Pay attention to the order!
+    ANNsPerf{'ROC','Test' }{:}{ANNsPrfR, i1} = {FPR4ROC_Tst; TPR4ROC_Tst; AUC_Tst; BestThr_Tst; IndBest_Tst}; % Pay attention to the order!
 end
 
-ANNsPerf{'ROC','Test'}{:}.Properties.VariableNames  = ANNsCols;
 ANNsPerf{'ROC','Train'}{:}.Properties.VariableNames = ANNsCols;
+ANNsPerf{'ROC','Test' }{:}.Properties.VariableNames = ANNsCols;
 
 %% Plot for check % Finish to adjust for PlotOption 1 (or maybe delete it)
-if PlotCheck
-    ProgressBar.Message = "Loading data...";
+if ChkPlt
+    ProgressBar.Message = 'Loading data...';
 
     load([fold_var,sl,'StudyAreaVariables.mat'],    'StudyAreaPolygon')
     load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','FilesDetectedSoilSlip')
 
-    StableAreaApproach  = DatasetMLInfo{1, 'StableAreaApproach'};
-    MultipleDayAnalysis = DatasetMLInfo{1, 'MultipleDayAnalysis'};
+    StabAreaApproach = DatasetInfo{1, 'StabAreaApproach'};
+    MultiDayAnalysis = DatasetInfo{1, 'MultipleDays'};
 
-    if length(UnstablePolygons) > 1
-        UnstablePolyMrgd = union(UnstablePolygons);
-        IndecisPolyMrgd  = union(IndecisionPolygons);
-        StablePolyMrgd   = union(StablePolygons);
+    if length(UnstabPolygons) > 1
+        UnstabPolyMrgd = union(UnstabPolygons);
+        IndecsPolyMrgd = union(IndecnPolygons);
+        StablePolyMrgd = union(StablePolygons);
     else
-        UnstablePolyMrgd = UnstablePolygons;
-        IndecisPolyMrgd  = IndecisionPolygons;
-        StablePolyMrgd   = StablePolygons;
+        UnstabPolyMrgd = UnstabPolygons;
+        IndecsPolyMrgd = IndecnPolygons;
+        StablePolyMrgd = StablePolygons;
     end
 
-    ProgressBar.Message = "Plotting results...";
+    ProgressBar.Message = 'Plotting results...';
     
-    [~, BestModelForTest]  = max(cell2mat(ANNsPerf{'ROC','Test'}{:}{'AUC',:}));
-    [~, BestModelForTrain] = max(cell2mat(ANNsPerf{'ROC','Train'}{:}{'AUC',:}));
-    ModelToPlot = str2double(inputdlg2({['Model to plot? From 1 to ',num2str(NumberOfANNs), ...
-                                         ' (Best for Test: ',num2str(BestModelForTest), ...
-                                         '. Best for Train: ',num2str(BestModelForTrain),')']}, ...
-                                         'DefInp',{num2str(BestModelForTest)}));
+    [~, BestModelForTst] = max(cell2mat(ANNsPerf{'ROC','Test'}{:}{'AUC',:}));
+    [~, BestModelForTrn] = max(cell2mat(ANNsPerf{'ROC','Train'}{:}{'AUC',:}));
+    ModelToPlot = str2double(inputdlg2({['Model to plot? From 1 to ',num2str(ANNsNumber), ...
+                                         ' (Best for Test: ',num2str(BestModelForTst), ...
+                                         '. Best for Train: ',num2str(BestModelForTrn),')']}, ...
+                                         'DefInp',{num2str(BestModelForTst)}));
     
     PlotOption = 1;
-    if MultipleDayAnalysis
-        PossibleDates = unique(DatasetMLDates.Datetime);
+    if MultiDayAnalysis
+        PossibleDates = unique(DsetTbl{'Total', 'Dates'}{:}{:,'Datetime'});
         DateChosedInd = listdlg2('Event to plot:', PossibleDates, 'OutType','NumInd');
         DateChosed    = PossibleDates(DateChosedInd);
 
-        figure(Fig)
-        drawnow
+        IndsEv2Take = (DsetTbl{'Total', 'Dates'}{:}{:,'Datetime'} == DateChosed);
 
-        IndsEventToTake = (DatasetMLDates.Datetime == DateChosed);
-
-        LandslideEvent = all(DatasetMLDates.LandslideEvent(IndsEventToTake));
+        LandslideEvent = all(DsetTbl{'Total', 'Dates'}{:}{:,'LandslideEvent'}(IndsEv2Take));
         if LandslideEvent; PlotOption = 2; else; PlotOption = 3; end
 
-        DatasetPartChosed = find(any((DateChosed == [DatasetMLInfo.EventDate, DatasetMLInfo.BeforeEventDate]), 2), 1);
+        DatasetPartChosed = find(any((DateChosed == [DatasetInfo.EventDate, DatasetInfo.BeforeEventDate]), 2), 1);
         
-        [~, InfoDetName, InfoDetExt] = fileparts(DatasetMLInfo{DatasetPartChosed, 'FullPathInfoDetUsed'});
+        [~, InfoDetName, InfoDetExt] = fileparts(DatasetInfo{DatasetPartChosed, 'FullPathInfoDet'});
         InfoDetNameToTake = strcat(InfoDetName,InfoDetExt);
     else
-        [~, InfoDetName, InfoDetExt] = fileparts(DatasetMLInfo{end, 'FullPathInfoDetUsed'});
+        [~, InfoDetName, InfoDetExt] = fileparts(DatasetInfo{end, 'FullPathInfoDet'});
         InfoDetNameToTake = strcat(InfoDetName,InfoDetExt);
     end
 
@@ -564,134 +598,187 @@ if PlotCheck
     ax_check  = axes(fig_check);
     hold(ax_check,'on')
     
-    BestThresholdTrain  = ANNsPerf{'ROC','Train'}{:}{'BestThreshold',ModelToPlot}{:};
-    BestThresholdTest   = ANNsPerf{'ROC','Test'}{:}{'BestThreshold',ModelToPlot}{:};
-    IndexOfBestThrTrain = ANNsPerf{'ROC','Train'}{:}{'BestThrInd',ModelToPlot}{:};
-    IndexOfBestThrTest  = ANNsPerf{'ROC','Test'}{:}{'BestThrInd',ModelToPlot}{:};
+    BestThresholdTrn = ANNsPerf{'ROC','Train'}{:}{'BestThreshold',ModelToPlot}{:};
+    BestThresholdTst = ANNsPerf{'ROC','Test' }{:}{'BestThreshold',ModelToPlot}{:};
+    IndexOfBstThrTrn = ANNsPerf{'ROC','Train'}{:}{'BestThrInd',ModelToPlot}{:};
+    IndexOfBstThrTst = ANNsPerf{'ROC','Test' }{:}{'BestThrInd',ModelToPlot}{:};
     
-    BestThrTPRTrain = ANNsPerf{'ROC','Train'}{:}{'TPR',ModelToPlot}{:}(IndexOfBestThrTrain);
-    BestThrTPRTest  = ANNsPerf{'ROC','Test'}{:}{'TPR',ModelToPlot}{:}(IndexOfBestThrTest);
-    BestThrFPRTrain = ANNsPerf{'ROC','Train'}{:}{'FPR',ModelToPlot}{:}(IndexOfBestThrTrain);
-    BestThrFPRTest  = ANNsPerf{'ROC','Test'}{:}{'FPR',ModelToPlot}{:}(IndexOfBestThrTest);
+    BestThrTPRTrn = ANNsPerf{'ROC','Train'}{:}{'TPR',ModelToPlot}{:}(IndexOfBstThrTrn);
+    BestThrTPRTst = ANNsPerf{'ROC','Test' }{:}{'TPR',ModelToPlot}{:}(IndexOfBstThrTst);
+    BestThrFPRTrn = ANNsPerf{'ROC','Train'}{:}{'FPR',ModelToPlot}{:}(IndexOfBstThrTrn);
+    BestThrFPRTst = ANNsPerf{'ROC','Test' }{:}{'FPR',ModelToPlot}{:}(IndexOfBstThrTst);
     
-    disp(strcat("Your TPR relative to the best threshold are (train - test): ", string(BestThrTPRTrain), " - ", string(BestThrTPRTest)))
-    disp(strcat("Your FPR relative to the best threshold are (train - test): ", string(BestThrFPRTrain), " - ", string(BestThrFPRTest)))
+    disp(strcat("Your TPR relative to the best threshold are (train - test): ", string(BestThrTPRTrn), " - ", string(BestThrTPRTst)))
+    disp(strcat("Your FPR relative to the best threshold are (train - test): ", string(BestThrFPRTrn), " - ", string(BestThrFPRTst)))
     
     ModelSelected = ANNs{'Model',ModelToPlot}{:};
     
     switch PlotOption
         case 1
-            PredProbsTrain       = ANNsRes{'ProbsTrain',ModelToPlot}{:};
-            PredProbsTest        = ANNsRes{'ProbsTest', ModelToPlot}{:};
-            PredClassTrainWithBT = PredProbsTrain(:,2) >= BestThresholdTrain;
-            PredClassTestWithBT  = PredProbsTest(:,2)  >= BestThresholdTest;
+            PrdPrbsTrn = ANNsRes{'ProbsTrain',ModelToPlot}{:};
+            PrdPrbsTst = ANNsRes{'ProbsTest', ModelToPlot}{:};
+            PrdClTrnBT = PrdPrbsTrn >= BestThresholdTrn;
+            PrdClTstBT = PrdPrbsTst >= BestThresholdTst;
     
         case {2, 3}
-            DatasetForPlot = DatasetMLFeats(IndsEventToTake, :);
-            xLongForPlot   = DatasetMLCoords.Longitude(IndsEventToTake);
-            yLatForPlot    = DatasetMLCoords.Latitude(IndsEventToTake);
-            ExpOutForPlot  = double(DatasetMLClasses.ExpectedOutput(IndsEventToTake, :));
-            [~, ProbabilityForPlot] = predict(ModelSelected, DatasetForPlot);
-            PredictionWithBTForPlot = ProbabilityForPlot(:,2) >= (BestThresholdTrain + BestThresholdTest)/2;
+            Dset4Plt = DsetTbl{'Total', 'Feats'}{:}(IndsEv2Take, :);
+            xLon4Plt = DsetTbl{'Total', 'Coordinates'}{:}{IndsEv2Take, 'Longitude'};
+            yLat4Plt = DsetTbl{'Total', 'Coordinates'}{:}{IndsEv2Take, 'Latitude' };
+            ExOt4Plt = DsetTbl{'Total','ExpOuts'}{:}(IndsEv2Take, :);
+            Prbs4Plt = mdlpredict(ModelSelected, Dset4Plt);
+            PrBT4Plt = Prbs4Plt >= (BestThresholdTrn + BestThresholdTst)/2;
     end
     
     plot(StudyAreaPolygon, 'FaceColor','none', 'EdgeColor','k', 'LineWidth',1.5)
     
     switch PlotOption
         case {1, 2}
-            plot(UnstablePolyMrgd, 'FaceAlpha',.5, 'FaceColor',"#d87e7e");
+            plot(UnstabPolyMrgd, 'FaceAlpha',.5, 'FaceColor',"#d87e7e");
         case 3
-            plot(UnstablePolyMrgd, 'FaceAlpha',.5, 'FaceColor',"#5aa06b");
+            plot(UnstabPolyMrgd, 'FaceAlpha',.5, 'FaceColor',"#5aa06b");
     end
-    plot(IndecisPolyMrgd, 'FaceAlpha',.5, 'FaceColor',"#fff2cc");
-    plot(StablePolyMrgd,  'FaceAlpha',.5, 'FaceColor',"#5aa06b");
+    plot(IndecsPolyMrgd, 'FaceAlpha',.5, 'FaceColor',"#fff2cc");
+    plot(StablePolyMrgd, 'FaceAlpha',.5, 'FaceColor',"#5aa06b");
     
     hdetected = cellfun(@(x,y) scatter(x, y, '^k', 'Filled'), InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
     
     switch PlotOption
         case 1
-            hUnstableTest  = scatter(DatasetMLCoords.Longitude(IndsTestNumeric(PredClassTestWithBT)), ...
-                                     DatasetMLCoords.Latitude(IndsTestNumeric(PredClassTestWithBT)), ...
-                                     30, 'Marker','d', 'MarkerFaceColor',"#000000", 'MarkerEdgeColor','none');
+            hUnstableTst = scatter(DsetTbl{'Test', 'Coordinates'}{:}.Longitude(PrdClTstBT), ...
+                                   DsetTbl{'Test', 'Coordinates'}{:}.Latitude(PrdClTstBT), 30, 'Marker','d', 'MarkerFaceColor',"#000000", 'MarkerEdgeColor','none');
             
-            hUnstableTrain = scatter(DatasetMLCoords.Longitude(IndsTrainNumeric(PredClassTrainWithBT)), ...
-                                     DatasetMLCoords.Latitude(IndsTrainNumeric(PredClassTrainWithBT)), ...
-                                     30, 'Marker','s', 'MarkerFaceColor',"#000000", 'MarkerEdgeColor','none');
+            hUnstableTrn = scatter(DsetTbl{'Train', 'Coordinates'}{:}.Longitude(PrdClTrnBT), ...
+                                   DsetTbl{'Train', 'Coordinates'}{:}.Latitude(PrdClTrnBT), 30, 'Marker','s', 'MarkerFaceColor',"#000000", 'MarkerEdgeColor','none');
     
         case {2, 3}
-            hUnstableForPlot = scatter(xLongForPlot(PredictionWithBTForPlot), ...
-                                       yLatForPlot(PredictionWithBTForPlot), ...
-                                       30, 'Marker','s', 'MarkerFaceColor',"#000000", 'MarkerEdgeColor','none');
+            hUnstable4Plt = scatter(xLon4Plt(PrBT4Plt), ...
+                                    yLat4Plt(PrBT4Plt), 30, 'Marker','s', 'MarkerFaceColor',"#000000", 'MarkerEdgeColor','none');
     end
     
     switch PlotOption
         case 1
-            xPointUnstab = DatasetMLCoords.Longitude(logical(ExpectedOutputs));
-            yPointUnstab = DatasetMLCoords.Latitude(logical(ExpectedOutputs));
+            ExpcOuts = double(DsetTbl{'Total','ExpOuts'}{:});
+
+            xPointUnstab = DsetTbl{'Total', 'Coordinates'}{:}.Longitude(logical(ExpcOuts));
+            yPointUnstab = DsetTbl{'Total', 'Coordinates'}{:}.Latitude(logical(ExpcOuts));
     
-            xPointStab   = DatasetMLCoords.Longitude(not(logical(ExpectedOutputs)));
-            yPointStab   = DatasetMLCoords.Latitude(not(logical(ExpectedOutputs)));
+            xPointStable = DsetTbl{'Total', 'Coordinates'}{:}.Longitude(not(logical(ExpcOuts)));
+            yPointStable = DsetTbl{'Total', 'Coordinates'}{:}.Latitude(not(logical(ExpcOuts)));
     
         case {2, 3}
-            xPointUnstab = xLongForPlot(logical(ExpOutForPlot));
-            yPointUnstab = yLatForPlot(logical(ExpOutForPlot));
+            xPointUnstab = xLon4Plt(logical(ExOt4Plt));
+            yPointUnstab = yLat4Plt(logical(ExOt4Plt));
     
-            xPointStab   = xLongForPlot(not(logical(ExpOutForPlot)));
-            yPointStab   = yLatForPlot(not(logical(ExpOutForPlot)));
+            xPointStable = xLon4Plt(not(logical(ExOt4Plt)));
+            yPointStable = yLat4Plt(not(logical(ExOt4Plt)));
     end
     
-    hUnstabOutputReal = scatter(xPointUnstab, yPointUnstab, 7, 'Marker',"hexagram", ...
+    hUnstabOutReal = scatter(xPointUnstab, yPointUnstab, 7, 'Marker',"hexagram", ...
                                 'MarkerFaceColor',"#ff0c01", 'MarkerEdgeColor','none', 'MarkerFaceAlpha',0.5);
     
-    hStableOutputReal = scatter(xPointStab, yPointStab, 15, 'Marker',"hexagram", ...
+    hStableOutReal = scatter(xPointStable, yPointStable, 15, 'Marker',"hexagram", ...
                                 'MarkerFaceColor',"#77AC30", 'MarkerEdgeColor','none', 'MarkerFaceAlpha',0.5);
     
     switch PlotOption
         case {1, 2}
-            title("Day of the event")
+            title('Day of the event')
         case 3
             title([num2str(DaysBeforeEventWhenStable), ' days before the event'])
         otherwise
             error('Plot option not defined')
     end
     
-    yLatMean    = mean(DatasetMLCoords.Latitude);
-    dLat1Meter  = rad2deg(1/earthRadius); % 1 m in lat
-    dLong1Meter = rad2deg(acos( (cos(1/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % 1 m in long
+    yLatMean = mean(DsetTbl{'Total', 'Coordinates'}{:}.Latitude);
+    dLat1Met = rad2deg(1/earthRadius); % 1 m in lat
+    dLon1Met = rad2deg(acos( (cos(1/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % 1 m in long
     
-    RatioLatLong = dLat1Meter/dLong1Meter;
-    daspect([1, RatioLatLong, 1])
+    RatLatLong = dLat1Met/dLon1Met;
+    daspect([1, RatLatLong, 1])
+end
+
+%% Creation of CrossInfo structure
+if CrssVal
+    CrossInfo = struct('CrossType',ANNMode, 'Models',{CrossMdls}, ...
+                       'Indices',struct('Train',CrossTrnInd, 'Valid',CrossValInd), ...
+                       'MSE',struct('Train',CrossTrnMSE, 'Valid',CrossValMSE, 'Test',CrossTstMSE), ...
+                       'AUROC',struct('Train',CrossTrnAUC, 'Valid',CrossValAUC, 'Test',CrossTstAUC));
 end
 
 %% Creation of a folder where save model and future predictions
-cd(fold_res_ml)
-EventDates.Format = 'dd-MM-yyyy';
-SuggestedFoldName = ['ML-ANNs-TrainEvents-',strjoin(cellstr(char(EventDates)), '_')];
-MLFolderName = char(inputdlg2({'Choose folder name (in Results->ML Models and Predictions):'}, 'DefInp',{SuggestedFoldName}));
+EventDates.Format = 'dd-MM-yyyy'; % You can also remove it, not useful!
+switch ANNMode
+    case 'Classic (V)'
+        TrnType = 'Val';
 
-if exist(MLFolderName, 'dir')
+    case 'Classic (L)'
+        TrnType = 'Loss';
+
+    case {'Cross Validation (K-Fold M)', 'Cross Validation (K-Fold V)'}
+        TrnType = 'KFold';
+
+    case {'Deep (L)', 'Deep (V)'}
+        TrnType = 'Deep';
+
+    otherwise
+        error('Train type not recognized!')
+end
+
+AcFnAbb = cell(1, numel(LyrAct));
+for i1 = 1:numel(LyrAct)
+    switch LyrAct{i1}
+        case 'sigmoid'
+            AcFnAbb{i1} = 'Sigm';
+    
+        case 'relu'
+            AcFnAbb{i1} = 'ReLU';
+    
+        case 'tanh'
+            AcFnAbb{i1} = 'Tanh';
+
+        case 'none'
+            AcFnAbb{i1} = 'None';
+
+        case 'elu'
+            AcFnAbb{i1} = 'ELU';
+
+        case 'gelu'
+            AcFnAbb{i1} = 'GeLU';
+
+        case 'softplus'
+            AcFnAbb{i1} = 'Sft+';
+    
+        otherwise
+            error('Layer activation function not recognized!')
+    end
+end
+
+SuggFldNme = [DsetTpe,'_',num2str(Days4TmSns),'d_',TrnType,'_',strjoin(unique(AcFnAbb), '_')];
+MLFoldName = [char(inputdlg2({'Folder name (Results->ML Models and Predictions):'}, 'DefInp',{SuggFldNme}))];
+
+fold_res_ml_curr = [fold_res_ml,sl,MLFoldName];
+
+if exist(fold_res_ml_curr, 'dir')
     Options = {'Yes, thanks', 'No, for God!'};
-    Answer  = uiconfirm(Fig, strcat(MLFolderName, " is an existing folder. Do you want to overwrite it?"), ...
+    Answer  = uiconfirm(Fig, strcat(fold_res_ml_curr, " is an existing folder. Do you want to overwrite it?"), ...
                              'Existing ML Folder', 'Options',Options, 'DefaultOption',2);
     switch Answer
         case 'Yes, thanks.'
-            rmdir(MLFolderName,'s')
-            mkdir(MLFolderName)
+            rmdir(fold_res_ml_curr,'s')
+            mkdir(fold_res_ml_curr)
         case 'No, for God!'
-            MLFolderName = [MLFolderName,'-new'];
+            fold_res_ml_curr = [fold_res_ml_curr,'-new'];
     end
 else
-    mkdir(MLFolderName)
+    mkdir(fold_res_ml_curr)
 end
-
-fold_res_ml_curr = [fold_res_ml,sl,MLFolderName];
 
 %% Saving...
-ProgressBar.Message = "Saving files...";
+ProgressBar.Message = 'Saving files...';
+
 VariablesML = {'ANNs', 'ANNsRes', 'ANNsPerf', 'ModelInfo'};
-if strcmp(ANNMode, 'Cross Validation (Polygons)')
-    VariablesML = [VariablesML, {'ANNsCross', 'DatasetsCross'}];
+if CrssVal
+    VariablesML = [VariablesML, {'CrossInfo'}];
 end
-saveswitch([fold_res_ml_curr,sl,'TrainedANNs.mat'], VariablesML)
+saveswitch([fold_res_ml_curr,sl,'ANNsMdlB.mat'], VariablesML)
 
 close(ProgressBar) % Fig instead of ProgressBar if in standalone version

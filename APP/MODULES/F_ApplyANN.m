@@ -20,7 +20,7 @@ load([fold_var,sl,'GridCoordinates.mat'],       'xLongAll','yLatAll')
 load([fold_var,sl,'MorphologyParameters.mat'],  'OriginallyProjected','SameCRSForAll')
 load([fold_var,sl,'DatasetStudy.mat'],          'DatasetStudyFeats','DatasetStudyFeatsNotNorm', ...
                                                 'DatasetStudyCoords','StablePolygons','UnstablePolygons')
-load([fold_res_ml_curr,sl,'TrainedANNs.mat'],   'ModelInfo','ANNs','ANNsPerf')
+load([fold_res_ml_curr,sl,'ANNsMdlB.mat'],      'ModelInfo','ANNs','ANNsPerf')
 
 PreExistPredictions = false;
 if exist([fold_res_ml_curr,sl,'PredictionsStudy.mat'], 'file')
@@ -316,7 +316,7 @@ PredictionProbabilities{EventName, ModelsName} = cellfun(@(x) sparse(double(roun
 LandslidesPolygons{EventName, {'UnstablePolygons','StablePolygons','LandslideDay'}} = {UnstablePolygons, StablePolygons, LandslideDay};
 
 %% Extraction of points inside Unstable and Stable areas
-if numel(UnstablePolygons) == 1
+if isscalar(UnstablePolygons)
     StablePolysMrgd   = StablePolygons;
     UnstablePolysMrgd = UnstablePolygons;
 else
@@ -369,7 +369,7 @@ else
 end
 
 %% Extraction of best threshold
-MethodBestThreshold = ModelInfo.MethodForOptThreshold;
+MethodBestThreshold = ModelInfo.BestThrMethod;
 BestThrsQ = zeros(1, size(ANNs, 2));
 for i1 = 1:size(ANNs, 2)
     switch MethodBestThreshold
@@ -477,7 +477,7 @@ if PlotPolys
     if numel(UnstablePolygons) > 1
         StablePolysSplit   = StablePolygons;
         UnstablePolysSplit = UnstablePolygons;
-    elseif numel(UnstablePolygons) == 1 % TO FIX!!! IT WORKS ONLY WHEN STABLE IS BUFFERED AND NOT ENTIRE STUDY OUTSIDE INDECISION
+    elseif isscalar(UnstablePolygons) % TO FIX!!! IT WORKS ONLY WHEN STABLE IS BUFFERED AND NOT ENTIRE STUDY OUTSIDE INDECISION
         IndexOfNans = find(isnan(StablePolygons.Vertices(:,1)));
         EndOfExtPolygons = IndexOfNans(StablePolygons.NumRegions);
         [StablePolygonsLongSplit, StablePolygonsLatSplit] = polysplit(StablePolygons.Vertices(1:EndOfExtPolygons,1), StablePolygons.Vertices(1:EndOfExtPolygons,2));
