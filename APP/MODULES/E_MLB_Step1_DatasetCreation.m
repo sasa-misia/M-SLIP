@@ -16,15 +16,13 @@ if not(isscalar(FilesDetectedSoilSlip))
     IdDet2Use = listdlg2('Choose dataset you want to use: ', FilesDetectedSoilSlip, 'OutType','NumInd');
 end
 
-DatasetStudyInfo = table;
-
 Rngs4Norm = table;
 LndsldDay = true;
 CritSlope = nan;
 EventDate = nan;
 DaysForTS = nan;
-TmSnsMode = nan;
-CauseMode = nan;
+TmSnsMode = "";
+CauseMode = "";
 RsmplMode = nan;
 Ratio2Imp = nan;
 
@@ -58,7 +56,7 @@ end
 ProgressBar.Message = 'Dataset options...';
 
 if Add2OldDset
-    FeaturesChd = DatasetStudyInfo.Parameters{:};
+    FeaturesChd = DatasetInfoOld.Parameters{end};
 else
     FeaturesOps = {'Elevation', 'Slope', 'Aspect Angle', 'Mean Curvature', 'Profile Curvature', ...
                    'Planform Curvature', 'Contributing Area (log)', 'TWI', 'Clay Content', ...
@@ -70,13 +68,13 @@ end
 TmSensExs = false;
 if any(strcmp(FeaturesChd, 'Rainfall')) || any(strcmp(FeaturesChd, 'Temperature'))
     if Add2OldDset
-        TmSnsMode = DatasetStudyInfo.TimeSensMode;
+        TmSnsMode = DatasetInfoOld.TimeSensMode{end};
     else
         TmSnsMode = char(listdlg2({'Time sensitive mode?'}, {'CondensedDays', 'SeparateDays', 'TriggerCausePeak'}));
     end
 
     if Add2OldDset && OldSettings
-        MultDayAnl = DatasetStudyInfo.MultipleDays;
+        MultDayAnl = DatasetInfoOld.MultipleDays(end);
     else
         MultDayChc = uiconfirm(Fig, 'Do you want to add a different day in dataset?', ...
                                     'Time sensitive analyses', 'Options',{'Yes', 'No, just one'}, 'DefaultOption',2);
@@ -87,10 +85,10 @@ if any(strcmp(FeaturesChd, 'Rainfall')) || any(strcmp(FeaturesChd, 'Temperature'
 end
 
 if Add2OldDset
-    NormData = DatasetStudyInfo.NormalizedData;
-    CtgExist = DatasetStudyInfo.CategClasses;
-    CreateCV = DatasetStudyInfo.CrossValidSet;
-    CreateNV = DatasetStudyInfo.NormValidSet;
+    NormData = DatasetInfoOld.NormalizedData(end);
+    CtgExist = DatasetInfoOld.CategClasses(end);
+    CreateCV = DatasetInfoOld.CrossValidSet(end);
+    CreateNV = DatasetInfoOld.NormValidSet(end);
 else
     DtOptAns = checkbox2({'Normalize data', 'Use classes', 'CV set', 'NV set'}, 'DefInp',[1, 0, 1, 1], 'OutType','LogInd');
     NormData = DtOptAns(1);
@@ -132,7 +130,7 @@ switch PerfMode % Test
 end
 
 if CreateCV && Add2OldDset
-    PerfMetr.CVFolds = DatasetStudyInfo.DsetSplitMetr.CVFolds;
+    PerfMetr.CVFolds = DatasetInfoOld{end,'DsetSplitMetr'}.CVFolds;
 end
 
 if SubArea
@@ -142,18 +140,18 @@ else
 end
 
 if Add2OldDset && OldSettings
-    StabPntsApp = DatasetStudyInfo.StabAreaApproach;
+    StabPntsApp = DatasetInfoOld.StabAreaApproach{end};
     if strcmp(StabPntsApp, 'SlopeOutsideUnstable')
-        CritSlope = DatasetStudyInfo.CriticalSlope;
+        CritSlope = DatasetInfoOld.CriticalSlope(end);
     end
-    InpBffSzs = DatasetStudyInfo.InputBufferSizes{:};
-    ModifyRat = DatasetStudyInfo.ModifyRatioOuts;
+    InpBffSzs = DatasetInfoOld.InputBufferSizes{end};
+    ModifyRat = DatasetInfoOld.ModifyRatioOuts(end);
     if ModifyRat
-        RatioInps = table2array(DatasetStudyInfo.RatioClasses{:})';
+        RatioInps = table2array(DatasetInfoOld.RatioClasses{end})';
         Ratio2Imp = RatioInps(1)/RatioInps(2);
-        RsmplMode = DatasetStudyInfo.Resampling;
+        RsmplMode = DatasetInfoOld.Resampling(end);
         if exist('MultDayAnl', 'var') && MultDayAnl && strcmp(RsmplMode,'Undersampling')
-            MntUnstPts = DatasetStudyInfo.UnstPointsMant;
+            MntUnstPts = DatasetInfoOld.UnstPointsMant(end);
         end
     end
 
@@ -217,6 +215,8 @@ switch StabPntsApp
 end
 
 %% Writing DatasetStudyInfo
+DatasetStudyInfo = table;
+
 DatasetStudyInfo.FullPathInfoDet  = string(FilesDetectedSoilSlip(IdDet2Use)); % Before was string([fold_raw_det_ss,sl,char(FilesDetectedSoilSlip(IndDetToUse))]); or you should modify at row 13, mantaining only names and not full path and put it again!
 DatasetStudyInfo.Parameters       = {FeaturesChd};
 DatasetStudyInfo.NormalizedData   = NormData;
@@ -265,17 +265,19 @@ if TmSensExs
     EndDateCmm = min(cellfun(@max, TmSensDts)); % End in end dates
     
     if EndDateCmm < StrDateCmm
-        error('Time sensitive part has no datetime in common! Please re-interpolate time sensitive part.')
+        error(['Time sensitive part has no datetime in common!', ...
+               ' Please re-interpolate time sensitive part.'])
     end
     
     if length(TmSensDts) > 1
-        for i1 = 1 : length(TmSensDts)
+        for i1 = 1:numel(TmSensDts)
             IndStartCmm = find(StrDateCmm == TmSensDts{i1}); % You should put an equal related to days and not exact timing
             IndEventCmm = find(EndDateCmm == TmSensDts{i1}); % You should put an equal related to days and not exact timing
             TmSensDts{i1} = TmSensDts{i1}(IndStartCmm:IndEventCmm);
         end
         if length(TmSensDts)>1 && ~isequal(TmSensDts{:})
-            error('After uniformization of dates in time sensitive part, number of elements is not consistent! Please check it in the script.')
+            error(['After uniformization of dates in time sensitive part, number ', ...
+                   'of elements is not consistent! Please check it in the script.'])
         end
     end
     
@@ -291,7 +293,7 @@ if TmSensExs
     MaxDaysPoss = IndOfEvnt;
     if MultDayAnl
         if Add2OldDset && OldSettings
-            DaysBfWhStb = DatasetStudyInfo.DayBeforeEvent;
+            DaysBfWhStb = DatasetInfoOld.DayBeforeEvent(end);
 
             if (IndOfEvnt-DaysBfWhStb) <= 0
                 error(['Since you want to add this dataset to the old one, ', ...
@@ -313,13 +315,13 @@ if TmSensExs
     end
 
     if Add2OldDset % Important: do not add OldSettings because, even if you don't want the OldSettings, this parameter MUST BE the same!
-        DaysForTS = DatasetStudyInfo.DaysForTS;
+        DaysForTS = DatasetInfoOld.DaysForTS(end);
         if (MaxDaysPoss - DaysForTS) < 0
             error(['Since you want to add this dataset to the old one, you need more ', ...
                    num2str(abs(MaxDaysPoss-DaysForTS)),' days in recs!'])
         end
         if strcmp(TmSnsMode,'TriggerCausePeak')
-            CauseMode = DatasetStudyInfo.CauseMode;
+            CauseMode = DatasetInfoOld.CauseMode{end};
         end
 
     else
@@ -345,7 +347,7 @@ if TmSensExs
     DatasetStudyInfo.LandslideEvent = LndsldDay;
     DatasetStudyInfo.TimeSensMode   = string(TmSnsMode);
     if strcmp(TmSnsMode,'TriggerCausePeak')
-        DatasetStudyInfo.CauseMode  = CauseMode;
+        DatasetStudyInfo.CauseMode  = string(CauseMode);
     end
     DatasetStudyInfo.MultipleDays = MultDayAnl;
     if MultDayAnl
@@ -374,7 +376,8 @@ if Add2OldDset
 
     CheckNmes = any(strcmp(NewDetSSName, OldDetSSName));
 
-    CheckTime = any(abs(hours(DatasetStudyInfo.EventDate - DatasetInfoOld.EventDate)) < 72);
+    HourToler = 23;
+    CheckTime = any(abs(hours(DatasetStudyInfo.EventDate - DatasetInfoOld.EventDate)) < HourToler);
 
     IdentDset = CheckTime && CheckNmes && CheckVars;
     if IdentDset
@@ -406,6 +409,7 @@ if TmSensExs
     CumlbPrms = TimeSensPart.Cumulable;
     TmSensDts = TimeSensPart.Datetimes;
     TmSnsData = TimeSensPart.Data;
+    [TmSnsTrg, TmSnsPks, TmSnsEvD] = deal({});
     if strcmp(TmSnsMode,'TriggerCausePeak')
         TmSnsTrg = TimeSensPart.TriggAmountPerEvent;
         TmSnsPks = TimeSensPart.PeaksPerEvent;
@@ -590,143 +594,22 @@ DsetRedDatesPrt1 = table(repmat(EventDate, size(DsetRedCoordPrt1,1), 1), ...
 
 %% Creation of a copy to use in analysis (could be made of 2 different days)
 if not(MultDayAnl)
+    DsetRedDates = DsetRedDatesPrt1;
     DsetRedCoord = DsetRedCoordPrt1;
     DsetRedFeats = DsetRedFeatsPrt1;
     DsetRedClass = DsetRedClassPrt1;
-    DsetRedDates = DsetRedDatesPrt1;
 
 elseif MultDayAnl
     ProgressBar.Message = 'Addition of points in the day of stability';
 
-    DsetRedCoordPrt2 = DsetRedCoordPrt1;
-    DsetRedFeatsPrt2 = DsetRedFeatsPrt1; % To overwrite TS part (rows below)
-    DsetRedClassPrt2 = double(false(size(ExpOutsRedPrt1))); % At this particular timing prediction should be 0! (no landslide)
     DsetRedDatesPrt2 = table(repmat(BefEvntDate, size(DsetRedCoordPrt1,1), 1), ...
                              false(size(DsetRedCoordPrt1,1), 1), 'VariableNames',{'Datetime','LandslideEvent'}); % false because this is the day of not landslide!
-
-    switch TmSnsMode
-        case 'SeparateDays'
-            FeatsNamesToChange = cellfun(@(x) strcat(x,'-',string(1:DaysForTS)','daysBefore'), TmSnsPrms, 'UniformOutput',false); % Remember to change this line if you change feats names in datasetstudy_creation function!
-
-            for i1 = 1:length(TmSnsPrms)
-                for i2 = 1:DaysForTS
-                    RowToTakeAtDiffTime = IndOfEvnt - DaysBfWhStb - i2 + 1;
-                    TSStableTimeNotNorm = cat(1,TmSnsData{i1}{RowToTakeAtDiffTime,:});
-                    if NormData
-                        TSStableTime = rescale(TSStableTimeNotNorm, ...
-                                               'InputMin',Rngs4Norm{FeatsNamesToChange{i1}(i2), 'Min value'}, ...
-                                               'InputMax',Rngs4Norm{FeatsNamesToChange{i1}(i2), 'Max value'});
-                    else
-                        TSStableTime = TSStableTimeNotNorm;
-                    end
-
-                    DsetRedFeatsPrt2.(FeatsNamesToChange{i1}(i2)) = TSStableTime(IndsDsetRedPrt1);
-                end
-            end
-
-        case 'CondensedDays'
-            TimeSensitiveOper = repmat({'Averaged'}, 1, length(TmSnsPrms));
-            TimeSensitiveOper(CumlbPrms) = {'Cumulated'};
-        
-            FeatsNamesToChange  = cellfun(@(x, y) [x,y,num2str(DaysForTS),'d'], TmSnsPrms, TimeSensitiveOper, 'UniformOutput',false);
-
-            RowToTakeAtDiffTime = IndOfEvnt-DaysBfWhStb;
-            for i1 = 1:length(TmSnsPrms)
-                ColumnToChangeAtDiffTimeTemp = cell(1, size(TmSnsData{i1}, 2));
-                for i2 = 1:size(TmSnsData{i1}, 2)
-                    if CumlbPrms(i1)
-                        ColumnToChangeAtDiffTimeTemp{i2} = sum([TmSnsData{i1}{RowToTakeAtDiffTime : -1 : (RowToTakeAtDiffTime-DaysForTS+1), i2}], 2);
-                    else
-                        ColumnToChangeAtDiffTimeTemp{i2} = mean([TmSnsData{i1}{RowToTakeAtDiffTime : -1 : (RowToTakeAtDiffTime-DaysForTS+1), i2}], 2);
-                    end
-                end
-                TSStableTimeNotNorm = cat(1,ColumnToChangeAtDiffTimeTemp{:});
-                if NormData
-                    TSStableTime = rescale(TSStableTimeNotNorm, ...
-                                           'InputMin',Rngs4Norm{FeatsNamesToChange{i1}, 'Min value'}, ...
-                                           'InputMax',Rngs4Norm{FeatsNamesToChange{i1}, 'Max value'});
-                else
-                    TSStableTime = TSStableTimeNotNorm;
-                end
-
-                DsetRedFeatsPrt2.(FeatsNamesToChange{i1}) = TSStableTime(IndsDsetRedPrt1);
-            end
-           
-        case 'TriggerCausePeak'
-            TimeSensType = ["Trigger"; strcat("Cause",num2str(DaysForTS),"d"); "TriggPeak"];
-            FeatsNamesToChange = cellfun(@(x) strcat(x,TimeSensType), TmSnsPrms, 'UniformOutput',false);
-
-            DesiredDateStableTrigg = EventDate - days(DaysBfWhStb);
-            for i1 = 1:length(TmSnsPrms)
-                TSStableTimeNotNorm = cell(1, 3); % 3 because you will have Trigger, cause, and peak
-                TSStableTime        = cell(1, 3);
-                if not(exist('StartDateNoTrigg', 'var'))
-                    [HoursDff, IndStableToTake] = min(cellfun(@(x) abs(DesiredDateStableTrigg-min(x)), TmSnsEvD{i1}));
-                    if HoursDff >= hours(1)
-                        warning(['There is a difference of ',num2str(hours(HoursDff)), ...
-                                 ' hours between data you chosed and the start of the stable event!', ...
-                                 ' Stable event date will be overwrite.'])
-                    end
-                else
-                    IndStableToTake = find(cellfun(@(x) min(abs(StartDateNoTrigg-x)) < minutes(1), TmSnsEvD{i1}));
-                    if isempty(IndStableToTake) || (numel(IndStableToTake) > 1)
-                        error(['Triggering event is not present in ',TmSnsPrms{i1},' or there are multiple possibilities. Please check it!'])
-                    end
-                end
-                StartDateNoTrigg = min(TmSnsEvD{i1}{IndStableToTake});
-    
-                TSStableTimeNotNorm{1} = full(cat(1, TmSnsTrg{i1}{IndStableToTake,:})); % Pay attention to order! 1st row is Trigger
-    
-                switch CauseMode
-                    case 'DailyCumulate'
-                        RowToTake = find( abs(TmSensDts - StartDateNoTrigg) < days(1), 1 ) - 1; % Overwriting of RowToTake with the first date before your event! I want only the first one. -1 to take the day before the start of the event!
-                        ColumnToAddTemp = cell(1, size(TmSnsData{i1}, 2));
-                        for i2 = 1:size(TmSnsData{i1}, 2)
-                            if CumlbPrms(i1)
-                                ColumnToAddTemp{i2} = sum([TmSnsData{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
-                            else
-                                ColumnToAddTemp{i2} = mean([TmSnsData{i1}{RowToTake : -1 : (RowToTake-DaysForTS+1), i2}], 2);
-                            end
-                        end
-                        TSStableTimeNotNorm{2} = cat(1,ColumnToAddTemp{:}); % Pay attention to order! 2nd row is Cause
-    
-                    case 'EventsCumulate'
-                        StartDateCause  = StartDateNoTrigg - days(DaysForTS);
-                        IndsCauseEvents = find(cellfun(@(x) any(StartDateCause < x) && all(StartDateNoTrigg > x), TmSnsEvD{i1})); % With any(StartDateCause < x) you could go before StartDateCause. change with all if you don't want (that event will be excluded)
-
-                        MinDateEvents = min(cellfun(@min, TmSnsEvD{i1}));
-                        if StartDateCause < min(MinDateEvents)
-                            warning('Some events could not be included (start date of Cause is before the minimum date of events)')
-                        elseif isempty(IndsCauseEvents)
-                            error('No events in the time period from start cause to start trigger!')
-                        end
-
-                        ColumnToAddTemp = zeros(size(TSStableTimeNotNorm{1},1), length(IndsCauseEvents));
-                        for i2 = 1:length(IndsCauseEvents)
-                            ColumnToAddTemp(:,i2) = full(cat(1, TmSnsTrg{i1}{IndsCauseEvents(i2),:}));
-                        end
-                        if CumlbPrms(i1)
-                            TSStableTimeNotNorm{2} = sum(ColumnToAddTemp, 2); % Pay attention to order! 2nd row is Cause
-                        else
-                            TSStableTimeNotNorm{2} = mean(ColumnToAddTemp, 2); % Pay attention to order! 2nd row is Cause
-                        end
-                end
-    
-                TSStableTimeNotNorm{3} = full(cat(1, TmSnsPks{i1}{IndStableToTake,:})); % Pay attention to order! 3rd row is Peak
-
-                for i2 = 1:length(FeatsNamesToChange{i1})
-                    if NormData
-                        TSStableTime{i2} = rescale(TSStableTimeNotNorm{i2}, ...
-                                                   'InputMin',Rngs4Norm{FeatsNamesToChange{i1}(i2), 'Min value'}, ...
-                                                   'InputMax',Rngs4Norm{FeatsNamesToChange{i1}(i2), 'Max value'});
-                    else
-                        TSStableTime{i2} = TSStableTimeNotNorm{i2};
-                    end
-
-                    DsetRedFeatsPrt2.(FeatsNamesToChange{i1}(i2)) = TSStableTime{i2}(IndsDsetRedPrt1);
-                end
-            end
-    end
+    DsetRedCoordPrt2 = DsetRedCoordPrt1;
+    DsetRedFeatsPrt2 = dataset_update_ts(TmSnsData, TmSensDts, BefEvntDate, DsetRedFeatsPrt1, ...
+                                         TmSnsMode, TmSnsPrms, DaysForTS, Rngs4Nrm=Rngs4Norm, ...
+                                         Inds2Tk=IndsDsetRedPrt1, TmSnCmlb=CumlbPrms, TmSnTrgg=TmSnsTrg, ...
+                                         TmSnPeak=TmSnsPks, TmSnEvDt=TmSnsEvD, TmSnTrCs=CauseMode);
+    DsetRedClassPrt2 = double(false(size(ExpOutsRedPrt1))); % At this particular timing prediction should be 0! (no landslide)
 
     DsetRedDates = [DsetRedDatesPrt1; DsetRedDatesPrt2];
     DsetRedCoord = [DsetRedCoordPrt1; DsetRedCoordPrt2];

@@ -5,6 +5,8 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Processing DTM of Study Area', ...
 drawnow
 
 %% Import and elaboration of data
+sl = filesep;
+
 tic
 load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon','StudyAreaPolygonExcluded','MaxExtremes','MinExtremes')
 
@@ -162,83 +164,24 @@ toc
 if OrthophotoAnswer
     ProgressBar.Message = 'Creation of Ortophoto...';
 
-    UrFlEx = exist([fold_raw_sat,sl,'UrlMap.txt'], 'file');
-    if (UrFlEx)
-        FileID = fopen([fold_raw_sat,sl,'UrlMap.txt'],'r');
-        UrlMaps = cell(1, 12);
-        for i1 = 1:numel(UrlMaps)
-            TmpLne = fgetl(FileID);
-            if TmpLne == -1; break; end
-            UrlMaps{i1} = TmpLne;
-        end
-        fclose(FileID);
-        EmptyInd = cellfun(@isempty, UrlMaps);
-        UrlMaps(EmptyInd) = [];
-
-        UrlMap = char(listdlg2('Ortophoto source:', UrlMaps));
-    end
-
-    if not(UrFlEx) || isempty(UrlMap)
-        UrlMap = char(inputdlg2({'Enter WMS Url:'}));
-    end
-
-    ServerMap  = WebMapServer(UrlMap);
-    Info       = wmsinfo(UrlMap);
-    LayerNames = {Info.Layer(:).LayerName};
-    IndLyr     = 1;
-    if numel(LayerNames) > 1
-        IndLyr = listdlg2('Layer to use:', LayerNames, 'OutType','NumInd');
-    end
-    OrthoLayer = Info.Layer(IndLyr);
-    
     LimLatMap = [MinExtremes(2), MaxExtremes(2)];
     LimLonMap = [MinExtremes(1), MaxExtremes(1)];
 
-    yLatMean = mean([MinExtremes(2), MaxExtremes(2)]);
-    dyMetLat = deg2rad(diff(LimLatMap))*earthRadius; % diff of lat in meters
-    dxMetLon = acos(cosd(diff(LimLonMap))*cosd(yLatMean)^2 + sind(yLatMean)^2)*earthRadius; % diff of lon in meters
-    RtLatLon = dyMetLat/dxMetLon;
+    [ZOrtho, xLongOrtho, yLatOrtho, ROrtho] = deal(cell(1,1));
+    [ZOrtho{1}, xLongOrtho{1}, yLatOrtho{1}, ROrtho{1}] = readortophoto([fold_raw_sat,sl,'UrlMap.txt'], LimLonMap, LimLatMap, Resolution=8192);
 
-    if RtLatLon <= 1
-        ImWidth  = 2048;
-        ImHeight = int64(ImWidth*RtLatLon);
-    elseif RtLatLon > 1
-        ImHeight = 2048;
-        ImWidth  = int64(ImHeight/RtLatLon);
-    end
-
-    [ZOrtho, ROrtho] = arrayfun(@(x,y) wmsread(OrthoLayer, 'LatLim',LimLatMap, ...
-                                                           'LonLim',LimLonMap, ...
-                                                           'ImageHeight',x, ...
-                                                           'ImageWidth',y), ...
-                                           ImHeight, ImWidth, 'UniformOutput',false);
-
-    fig_ortho = figure(1);
-    ax_ortho  = axes('Parent',fig_ortho);
-    hold(ax_ortho,'on');
+    fig_ort = figure(1);
+    axs_ort = axes('Parent',fig_ort);
+    hold(axs_ort,'on');
 
     [pp, ee] = getnan2([StudyAreaPolygon.Vertices; nan nan]);
-    [xLongOrtho, yLatOrtho, OrthoRGB, IndOrthoInStudyArea] = deal(cell(size(ZOrtho)));
+    [OrthoRGB, IndOrthoInStudyArea] = deal(cell(size(ZOrtho)));
     for i1 = 1:numel(ZOrtho)
-        LatGridOrtho = ROrtho{i1}.LatitudeLimits(2)-ROrtho{i1}.CellExtentInLatitude/2 : ...
-                       -ROrtho{i1}.CellExtentInLatitude : ...
-                       ROrtho{i1}.LatitudeLimits(1)+ROrtho{i1}.CellExtentInLatitude/2;
-    
-        LonGridOrtho = ROrtho{i1}.LongitudeLimits(1)+ROrtho{i1}.CellExtentInLongitude/2 : ...
-                       ROrtho{i1}.CellExtentInLongitude : ...
-                       ROrtho{i1}.LongitudeLimits(2)-ROrtho{i1}.CellExtentInLongitude/2;
-    
-        [xLongOrtho{i1}, yLatOrtho{i1}] = meshgrid(LonGridOrtho, LatGridOrtho);
-    
         OrthoRGB{i1} = double(reshape(ZOrtho{i1}(:), [size(ZOrtho{i1},1)*size(ZOrtho{i1},2), 3]));
     
         IndOrthoInStudyArea{i1} = find(inpoly([xLongOrtho{i1}(:),yLatOrtho{i1}(:)], pp, ee)==1);
-    
-        scatter(xLongOrtho{i1}(IndOrthoInStudyArea{i1}), ...
-                yLatOrtho{i1}(IndOrthoInStudyArea{i1}), 2, ...
-                double(OrthoRGB{i1}(IndOrthoInStudyArea{i1},:))./255, 's', 'filled', ...
-                                                                      'MarkerEdgeColor','none', ...
-                                                                      'Parent',ax_ortho) % , 'MarkerFaceAlpha',0.5)
+
+        fastscattergrid(ZOrtho{i1}, xLongOrtho{i1}, yLatOrtho{i1}, 'Mask',StudyAreaPolygon, 'Alpha',.7, 'Parent',axs_ort);
     end
 
     plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1);

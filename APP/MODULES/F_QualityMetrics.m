@@ -133,6 +133,8 @@ if HistMtr
 end
 
 %% Processing
+ProgressBar.Message = 'Processing of normal dataset...';
+
 ANNsPerfRows = {'Reca', 'Prec', 'AUC', 'BestThr', 'BestThrInd'};
 ANNsPerf{{'PRC', 'PRGC'}, {'Train','Test'}} = {table('RowNames',ANNsPerfRows)};
 
@@ -244,6 +246,8 @@ ANNsPerf{'QCI',{'Train','Test'}} = {array2table(num2cell(QCITrn), 'RowNames',{'Q
                                     array2table(num2cell(QCITst), 'RowNames',{'QCI'}, 'VariableNames',ColsNms)};
 
 %% Cross validation
+ProgressBar.Message = 'Processing cross validation...';
+
 if CrssVal
     [CrossTrnLoss, CrossValLoss, CrossTstLoss, ...
         CrossTrnMSE, CrossValMSE, CrossTstMSE, ...
@@ -328,6 +332,8 @@ if CrssVal
 end
 
 %% History
+ProgressBar.Message = 'Processing of history...';
+
 if HistMtr
     [HistTrnLoss, HistValLoss, HistTstLoss, ...
         HistTrnMSE, HistValMSE, HistTstMSE, ...
@@ -430,6 +436,8 @@ if HistMtr
 end
 
 %% Best mdls
+ProgressBar.Message = 'Update of ANNsPerf...';
+
 AUROCTrn  = cell2mat(ANNsPerf{'ROC','Train'}{:}{'AUC',:});
 AUROCTst  = cell2mat(ANNsPerf{'ROC','Test' }{:}{'AUC',:});
 
@@ -510,6 +518,8 @@ ANNsPerf{{'ROC','Err','PRC','PRGC','F1S','QCI'},'BstMdlTst'} = {BstMdlAUROCTst; 
                                                                 BstMdlQCIndTst};
 
 %% Saving (update)
+ProgressBar.Message = 'Saving...';
+
 VariablesToUpdate = {'ANNsPerf'};
 if CrssVal
     VariablesToUpdate = [VariablesToUpdate, {'CrossInfo'}];

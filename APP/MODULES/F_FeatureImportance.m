@@ -66,66 +66,56 @@ switch FeatImpDst
 end
 
 %% Features importance computation
-switch FeatImpChc
-    case 'FeaturePermutation'
-        %% Feature Permutation
-        ANNs{'FeatsImportance',:} = {missing};
-        ProgressBar.Indeterminate = 'off';
-        for IndCurrMdl = 1:size(ANNs,2)
-            ProgressBar.Value   = IndCurrMdl/size(ANNs,2);
-            ProgressBar.Message = strcat("Evaluating feature importance for model n. ", string(IndCurrMdl)," of ", string(size(ANNs,2)));
-        
-            CurrModel = ANNs{'Model',IndCurrMdl}{:};
-            CurrFeats = ANNs{'FeatsConsidered',IndCurrMdl}{:};
-            
+ProgressBar.Indeterminate = 'off';
+ANNs{'FeatsImportance',:} = {missing};
+for IndCurrMdl = 1:size(ANNs,2)
+    ProgressBar.Value   = IndCurrMdl/size(ANNs,2);
+    ProgressBar.Message = ['Assessing feat imp for model n. ',num2str(IndCurrMdl),' of ',num2str(size(ANNs,2))];
+
+    CurrModel = ANNs{'Model',IndCurrMdl}{:};
+    CurrFeats = ANNs{'FeatsConsidered',IndCurrMdl}{:};
+
+    switch FeatImpChc
+        case 'FeaturePermutation'
             DatasetToUse = DsetFtIm2Use(:,CurrFeats);
-
-            TableFeatImp = feature_permutation(CurrModel, DatasetToUse, ExOtFtIm2Use, 'PermType',PermType, 'RandIters',Time2Rand);
-            
-            ANNs{'FeatsImportance',IndCurrMdl} = {TableFeatImp};
-        end
-        ProgressBar.Indeterminate = 'on';
-
-    case 'Weights'
-        %% Feature Importance Weights (available for single layer ANNs)
-        ANNs{'FeatsImportance',:} = {missing};
-        ProgressBar.Indeterminate = 'off';
-        for IndCurrMdl = 1:size(ANNs,2)
-            ProgressBar.Value   = IndCurrMdl/size(ANNs,2);
-            ProgressBar.Message = ['Evaluating feature importance for model n. ', num2str(IndCurrMdl),' of ', num2str(size(ANNs,2))];
-        
-            CurrModel = ANNs{'Model',IndCurrMdl}{:};
-            CurrFeats = ANNs{'FeatsConsidered',IndCurrMdl}{:};
-        
+            TableFeatImp = feature_permutation(CurrModel, DatasetToUse, ...
+                                               ExOtFtIm2Use, 'PermType',PermType, ...
+                                                             'RandIters',Time2Rand);
+    
+        case 'Weights' % Available just for single layer ANNs          
             if length(CurrModel.LayerSizes) > 1
                 warning(['Hidden layers of model n. ',num2str(IndCurrMdl),' are more than 1. This model will be skipped!'])
                 continue % To skip this cycle if hiddens are > 1
             end
         
-            WeightsInpToHid = CurrModel.LayerWeights{1, 1}; % Weights between input and hidden layers
-            WeightsHidToOut = CurrModel.LayerWeights{1, 2}'; % Weights between hidden and output layers
-            NumOfInputs     = size(WeightsInpToHid,2); % number of input varables
-            NumOfOutputs    = size(WeightsHidToOut,2); % number of output neurons
+            WgsInp2Hid = CurrModel.LayerWeights{1, 1}; % Weights between input and hidden layers
+            WgsHid2Out = CurrModel.LayerWeights{1, 2}'; % Weights between hidden and output layers
+            InpsNumber = size(WgsInp2Hid,2); % number of input varables
+            OutsNumber = size(WgsHid2Out,2); % number of output neurons
         
-            FeatImpWeights = zeros(NumOfOutputs, NumOfInputs);
-            for i1 = 1:NumOfOutputs
-                FeatPartImp = zeros(1, NumOfInputs);
-                for i2 = 1:NumOfInputs
-                    FeatPartImp(i2) = sum((abs(WeightsInpToHid(:,i2))./sum(abs(WeightsInpToHid),2)).*abs(WeightsHidToOut(:,i1)), 'all');
+            FeatImpWgs = zeros(OutsNumber, InpsNumber);
+            for i1 = 1:OutsNumber
+                FeatPrtImp = zeros(1, InpsNumber);
+                for i2 = 1:InpsNumber
+                    FeatPrtImp(i2) = sum((abs(WgsInp2Hid(:,i2))./sum(abs(WgsInp2Hid),2)).*abs(WgsHid2Out(:,i1)), 'all');
                 end
         
-                for i2 = 1:NumOfInputs
-                    FeatImpWeights(i1,i2) = (FeatPartImp(i2)/sum(FeatPartImp)); % Percentages if you multiply by 100
+                for i2 = 1:InpsNumber
+                    FeatImpWgs(i1,i2) = (FeatPrtImp(i2)/sum(FeatPrtImp)); % Percentages if you multiply by 100
                 end
             end
         
-            RowTableNames = arrayfun(@(x) ['PercentagesOutput-',num2str(x)], 1:NumOfOutputs, 'UniformOutput',false);
+            RowTblNms = arrayfun(@(x) ['PercentagesOut-',num2str(x)], 1:OutsNumber, 'UniformOutput',false);
         
-            TableFeatImp = array2table(FeatImpWeights, 'RowNames',RowTableNames, 'VariableNames',CurrFeats);
-            
-            ANNs{'FeatsImportance',IndCurrMdl} = {TableFeatImp};
-        end
+            TableFeatImp = array2table(FeatImpWgs, 'RowNames',RowTblNms, 'VariableNames',CurrFeats);
+
+        otherwise
+            error('Method not recognized!')
+    end
+
+    ANNs{'FeatsImportance',IndCurrMdl} = {TableFeatImp};
 end
+ProgressBar.Indeterminate = 'on';
 
 %% Saving...
 VariablesToUpdate = {'ANNs', 'ModelInfo'};
