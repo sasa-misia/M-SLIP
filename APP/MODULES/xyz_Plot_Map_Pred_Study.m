@@ -1,6 +1,6 @@
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
-                                 'Indeterminate','on');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
 %% File loading
@@ -36,7 +36,7 @@ ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
 if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
 
 DatetimesPredicted = [EventsInfo{'PredictionDate',:}{:}];
-if length(DatetimesPredicted) == 1
+if isscalar(DatetimesPredicted)
     DatetimeChosed = DatetimesPredicted;
     EventNameChosed = EventsInfo.Properties.VariableNames;
 else
@@ -121,9 +121,9 @@ if length(StablePolygons) > 1
     StablePolygons = union(StablePolygons);
 end
 
-StableColor   = '#7FFF00';
+StableColor = '#7FFF00';
 if LandslideDay
-    UnstableColor   = '#CC5500';
+    UnstableColor = '#CC5500';
 else
     UnstableColor = StableColor;
 end
