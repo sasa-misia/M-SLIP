@@ -19,6 +19,10 @@ function DatasetsExtracted = dataset_extraction(DatasetInfo, varargin)
 %   be a nx2 numeric matrix. If no entry is specified, then [NaN, 0] will
 %   be assumed as default! Note: it will not have effect if ReplaceValues
 %   is set to false!
+%   
+%   - 'FeatsNumeric', logical : is to declare if you want to output the
+%   features as numeric (in case some categorical features exist). If no
+%   value is specified, then false will be assumed as default!
 
 %% Preliminary check
 if not(istable(DatasetInfo) || isstruct(DatasetInfo))
@@ -57,6 +61,7 @@ end
 %% Settings
 RepVals = false;    % Default
 ValsAss = [NaN, 0]; % Default
+NmFeats = false;
 
 if ~isempty(varargin)
     StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
@@ -66,24 +71,31 @@ if ~isempty(varargin)
 
     InputRepVals = find(cellfun(@(x) all(strcmpi(x, "ReplaceValues"    )), vararginCp));
     InputValsAss = find(cellfun(@(x) all(strcmpi(x, "ValuesAssociation")), vararginCp));
+    InputNmFeats = find(cellfun(@(x) all(strcmpi(x, "FeatsNumeric"     )), vararginCp));
 
     if InputRepVals; RepVals = varargin{InputRepVals+1}; end
     if InputValsAss; ValsAss = varargin{InputValsAss+1}; end
+    if InputNmFeats; NmFeats = varargin{InputNmFeats+1}; end
 
     varargin([ InputRepVals, InputRepVals+1, ...
-               InputValsAss, InputValsAss+1 ]) = [];
+               InputValsAss, InputValsAss+1, ...
+               InputNmFeats, InputNmFeats+1 ]) = [];
     if not(isempty(varargin))
         error(['Some optional inputs were not recognized: ', ...
                char(join(string(varargin), ', ')),'. Please check it!'])
     end
 end
 
-if not(islogical(RepVals))
-    error('ReplaceValues must be logical!')
+if not(islogical(RepVals) && isscalar(RepVals))
+    error('ReplaceValues must be logical and single!')
 end
 
 if not(isnumeric(ValsAss) && (size(ValsAss, 2)==2))
     error('ValuesAssociation must be numeric and must contain 2 columns!')
+end
+
+if not(islogical(NmFeats) && isscalar(NmFeats))
+    error('FeatsNumeric must be logical and single!')
 end
 
 %% Options
@@ -274,16 +286,73 @@ if NormVal
 end
 
 if CrossVal
-    [DsetFeatsCvTrnNum, DsetFeatsCvValNum] = deal(cell(size(DsetFeatsCvTrn)));
+    [DsetFeatsCvTrnNum, DsetFeatsCvValNum, ...
+        ColsNoNumCvTrn, ColsNoNumCvVal] = deal(cell(size(DsetFeatsCvTrn)));
     for i1 = 1:size(DsetFeatsCvTrn, 2)
         DsetFeatsCvTrnNum{i1} = DsetFeatsCvTrn{i1};
         DsetFeatsCvValNum{i1} = DsetFeatsCvVal{i1};
         
-        ColsNoNumCvTrn = varfun(@(x) not(isnumeric(x)), DsetFeatsCvTrnNum{i1}, 'OutputFormat','uniform');
-        ColsNoNumCvVal = varfun(@(x) not(isnumeric(x)), DsetFeatsCvValNum{i1}, 'OutputFormat','uniform');
+        ColsNoNumCvTrn{i1} = varfun(@(x) not(isnumeric(x)), DsetFeatsCvTrnNum{i1}, 'OutputFormat','uniform');
+        ColsNoNumCvVal{i1} = varfun(@(x) not(isnumeric(x)), DsetFeatsCvValNum{i1}, 'OutputFormat','uniform');
         
-        DsetFeatsCvTrnNum{i1}(:,ColsNoNumCvTrn) = array2table(repmat(-999, size(DsetFeatsCvTrnNum{i1},1), sum(ColsNoNumCvTrn))); % Necessary, otherwise table2array would not work!
-        DsetFeatsCvValNum{i1}(:,ColsNoNumCvVal) = array2table(repmat(-999, size(DsetFeatsCvValNum{i1},1), sum(ColsNoNumCvVal))); % Necessary, otherwise table2array would not work!
+        DsetFeatsCvTrnNum{i1}(:,ColsNoNumCvTrn{i1}) = array2table(repmat(-999, size(DsetFeatsCvTrnNum{i1},1), sum(ColsNoNumCvTrn{i1}))); % Necessary, otherwise table2array would not work!
+        DsetFeatsCvValNum{i1}(:,ColsNoNumCvVal{i1}) = array2table(repmat(-999, size(DsetFeatsCvValNum{i1},1), sum(ColsNoNumCvVal{i1}))); % Necessary, otherwise table2array would not work!
+    end
+end
+
+%% Conversion from cat to num (eventual)
+if NmFeats
+    Cols2CnvTot = find(ColsNoNumTot); Cols2CnvTrn = find(ColsNoNumTrn); Cols2CnvTst = find(ColsNoNumTst);
+
+    if not(isequal(Cols2CnvTot, Cols2CnvTrn, Cols2CnvTst))
+        error('Column to convert must be the same for Total, Train, and Test datasets!')
+    end
+
+    for i1 = 1:numel(Cols2CnvTot)
+        if not(iscategorical(DsetFeatsTot{:,Cols2CnvTot(i1)}) && ...
+               iscategorical(DsetFeatsTrn{:,Cols2CnvTrn(i1)}) && ...
+               iscategorical(DsetFeatsTst{:,Cols2CnvTst(i1)}))
+            error('The column to convert into numeric must be categorical!')
+        end
+        DsetFeatsTot(:,Cols2CnvTot(i1)) = array2table(grp2idx(DsetFeatsTot{:,Cols2CnvTot(i1)}));
+        DsetFeatsTrn(:,Cols2CnvTrn(i1)) = array2table(grp2idx(DsetFeatsTrn{:,Cols2CnvTrn(i1)}));
+        DsetFeatsTst(:,Cols2CnvTst(i1)) = array2table(grp2idx(DsetFeatsTst{:,Cols2CnvTst(i1)}));
+    end
+
+    if NormVal
+        Cols2CnvNvTrn = find(ColsNoNumNvTrn); Cols2CnvNvVal = find(ColsNoNumNvVal);
+    
+        if not(isequal(Cols2CnvNvTrn, Cols2CnvNvVal))
+            error('Column to convert must be the same for NvTrain and NvValid datasets!')
+        end
+    
+        for i1 = 1:numel(Cols2CnvNvTrn)
+            if not(iscategorical(DsetFeatsNvTrn{:,Cols2CnvNvTrn(i1)}) && ...
+                   iscategorical(DsetFeatsNvVal{:,Cols2CnvNvVal(i1)}))
+                error('The column to convert into numeric must be categorical!')
+            end
+            DsetFeatsNvTrn(:,Cols2CnvNvTrn(i1)) = array2table(grp2idx(DsetFeatsNvTrn{:,Cols2CnvNvTrn(i1)}));
+            DsetFeatsNvVal(:,Cols2CnvNvVal(i1)) = array2table(grp2idx(DsetFeatsNvVal{:,Cols2CnvNvVal(i1)}));
+        end
+    end
+
+    if CrossVal
+        for i1 = 1:numel(ColsNoNumCvTrn)
+            Cols2CnvCvTrn = find(ColsNoNumCvTrn{i1}); Cols2CnvCvVal = find(ColsNoNumCvVal{i1});
+        
+            if not(isequal(Cols2CnvCvTrn, Cols2CnvCvVal))
+                error('Column to convert must be the same for CvTrain and CvValid datasets!')
+            end
+        
+            for i2 = 1:numel(Cols2CnvCvTrn)
+                if not(iscategorical(DsetFeatsCvTrn{i1}{:,Cols2CnvCvTrn(i2)}) && ...
+                       iscategorical(DsetFeatsCvVal{i1}{:,Cols2CnvCvVal(i2)}))
+                    error('The column to convert into numeric must be categorical!')
+                end
+                DsetFeatsCvTrn{i1}(:,Cols2CnvCvTrn(i2)) = array2table(grp2idx(DsetFeatsCvTrn{i1}{:,Cols2CnvCvTrn(i2)}));
+                DsetFeatsCvVal{i1}(:,Cols2CnvCvVal(i2)) = array2table(grp2idx(DsetFeatsCvVal{i1}{:,Cols2CnvCvVal(i2)}));
+            end
+        end
     end
 end
 

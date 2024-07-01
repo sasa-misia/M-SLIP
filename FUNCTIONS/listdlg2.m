@@ -65,7 +65,7 @@ if not(ChckStrctVals); error('There is a problem in the structure of Values inpu
 OrNumVals = numel(Values);
 
 CheckEqInp = (numel(Prompts) == numel(Values));
-if not(CheckEqInp) && (numel(Values) == 1)
+if not(CheckEqInp) && isscalar(Values)
     warning(['You have multiple prompts but just one array of options! ' ...
              'This array will be repeated for each prompt.'])
     Values = repmat(Values, 1, numel(Prompts));
@@ -84,19 +84,19 @@ xWd = xOb*xPn+2*Bff;
 
 %% Settings
 CurrPth = pwd;
-RnmLbls = false;     % Default
-SaveOut = false;     % Default
-SavePth = CurrPth;   % Default
-NameOut = 'LstOut';  % Default
-Extndbl = false;     % Default
-OutType = 'cellstr'; % Default
+RnmLbls = false;      % Default
+SaveOut = false;      % Default
+SavePth = CurrPth;    % Default
+NameOut = 'LstOut';   % Default
+Extndbl = false;      % Default
+OutType = 'cellstr';  % Default
 
-FntSize = 12;          % Default
+FntSize = 12;         % Default
 PosWind = [800, 300, ...
-           xWd, yHg];  % Default
-CnfBtSz = [100, 22];   % Default
-PnlSize = [xPn, 80];   % Default
-DDBtSz  = [120, 22];   % Default
+           xWd, yHg]; % Default
+CnfBtSz = [100, 22];  % Default
+PnlSize = [xPn, 80];  % Default
+DDBtSzs = [120, 22];  % Default
 
 % Search for Suggested Inputs
 DefInps = ones(size(Prompts)); % Default
@@ -112,26 +112,26 @@ if ~isempty(varargin)
     vararginCp = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
     vararginCp(StringPart) = cellfun(@(x) lower(string(x)), varargin(StringPart),  'Uniform',false); % Here same content but low case and nothing if not string!
 
-    InputPairLbls = find(cellfun(@(x) all(strcmpi(x, "pairlabels")), vararginCp));
-    InputSaveOut  = find(cellfun(@(x) all(strcmpi(x, "saveout"   )), vararginCp));
-    InputSavePath = find(cellfun(@(x) all(strcmpi(x, "savepath"  )), vararginCp));
-    InputPosition = find(cellfun(@(x) all(strcmpi(x, "position"  )), vararginCp));
-    InputNameOut  = find(cellfun(@(x) all(strcmpi(x, "nameout"   )), vararginCp));
-    InputExtndbl  = find(cellfun(@(x) all(strcmpi(x, "extendable")), vararginCp));
-    InputOutType  = find(cellfun(@(x) all(strcmpi(x, "outtype"   )), vararginCp));
-    InputDefInps  = find(cellfun(@(x) all(strcmpi(x, "definp"    )), vararginCp));
+    InputRnmLbls = find(cellfun(@(x) all(strcmpi(x, "pairlabels")), vararginCp));
+    InputSaveOut = find(cellfun(@(x) all(strcmpi(x, "saveout"   )), vararginCp));
+    InputSavePth = find(cellfun(@(x) all(strcmpi(x, "savepath"  )), vararginCp));
+    InputPosWind = find(cellfun(@(x) all(strcmpi(x, "position"  )), vararginCp));
+    InputNameOut = find(cellfun(@(x) all(strcmpi(x, "nameout"   )), vararginCp));
+    InputExtndbl = find(cellfun(@(x) all(strcmpi(x, "extendable")), vararginCp));
+    InputOutType = find(cellfun(@(x) all(strcmpi(x, "outtype"   )), vararginCp));
+    InputDefInps = find(cellfun(@(x) all(strcmpi(x, "definp"    )), vararginCp));
 
-    if InputPairLbls; RnmLbls = varargin{InputPairLbls+1 }; end
-    if InputSaveOut ; SaveOut = varargin{InputSaveOut+1  }; end
-    if InputSavePath; SavePth = varargin{InputSavePath+1 }; end
-    if InputPosition; PosWind = varargin{InputPosition+1 }; end
-    if InputNameOut ; NameOut = varargin{InputNameOut+1  }; end
-    if InputExtndbl ; Extndbl = varargin{InputExtndbl+1  }; end
-    if InputOutType ; OutType = vararginCp{InputOutType+1}; end
-    if InputDefInps ; DefInps = varargin{InputDefInps+1  }; end
+    if InputRnmLbls; RnmLbls = varargin{InputRnmLbls+1  }; end
+    if InputSaveOut; SaveOut = varargin{InputSaveOut+1  }; end
+    if InputSavePth; SavePth = varargin{InputSavePth+1  }; end
+    if InputPosWind; PosWind = varargin{InputPosWind+1  }; end
+    if InputNameOut; NameOut = varargin{InputNameOut+1  }; end
+    if InputExtndbl; Extndbl = varargin{InputExtndbl+1  }; end
+    if InputOutType; OutType = vararginCp{InputOutType+1}; end
+    if InputDefInps; DefInps = varargin{InputDefInps+1  }; end
 end
 
-if RnmLbls && not(any(InputPosition))
+if RnmLbls && not(any(InputPosWind))
     xOb = 2;
     xWd = xOb*xPn+2*Bff;
     PosWind(3) = xWd;
@@ -192,7 +192,7 @@ for i1 = 1:numel(Prompts)
 end
 
 %% Drop down objects
-PnlDDPs = [xPn*(xOb-1)+(xPn-DDBtSz(1))/2, (PnlSize(2)-DDBtSz(2))/2-0.2*PnlSize(2), DDBtSz(1), DDBtSz(2)];
+PnlDDPs = [xPn*(xOb-1)+(xPn-DDBtSzs(1))/2, (PnlSize(2)-DDBtSzs(2))/2-0.2*PnlSize(2), DDBtSzs(1), DDBtSzs(2)];
 PnlDD   = cell(1, numel(Prompts));
 for i1 = 1:numel(Prompts)
     PnlDD{i1} = uidropdown(Panels{i1}, 'Items',Values{i1}, 'Position',PnlDDPs, 'Value',Values{i1}(DefInps(i1)));
@@ -200,7 +200,7 @@ end
 
 %% Text area objects
 if RnmLbls
-    PnlTAPs = [(xPn-DDBtSz(1))/2, (PnlSize(2)-DDBtSz(2))/2-0.2*PnlSize(2), DDBtSz(1), DDBtSz(2)];
+    PnlTAPs = [(xPn-DDBtSzs(1))/2, (PnlSize(2)-DDBtSzs(2))/2-0.2*PnlSize(2), DDBtSzs(1), DDBtSzs(2)];
     PnlTA   = cell(1, numel(Prompts));
     for i1 = 1:numel(Prompts)
         PnlTA{i1} = uitextarea(Panels{i1}, 'Value','New label', 'Position',PnlTAPs);
@@ -208,14 +208,14 @@ if RnmLbls
 end
 
 %% Label objects
-PnlDDLgPs = [xPn*(xOb-1)+(xPn-DDBtSz(1))/2, (PnlSize(2)-DDBtSz(2))/2+0.05*PnlSize(2), DDBtSz(1), DDBtSz(2)];
+PnlDDLgPs = [xPn*(xOb-1)+(xPn-DDBtSzs(1))/2, (PnlSize(2)-DDBtSzs(2))/2+0.05*PnlSize(2), DDBtSzs(1), DDBtSzs(2)];
 PnlDDLgnd = cell(1, numel(Prompts));
 for i1 = 1:numel(Prompts)
     PnlDDLgnd{i1}  = uilabel(Panels{i1}, 'Text','Select:', 'Position',PnlDDLgPs);
 end
 
 if RnmLbls
-    PnlTALgPs = [(xPn-DDBtSz(1))/2, (PnlSize(2)-DDBtSz(2))/2+0.05*PnlSize(2), DDBtSz(1), DDBtSz(2)];
+    PnlTALgPs = [(xPn-DDBtSzs(1))/2, (PnlSize(2)-DDBtSzs(2))/2+0.05*PnlSize(2), DDBtSzs(1), DDBtSzs(2)];
     PnlTALgnd = cell(1, numel(Prompts));
     for i1 = 1:numel(Prompts)
         PnlTALgnd{i1} = uilabel(Panels{i1}, 'Text','Write:', 'Position',PnlTALgPs);

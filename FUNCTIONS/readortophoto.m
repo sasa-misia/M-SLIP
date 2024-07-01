@@ -1,9 +1,9 @@
-function [ColorsGrid, xGrid, yGrid] = readortophoto(PathWithURLsTxt, LonLimits, LatLimits)
+function [ColorsGrid, xGrid, yGrid, RGrid] = readortophoto(PathTxtURLs, LonLimits, LatLimits, Options)
 % Create a ortophoto grid
 %   
 % Outputs:
-%   [ColorsGrid, xGrid, yGrid] : matrix of colors, matrix of longitude
-%   values, matrix of latitude values
+%   [ColorsGrid, xGrid, yGrid, RGrid] : matrix of colors, matrix of longitude
+%   values, matrix of latitude values, georeference object
 %   
 % Required arguments:
 %   - PathWithURLsTxt : is a char or a string, containing the path where is
@@ -15,12 +15,26 @@ function [ColorsGrid, xGrid, yGrid] = readortophoto(PathWithURLsTxt, LonLimits, 
 %   
 %   - LatLimits : is a 1x2 array containing respectively the minimum and the 
 %   maximum latitude values.
+%   
+% Optional arguments:
+%   - 'Resolution', numeric: output image resolution
+
+%% Check inputs
+arguments
+    PathTxtURLs (1,:) char
+    LonLimits (:,:) double {mustBeVector}
+    LatLimits (:,:) double {mustBeVector}
+    Options.Resolution (1,1) double = 2048
+end
+
+OutRes = Options.Resolution;
+
+if OutRes > 8192; error('Please select a lower resolution!'); end
 
 %% Core
-sl     = filesep;
-UrFlEx = exist(PathWithURLsTxt, 'file');
+UrFlEx = exist(PathTxtURLs, 'file');
 if (UrFlEx)
-    FileID = fopen(PathWithURLsTxt,'r');
+    FileID = fopen(PathTxtURLs,'r');
     UrlMaps = cell(1, 12);
     for i1 = 1:numel(UrlMaps)
         TmpLne = fgetl(FileID);
@@ -31,20 +45,26 @@ if (UrFlEx)
     EmptyInd = cellfun(@isempty, UrlMaps);
     UrlMaps(EmptyInd) = [];
 
-    UrlMap = char(listdlg2('Ortophoto source:', UrlMaps));
+    if numel(UrlMaps) > 1
+        UrlMap = char(listdlg2('Ortophoto source:', UrlMaps));
+    elseif isscalar(UrlMaps)
+        UrlMap = char(UrlMaps);
+    else
+        UrlMap = '';
+    end
 end
 
 if not(UrFlEx) || isempty(UrlMap)
     UrlMap = char(inputdlg2({'Enter WMS Url:'}));
 end
 
-Info       = wmsinfo(UrlMap);
-LayerNames = {Info.Layer(:).LayerName};
-IndLyr     = 1;
-if numel(LayerNames) > 1
-    IndLyr = listdlg2('Layer to use:', LayerNames, 'OutType','NumInd');
+InfLyr = wmsinfo(UrlMap);
+LyrNms = {InfLyr.Layer(:).LayerName};
+IndLyr = 1;
+if numel(LyrNms) > 1
+    IndLyr = listdlg2('Layer to use:', LyrNms, 'OutType','NumInd');
 end
-OrthoLayer = Info.Layer(IndLyr);
+OrthoLyr = InfLyr.Layer(IndLyr);
 
 yLatMean = mean(LatLimits);
 dyMetLat = deg2rad(diff(LatLimits))*earthRadius; % diff of lat in meters
@@ -52,23 +72,23 @@ dxMetLon = acos(cosd(diff(LonLimits))*cosd(yLatMean)^2 + sind(yLatMean)^2)*earth
 RtLatLon = dyMetLat/dxMetLon;
 
 if RtLatLon <= 1
-    ImWidth  = 2048;
-    ImHeight = int64(ImWidth*RtLatLon);
+    ImWidth = OutRes;
+    ImHeigh = int64(ImWidth*RtLatLon);
 elseif RtLatLon > 1
-    ImHeight = 2048;
-    ImWidth  = int64(ImHeight/RtLatLon);
+    ImHeigh = OutRes;
+    ImWidth = int64(ImHeigh/RtLatLon);
 end
 
-[ColorsGrid, ROrtho] = wmsread(OrthoLayer, 'LatLim',LatLimits, 'LonLim',LonLimits, ...
-                                           'ImageHeight',ImHeight, 'ImageWidth',ImWidth);
+[ColorsGrid, RGrid] = wmsread(OrthoLyr, 'LatLim',LatLimits, 'LonLim',LonLimits, ...
+                                           'ImageHeight',ImHeigh, 'ImageWidth',ImWidth);
 
-LatGridOrtho = ROrtho.LatitudeLimits(2)-ROrtho.CellExtentInLatitude/2 : ...
-               -ROrtho.CellExtentInLatitude : ...
-               ROrtho.LatitudeLimits(1)+ROrtho.CellExtentInLatitude/2;
+LatGridOrtho = RGrid.LatitudeLimits(2)-RGrid.CellExtentInLatitude/2 : ...
+               -RGrid.CellExtentInLatitude : ...
+               RGrid.LatitudeLimits(1)+RGrid.CellExtentInLatitude/2;
 
-LonGridOrtho = ROrtho.LongitudeLimits(1)+ROrtho.CellExtentInLongitude/2 : ...
-               ROrtho.CellExtentInLongitude : ...
-               ROrtho.LongitudeLimits(2)-ROrtho.CellExtentInLongitude/2;
+LonGridOrtho = RGrid.LongitudeLimits(1)+RGrid.CellExtentInLongitude/2 : ...
+               RGrid.CellExtentInLongitude : ...
+               RGrid.LongitudeLimits(2)-RGrid.CellExtentInLongitude/2;
 
 [xGrid, yGrid] = meshgrid(LonGridOrtho, LatGridOrtho);
 

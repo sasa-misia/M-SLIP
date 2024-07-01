@@ -1,5 +1,5 @@
 function [Im] = fastscattergrid(Colors, xGrid, yGrid, varargin)
-% CREATE POLYGONS OF UNSTABLE, STABLE, AND INDECISION AREAS
+% FAST PLOT FOR GRID DATA
 %   
 % Outputs:
 %   Im : Image object.
@@ -9,12 +9,12 @@ function [Im] = fastscattergrid(Colors, xGrid, yGrid, varargin)
 %   concatenated in 3rd dim, containing R, G, and B; 2d matrix grid: a 2D 
 %   matrix containing white values with same dim of xGrid). It could be also 
 %   a 2D array nx3 or 3xn containing the R, G, and B values in 1st, 2nd, and 
-%   3rd column or row. It could be also a 1D array, containing the white
-%   values.
+%   3rd column (or row if 3xn). It could be also a 1D array, containing the
+%   white values.
 %   
-%   - xGrid : is a grid containing rgb colors (3d matrix, whith the third
-%   containing respectively the R, G, and B). It could be also just a 2D
-%   grid, containing a single value.
+%   - xGrid : is a grid containing the x coordinates. It could be 1D or 2D.
+%   
+%   - yGrid : is a grid containing the y coordinates. It could be 1D or 2D.
 %   
 % Optional arguments:
 %   - 'Parent', axes object: axes where the image is plotted.
@@ -91,33 +91,37 @@ if ~isempty(varargin)
     InputPolMsk = find(cellfun(@(x) all(strcmpi(x, "mask"  )), vararginCp));
     InputAlpha  = find(cellfun(@(x) all(strcmpi(x, "alpha" )), vararginCp));
 
-    if InputParent; curr_ax = varargin{InputParent+1}; end
+    if InputParent; CurrAxs = varargin{InputParent+1}; end
     if InputPolMsk; PolMask = varargin{InputPolMsk+1}; end
     if InputAlpha ; AlphaIm = varargin{InputAlpha+1 }; end
 end
 
-if not(exist('curr_ax', 'var'))
-    curr_fig = figure();       % Default
-    curr_ax  = axes(curr_fig); % Default
+if not(exist('CurrAxs', 'var'))
+    CurrFig = figure();      % Default
+    CurrAxs = axes(CurrFig); % Default
 end
 
 %% Core
 if not(isempty(PolMask))
+    if not(isa(PolMask,'polyshape')); error('Mask must be a polyshape!'); end
+
     if numel(PolMask) > 1; PolMask = union(PolMask); end
 
     [pp1, ee1]   = getnan2([PolMask.Vertices; nan, nan]);
     IndPntsInMsk = find(inpoly([xGrid(:), yGrid(:)], pp1, ee1)==1);
-
-    ColorsArr = double(reshape(Colors(:), [size(Colors,1)*size(Colors,2), 3]));
-    [RedTemp, GreenTemp, BlueTemp] = deal(ones(numel(xGrid), 1)); % This means that they start as white pixels.
-    RedTemp(IndPntsInMsk)   = ColorsArr(IndPntsInMsk, 1)./255;
-    GreenTemp(IndPntsInMsk) = ColorsArr(IndPntsInMsk, 2)./255;
-    BlueTemp(IndPntsInMsk)  = ColorsArr(IndPntsInMsk, 3)./255;
-
-    Colors2Plot    = zeros(size(xGrid, 1), size(xGrid, 2), 3); % This means that they start as black pixels -> check if an area is black outside StudyArea (error).
-    Colors2Plot(:) = [RedTemp; GreenTemp; BlueTemp];
-
-    Im = imagesc(curr_ax, xGrid(:), yGrid(:), Colors2Plot, 'AlphaData',AlphaIm);
+else
+    IndPntsInMsk = find(true(numel(xGrid), 1));
 end
+
+ColorsArr = double(reshape(Colors(:), [size(Colors,1)*size(Colors,2), 3]));
+[RedTemp, GreenTemp, BlueTemp] = deal(ones(numel(xGrid), 1)); % This means that they start as white pixels.
+RedTemp(IndPntsInMsk)   = ColorsArr(IndPntsInMsk, 1)./255;
+GreenTemp(IndPntsInMsk) = ColorsArr(IndPntsInMsk, 2)./255;
+BlueTemp(IndPntsInMsk)  = ColorsArr(IndPntsInMsk, 3)./255;
+
+Colors2Plot    = zeros(size(xGrid, 1), size(xGrid, 2), 3); % This means that they start as black pixels -> check if an area is black outside StudyArea (error).
+Colors2Plot(:) = [RedTemp; GreenTemp; BlueTemp];
+
+Im = imagesc(CurrAxs, xGrid(:), yGrid(:), Colors2Plot, 'AlphaData',AlphaIm);
 
 end
