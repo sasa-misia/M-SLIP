@@ -13,7 +13,7 @@ if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
     SelFont = Font;
     SlFntSz = FontSize;
-    if exist('LegendPosition', 'var'); LgndPos = LegendPosition; end
+    if exist('LegendPosition', 'var'); LgndPos = LegendPosition; else; LgndPos = 'Best'; end
 else
     SelFont = 'Times New Roman';
     SlFntSz = 8;

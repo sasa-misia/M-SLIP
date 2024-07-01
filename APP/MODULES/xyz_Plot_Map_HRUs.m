@@ -69,7 +69,7 @@ switch AreaType
         IndToPlot  = IndexDTMPointsInsideStudyArea;
 
     case 'Stable and Unstable'
-        if length(UnstablePolygons) == 1
+        if isscalar(UnstablePolygons)
             TotPolStableSplit   = regions(StablePolygons);
             TotPolWithoutHoles  = rmholes(TotPolStableSplit);
             TotPolUnstableSplit = arrayfun(@(x) intersect(x, UnstablePolygons), TotPolWithoutHoles);
