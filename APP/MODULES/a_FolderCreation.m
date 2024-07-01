@@ -1,13 +1,12 @@
 %% Os identification
+sl = filesep;
 if ispc
-    sl = '\';
     user = string(getenv('username'));
 elseif ismac
-    sl = '/';
     user = string(getenv('USER'));
 else
-    disp('Platform not supported')
-    error('PNS')
+    user = string(getenv('USER'));
+    warning('Platform not yet tested! If any error, contact the support!')
 end
 
 %% Check of toolboxes
@@ -33,8 +32,9 @@ for i1 = 1:numel(OptTools)
     end
 end
 
-%% Removing existing variable 'folders' to create the new one
+%% Creating or removing variables that causing conflicts
 if exist('folders', 'var'); clear folders; end
+if not(exist('CaseName', 'var')); CaseName = 'ND - Standalone'; end
 
 %% Define folders
 fold0 = pwd;

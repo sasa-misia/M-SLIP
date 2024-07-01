@@ -1,28 +1,29 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
-                                 'Message','Reading files...', 'Cancelable','off', ...
-                                 'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
 %% File loading
-load([fold_var,sl,'StudyAreaVariables.mat'],   'StudyAreaPolygon','MunPolygon')
-load([fold_var,sl,'GridCoordinates.mat'],      'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+sl = filesep;
+load([fold_var,sl,'StudyAreaVariables.mat'  ], 'StudyAreaPolygon','MunPolygon')
+load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
 load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll','OriginallyProjected','SameCRSForAll')
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'])
-    SelectedFont = Font;
-    SelectedFontSize = FontSize;
+    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
+    SelFont = Font;
+    SlFntSz = FontSize;
+    if exist('LegendPosition', 'var'); LgndPos = LegendPosition; end
 else
-    SelectedFont = 'Times New Roman';
-    SelectedFontSize = 8;
-    LegendPosition = 'Best';
+    SelFont = 'Times New Roman';
+    SlFntSz = 8;
+    LgndPos = 'Best';
 end
 
 InfoDetectedExist = false;
 if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
     load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
+    InfDtSoilSlps2Use = InfoDetectedSoilSlips{IndDefInfoDet};
     InfoDetectedExist = true;
 end
 
@@ -30,17 +31,43 @@ end
 [PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon);
 
 %% Options
-PltGrayIm = uiconfirm(Fig, 'Do you want to plot relief in gray?', ...
-                           'Gray plot', 'Options',{'Yes','No'}, 'DefaultOption',2);
-if strcmp(PltGrayIm,'Yes'); PltGrayIm = true; else; PltGrayIm = false; end
+PltOpAns = checkbox2({'Gray plot', 'Show municipalities', 'Show plots', ...
+                      'Group years'}, 'DefInp',[0, 1, 0, 0], 'OutType','LogInd');
 
-ShowMunis = uiconfirm(Fig, 'Do you want to show municipalities?', ...
-                           'Municipalities', 'Options',{'Yes','No'}, 'DefaultOption',2);
-if strcmp(ShowMunis,'Yes'); ShowMunis = true; else; ShowMunis = false; end
+GrayPlot = PltOpAns(1);
+ShowMuns = PltOpAns(2);
+ShowPlot = PltOpAns(3);
+GrpYears = PltOpAns(4);
 
-ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
-                           'Show plots', 'Options',{'Yes','No'}, 'DefaultOption',2);
-if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
+if any(isnat(InfDtSoilSlps2Use{:,'Datetime'}))
+    warning('Some NaT datetimes were found! They will be replaced with the input prompt.')
+    Dttm2Use = datetime(inputdlg2({'Datetime of this dataset:'}, 'DefInp',{'dd-mm-yyyy'}), 'InputFormat','dd-MM-yyyy');
+    InfDtSoilSlps2Use{isnat(InfDtSoilSlps2Use{:,'Datetime'}),'Datetime'} = repmat(Dttm2Use, sum(isnat(InfDtSoilSlps2Use{:,'Datetime'})), 1);
+end
+
+%% Group years
+DetYears = num2cell(unique(year(InfDtSoilSlps2Use{:,'Datetime'}))); % The default if no grouping
+if GrpYears
+    BinsNumb = int64(str2double(inputdlg2({'Number of gropus (max 18):'}, 'DefInp',{'4'})));
+    if (BinsNumb < 1) || (BinsNumb > 18)
+        error('Number of groups outside the range [1, 18]!')
+    end
+    YrsToUse = cell2mat(DetYears);
+    DetYears = cell(1, BinsNumb); % The eventual grouped one
+    for i1 = 1:BinsNumb
+        if isempty(YrsToUse)
+            error(['No elements left for your group n. ',num2str(i1)])
+        end
+        Ind2Take = checkbox2(string(YrsToUse), 'OutType','NumInd');
+        DetYears{i1} = YrsToUse(Ind2Take);
+        YrsToUse(Ind2Take) = [];
+    end
+end
+
+IdsDetXYr = cellfun(@(x) ismember(year(InfDtSoilSlps2Use{:,'Datetime'}), x), DetYears, 'UniformOutput',false);
+
+YearColor = {"#a2142f", "#4dbeee", "#77ac30", "#7e2f8e", "#edb120", "#d95319", "#0072bd", "#7d00d9", "#88b9c5", ...
+             "#998866", "#ff0084", "#ffe0bd", "#8b7b8b", "#ff0062", "#ffd1d9", "#effefe", "#f2eedf", "#000080"};
 
 %% Merge DTMs
 ProgressBar.Message = "Merging DTMs...";
@@ -62,8 +89,7 @@ for i1 = 1:length(xLongAll)
     dy{i1} = abs(yPlanAll{i1}(1,ceil(end/2))-yPlanAll{i1}(2,ceil(end/2)));
 end
 
-dxMean   = mean([dx{:}]);
-dyMean   = mean([dy{:}]);
+dxMean = mean([dx{:}]); dyMean = mean([dy{:}]);
 
 xPlanMin = min(cellfun(@(x) min(x, [], 'all'), xPlanAll));
 xPlanMax = max(cellfun(@(x) max(x, [], 'all'), xPlanAll));
@@ -118,7 +144,7 @@ for i1 = 1:length(xLongAll)
 
     ShdColorsAll{i1}    = zeros(size(xLongAll{i1}, 1), size(xLongAll{i1}, 2), 3);
     ShdColorsAll{i1}(:) = [RedTemp(IdxToUse); GreenTemp(IdxToUse); BlueTemp(IdxToUse)];
-    if PltGrayIm
+    if GrayPlot
         ShdColorsAll{i1} = repmat(rgb2gray(ShdColorsAll{i1}), 1, 1, 3);
     end
 end
@@ -131,7 +157,7 @@ curr_fig  = figure('Visible','off');
 curr_ax   = axes('Parent',curr_fig); 
 hold(curr_ax,'on');
 
-if PltGrayIm
+if GrayPlot
     filename1 = [filename1,'BW'];
 end
 
@@ -142,49 +168,53 @@ for i1 = 1:length(xLongAll)
 end
 
 plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5, 'Parent',curr_ax)
-if ShowMunis
+if ShowMuns
     plot(MunPolygon, 'FaceColor','none', 'LineWidth',1, 'Parent',curr_ax)
 end
 
 fig_settings(fold0)
 
 if InfoDetectedExist
-    hDet = cellfun(@(x,y) scatter(x, y, DetPixelSize, 'MarkerFaceColor','#A2142F', ...
-                                                      'Marker','o', 'MarkerEdgeColor','#A2142F', ...
-                                                      'Parent',curr_ax), ...
-                                      InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
-    uistack(hDet,'top')
+    hDet = cell(1, length(IdsDetXYr));
+    for i1 = 1:length(IdsDetXYr)
+        hDet{i1} = arrayfun(@(x,y) scatter(x, y, DetPixelSize, 'filled', 'MarkerFaceColor',YearColor{i1}, ...
+                                                               'Marker','o', 'MarkerEdgeColor','k', ...
+                                                               'LineWidth',PixelSize, 'Parent',curr_ax), ...
+                                              InfDtSoilSlps2Use{IdsDetXYr{i1},'Longitude'}, ...
+                                              InfDtSoilSlps2Use{IdsDetXYr{i1},'Latitude' });
+        uistack(hDet{i1},'top')
+    end
 end
 
-if exist('LegendPosition', 'var')
+if exist('LgndPos', 'var')
     LegendObjects = {};
     LegendCaption = {};
 
     if InfoDetectedExist
-        LegendObjects = [LegendObjects; {hDet(1)}];
-        LegendCaption = [LegendCaption; {"Points Analyzed"}];
+        LegendObjects = [LegendObjects; cellfun(@(x) x(1), hDet, 'UniformOutput',false)'];
+        LegendCaption = [LegendCaption; cellstr(strcat("Landslides Year ", cellfun(@(x) strcat(string(x(1))," - ",string(x(end))), DetYears)))'];
     end
 
     hLeg = legend([LegendObjects{:}], ...
                    LegendCaption, ...
                   'NumColumns',2, ...
-                  'FontName',SelectedFont, ...
-                  'FontSize',SelectedFontSize, ...
-                  'Location',LegendPosition, ...
+                  'FontName',SelFont, ...
+                  'FontSize',0.7*SlFntSz, ...
+                  'Location',LgndPos, ...
                   'Box','off');
     
     legend('AutoUpdate','off');
     hLeg.ItemTokenSize(1) = 5;
     
-    title(hLeg, 'Hillshade plot', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
+    title(hLeg, 'Hillshade plot', 'FontName',SelFont, 'FontSize',SlFntSz*1.2, 'FontWeight','bold')
 
-    fig_rescaler(curr_fig, hLeg, LegendPosition)
+    fig_rescaler(curr_fig, hLeg, LgndPos)
 
 end
 
 set(curr_ax, 'visible','off')
 
-if ShowPlots
+if ShowPlot
     set(curr_fig, 'visible','on');
     pause
 end

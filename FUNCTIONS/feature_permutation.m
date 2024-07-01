@@ -1,9 +1,9 @@
-function FeatureImportance = feature_importance(ModelToUse, DatasetToUse, ExpOutsToUse, varargin)
+function FeatureImportance = feature_permutation(ModelToUse, DatasetToUse, ExpOutsToUse, varargin)
 
 % Function to evaluate the importance of features with ML models (not only)
 % with Feature Permutation technique.
 %   
-%   FeatureImportance = feature_importance(ModelToUse, DatasetToUse, ExpOutsToUse, varargin)
+%   FeatureImportance = feature_permutation(ModelToUse, DatasetToUse, ExpOutsToUse, varargin)
 %   
 %   Dependencies: mdlpredict function from M-SLIP toolbox.
 %   

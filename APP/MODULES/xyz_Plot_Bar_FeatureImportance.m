@@ -1,114 +1,175 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
-                                 'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Cancelable','off', 'Message','Reading files...');
 drawnow
 
 %% Loading data
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelectedFont     = Font;
-    SelectedFontSize = FontSize;
-else
-    SelectedFont     = 'Times New Roman';
-    SelectedFontSize = 8;
-    LegendPosition   = 'Best';
-end
+sl = filesep;
 
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
-load([fold_res_ml_curr,sl,'TrainedANNs.mat'], 'ANNs','ANNsPerf','ModelInfo')
 
-TestMSE = ANNsPerf{'Err','Test'}{:}{'MSE',:};
-DatasetForFeatsImp = ModelInfo.FeatsImportanceDataset;
-
-%% User opts and selection of good models to plot
-Options   = {'Yes', 'No'};
-ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
-                           'Show Plots', 'Options',Options, 'DefaultOption',2);
-if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
-
-Options   = {'y lim 100%', 'y lim dynamic'};
-UpYLimAns = uiconfirm(Fig, 'Where do you want to set the upper limit in graphs?', ...
-                           'Up limit', 'Options',Options, 'DefaultOption',2);
-if strcmp(UpYLimAns,'y lim dynamic'); UpYLimDyn = true; else; UpYLimDyn = false; end
-
-Options = {'Yes', 'No, plot based on MSE'};
-AllMdls = uiconfirm(Fig, ['You have ',num2str(numel(TestMSE)),' models. ' ...
-                          'Do you want to plot all of them?'], ...
-                         'Plot all models', 'Options',Options, 'DefaultOption',2);
-if strcmp(AllMdls,'Yes'); AllMdls = true; else; AllMdls = false; end
-
-if AllMdls
-    IndGoodMdls = true(size(TestMSE));
+if exist([fold_var,sl,'PlotSettings.mat'], 'file')
+    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize')
+    SelFont = Font;
+    SelFnSz = FontSize;
 else
-    MaxLoss = str2double(inputdlg2(['Max MSE (Max is ',num2str(max(TestMSE)),', min is ',num2str(min(TestMSE)),'):'], ...
-                                    'DefInp',{num2str(min(TestMSE)*5)}));
-    IndGoodMdls = TestMSE <= MaxLoss;
+    SelFont = 'Calibri';
+    SelFnSz = 8;
 end
 
-AllFeats = ModelInfo.DatasetInfo{1}.FeaturesNames{:};
-FtsToUse = checkbox2(AllFeats, 'Title','Select features to plot:');
+MdlType = find([exist([fold_res_ml_curr,sl,'ANNsMdlA.mat'], 'file'), ...
+                exist([fold_res_ml_curr,sl,'ANNsMdlB.mat'], 'file')]);
+if not(isscalar(MdlType)); error('More than one model found in your folder!'); end
+switch MdlType
+    case 1
+        load([fold_res_ml_curr,sl,'ANNsMdlA.mat'], 'ANNs','ANNsPerf','ModelInfo')
+        ANNMode = ModelInfo.ANNsOptions.TrainMode;
+        CurrFts = ModelInfo.Dataset.Datasets(1).Feats;
+
+    case 2
+        load([fold_res_ml_curr,sl,'ANNsMdlB.mat'], 'ANNs','ANNsPerf','ModelInfo')
+        ANNMode = ModelInfo.ANNMode;
+        CurrFts = ModelInfo.DatasetInfo{1}.FeaturesNames{:};
+
+    otherwise
+        error('No trained ModelA or B found!')
+end
+
+DsetPrt4FI = ModelInfo.FeatureImportance.Dataset;
+
+%% Options
+PltOpts = checkbox2({'Show plots', 'Dynamic upper limit', 'Model filter', ...
+                     'Custom model names'}, 'DefInp',[0, 0, 1, 0], 'OutType','LogInd');
+
+ShowPlt = PltOpts(1);
+DynUpLm = PltOpts(2);
+FiltMdl = PltOpts(3);
+CstmNms = PltOpts(4);
+
+if not(DynUpLm)
+    FixdLimY = str2double(inputdlg2({'Upper limit in % :'}, 'DefInp',{'100'}));
+end
+
+IndMdls2Tk = true(1, size(ANNs,2));
+if FiltMdl
+    Mtr4Flt = char(listdlg2({'Metric to use for filter'}, {'MSE', 'AUROC', 'Loss'}));
+    switch Mtr4Flt
+        case 'MSE'
+            TextMetr = 'MSE';
+            TestMetr = [ANNsPerf{'Err','Test'}{:}{'MSE',:}];
+
+        case 'AUROC'
+            TextMetr = 'AUC';
+            TestMetr = [ANNsPerf{'ROC','Test'}{:}{'AUC',:}{:}];
+
+        case 'Loss'
+            TextMetr = 'Loss';
+            TestMetr = [ANNsPerf{'Err','Test'}{:}{'Loss',:}];
+    end
+    MetrThr = str2double(inputdlg2({[TextMetr,' threshold for models (max: ', ...
+                                     num2str(max(TestMetr)),'; min: ', ...
+                                     num2str(min(TestMetr))]}, 'DefInp',{num2str(mean([min(TestMetr),max(TestMetr)]))}));
+    IndMdls2Tk = TestMetr <= MetrThr;
+    if strcmp(Mtr4Flt,'AUROC')
+        IndMdls2Tk = TestMetr >= MetrThr;
+    end
+end
+
+FtsToUse = checkbox2(CurrFts, 'Title','Features to plot:');
+
+FeatsLabels = array2table(CurrFts, 'VariableNames',CurrFts);
+if CstmNms
+    FtsNewLabls = inputdlg2(strcat({'New name for '},CurrFts), 'DefInp',CurrFts);
+    FeatsLabels = array2table(FtsNewLabls, 'VariableNames',CurrFts);
+end
+
+if size(ANNs, 2) > 3
+    ClrsFI  = repmat({'#0097df'}, 1, size(ANNs, 2)); % Colors
+else
+    ClrsFI  = {'#739373', '#d3643c', '#0097df'}; % Colors
+end
 
 %% Plot
-[~, AnalysisFoldName] = fileparts(fold_res_ml_curr);
-fold_fig_curr = [fold_fig,sl,'Feature Importance',sl,AnalysisFoldName];
+[~, AnlFldNm] = fileparts(fold_res_ml_curr);
+fold_fig_curr = [fold_fig,sl,'Feature Importance',sl,AnlFldNm];
 
 if ~exist(fold_fig_curr, 'dir')
     mkdir(fold_fig_curr)
 end
 
-for i1 = 1:length(IndGoodMdls)
-    if not(IndGoodMdls(i1)); continue; end % To skip cycle if not good model
+ANNsNames = ANNs.Properties.VariableNames;
+for i1 = 1:length(IndMdls2Tk)
+    if not(IndMdls2Tk(i1)); continue; end % To skip cycle if not good model
 
-    filename = ['Feature importance model n - ',num2str(i1),' - Dataset ',DatasetForFeatsImp];
-    curr_fig = figure(i1);
-    ax_curr  = axes(curr_fig, 'FontName',SelectedFont, 'FontSize',SelectedFontSize);
-    set(curr_fig, 'visible','off')
-    set(curr_fig, 'Name',filename)
+    CurrFln = ['Feature importance model n - ',num2str(i1),' - Dataset ',DsetPrt4FI];
+    CurrFig = figure(i1);
+    CurrAxs = axes(CurrFig, 'FontName',SelFont, 'FontSize',SelFnSz);
+    set(CurrFig, 'Name',CurrFln, 'visible','off')
 
-    ImportanceInPerc = ANNs{'FeatsImportance',i1}{:}{'PercentagesMSE',FtsToUse}*100;
-    FeaturesNames    = categorical(FtsToUse);
-    FeaturesNames    = reordercats(FeaturesNames, FtsToUse); % DON'T DELETE THIS ROW!!! Is necessary even if FeaturesNames is already in the correct order!
-    CurrentLoss      = ANNsPerf{'Err','Test'}{:}{'Loss',i1};
-    CurrentTestAUC   = ANNsPerf{'ROC','Test'}{:}{'AUC',i1}{:};
-    StructOfLayers   = ANNs{'Model',i1}{:}.LayerSizes;
+    CurrPssFts = ANNs{'FeatsConsidered',i1}{:};
+    CrrFts2Use = CurrPssFts(ismember(CurrPssFts, FtsToUse));
+    CurrFtsNms = FeatsLabels{1, CrrFts2Use};
 
-    BarPlot = bar(ax_curr, FeaturesNames, ImportanceInPerc);
+    ImpInPercs = ANNs{'FeatsImportance',i1}{:}{'PercentagesMSE',CrrFts2Use}*100;
+    FeatsNames = categorical(CurrFtsNms);
+    FeatsNames = reordercats(FeatsNames, CurrFtsNms); % DON'T DELETE THIS ROW!!! Is necessary even if FeaturesNames is already in the correct order!
+    CurrntLoss = ANNsPerf{'Err','Test'}{:}{'Loss',i1};
+    CrrntAUROC = ANNsPerf{'ROC','Test'}{:}{'AUC',i1}{:};
+    switch ANNMode
+        case {'Classic (V)', 'Classic (L)', 'Cross Validation (K-Fold M)', ...
+                'Cross Validation (K-Fold V)', 'Auto', 'Sensitivity Analysis', ...
+                    'Deep (L)', 'Deep (V)'}
+            StructLyrs = ANNs{'Structure',i1}{:};
+            StructStrn = strjoin({num2str(StructLyrs)});
 
-    IndRandFeat = contains(FtsToUse, 'Random');
-    if any(IndRandFeat)
-        yRandFeat = yline(ax_curr, ImportanceInPerc(IndRandFeat), '--', 'Color','r', 'LineWidth',1);
+        case 'Logistic Regression'
+            StructStrn = '-';
+
+        otherwise
+            error('ANNMode not recognized during Feature Importance plots!')
     end
 
-    xBarPos = BarPlot(1).XEndPoints;
-    yBarPos = BarPlot(1).YEndPoints;
-    [~, FeatOrd] = sort(BarPlot(1).YData, 'descend');
-    BarLbls = string(1:length(FeaturesNames));
+    CurrBarPlt = bar(CurrAxs, FeatsNames, ImpInPercs, 'FaceColor',ClrsFI{i1});
+
+    IndRndFeat = contains(CrrFts2Use, 'Rand', 'IgnoreCase',true);
+    if any(IndRndFeat) && (sum(IndRndFeat) == 1)
+        yRandFeat = yline(CurrAxs, ImpInPercs(IndRndFeat), '--', 'Color','r', 'LineWidth',1);
+    end
+
+    xBarPos = CurrBarPlt(1).XEndPoints;
+    yBarPos = CurrBarPlt(1).YEndPoints;
+    [~, FeatOrd] = sort(CurrBarPlt(1).YData, 'descend');
+    BarLbls = string(1:length(FeatsNames));
     [~, FeatOrd2] = sort(FeatOrd, 'ascend');
     BarLbls = BarLbls(FeatOrd2);
     text(xBarPos, yBarPos, BarLbls, 'HorizontalAlignment','center', 'VerticalAlignment','bottom')
 
-    if UpYLimDyn
-        UpYLim = min(ceil(1.10*max(ImportanceInPerc)), 100);
+    if DynUpLm
+        UpYLim = min(ceil(1.10*max(ImpInPercs)), 100);
     else
         UpYLim = 100;
     end
-    ylim([0, UpYLim])
-    ylabel('Feature Importance [%]')
 
-    xtickangle(ax_curr, 90)
+    ylim([0, UpYLim])
+    ylabel('Feature Importance [%]', 'FontName',SelFont, 'FontSize',SelFnSz)
+    CurrAxs.YAxis.FontSize = SelFnSz;
+
+    xtickangle(CurrAxs, 90)
+    xlabel(' ', 'FontName',SelFont, 'FontSize',SelFnSz)
+    CurrAxs.XAxis.FontSize = SelFnSz;
     
     pbaspect([3,1,1])
 
-    title(['Feature Importance (Model n. ',num2str(i1),'; Dataset ',DatasetForFeatsImp,')'], 'FontName',SelectedFont, 'FontSize',1.5*SelectedFontSize)
-    subtitle(['Loss: ',num2str(CurrentLoss),'; Test AUC: ',num2str(CurrentTestAUC),'; Struct: [',strjoin({num2str(StructOfLayers)}),']'], ...
-              'FontName',SelectedFont, 'FontSize',SelectedFontSize)
+    title(['Feature Importance (Model n. ',ANNsNames{i1},'; Dataset ',DsetPrt4FI,')'], 'FontName',SelFont, 'FontSize',1.5*SelFnSz)
+    subtitle(['Loss: ',num2str(CurrntLoss),'; Test AUC: ',num2str(CrrntAUROC), ...
+              '; Struct: [',StructStrn,']'], 'FontName',SelFont, 'FontSize',SelFnSz)
 
     %% Showing plot and saving...
-    if ShowPlots
-        set(curr_fig, 'visible','on');
+    if ShowPlt
+        set(CurrFig, 'visible','on');
         pause
     end
 
-    exportgraphics(curr_fig, [fold_fig_curr,sl,filename,'.png'], 'Resolution',600);
-    close(curr_fig)
+    exportgraphics(CurrFig, [fold_fig_curr,sl,CurrFln,'.png'], 'Resolution',600);
+    close(CurrFig)
 end

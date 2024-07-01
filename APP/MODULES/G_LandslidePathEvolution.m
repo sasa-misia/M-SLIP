@@ -147,7 +147,7 @@ PathsInfo.PlanarProjCRS = ProjCRS;
 if SngGrid
     error('Not yet implemented, please contact the support!')
 end
-% TO IMPLEMENT!
+% TO IMPLEMENT! (A function should be already written!)
 
 %% Loop over all DEM cells
 [DBScanValues, GrdSize] = deal(cell(1, length(xLongAll)));

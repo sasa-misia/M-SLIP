@@ -1,85 +1,104 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig, 'Title','Reading data', ...
-                                 'Message','Reading files...', 'Cancelable','off', ...
-                                 'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
 %% Loading Files
 sl = filesep;
 
-load([fold_var,sl,'GridCoordinates.mat']   , 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'GridCoordinates.mat'   ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
 load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygonClean')
 
 %% Preliminary operations
-Files = {dir([fold_raw_det_ss,sl,'*.xlsx']).name};
-FilesDetectedSoilSlip = string(checkbox2(Files, 'Title',{'Choose file (even multiple):'})); % Maybe it is better the full path!
+FilesExcl = {dir([fold_raw_det_ss,sl,'*.xlsx']).name};
+FlDetSlSp = string(checkbox2(FilesExcl, 'Title',{'Choose file (even multiple):'})); % Maybe it is better the full path!
 
-if length(FilesDetectedSoilSlip) == 1
-    IndDefInfoDet = 1;
-else
-    IndDefInfoDet = listdlg('PromptString',{'Choose the default event: ',''}, ...
-                            'ListString',FilesDetectedSoilSlip, 'SelectionMode','single');
+FilesDetectedSoilSlip = FlDetSlSp;
+FullPthDetectSoilSlip = strcat(fold_raw_det_ss,sl,FlDetSlSp);
+VrInfDt = {'FilesDetectedSoilSlip', 'FullPthDetectSoilSlip'};
+
+SbArAns = checkbox2({'Sub area for each point', 'Allow overlap of DTMs', ...
+                     'Datetimes'}, 'DefInp',[0,0,0], 'OutType','LogInd');
+SubArea = SbArAns(1);
+OvrlDTM = SbArAns(2);
+UseDttm = SbArAns(3);
+
+if SubArea
+    MetNearPnts = listdlg2(strcat("Near points area, file ",FlDetSlSp), {'Circle', 'ImportPolygons'});
 end
 
-VariablesInfoDet = {'FilesDetectedSoilSlip', 'IndDefInfoDet'};
+VrInfDt = [VrInfDt, {'SubArea'}];
 
-drawnow % Remember to remove if in Standalone version
-figure(Fig) % Remember to remove if in Standalone version
+TbCnTpF = {"", "", NaN, NaN, NaN, NaN, NaN, NaN, NaN, "", NaN, NaN, NaN, NaN, NaN, "", NaN, NaN, "", NaT}; % To initialize rows of table!
+TbCnNmF = {'Municipality', 'Location', 'DTM n.', 'Nearest point', ...
+           'Longitude', 'Latitude', 'Elevation', 'Slope', 'Aspect', ...
+           'Soil', 'Cohesion', 'Phi', 'kt', 'A', 'n', ...
+           'Vegetation', 'Beta*', 'Root cohesion', 'Land use', 'Datetime'};
 
-Options = {'Yes', 'No'};
-ChoiceSubArea = uiconfirm(Fig, 'Would you like to create a sub area for each point detected?', ...
-                               'Sub areas', 'Options',Options);
+TbCnNmR = {'Municipality', 'Location', 'Actual coordinates', ...
+           'Info points', 'Soil', 'Vegetation', 'Land use', 'Datetime'};
 
-if strcmp(ChoiceSubArea,'Yes'); SubArea = true; else; SubArea = false; end
-
-VariablesInfoDet = [VariablesInfoDet, {'SubArea'}];
+TbCnTpM = TbCnTpF(3:end-1); % end-1 to remove Datetime!
+TbCnNmM = TbCnNmF(3:end-1); % end-1 to remove Datetime!
 
 %% Extraction of points inside study area
-xLongStudy         = cellfun(@(x,y) x(y)      , xLongAll  , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-yLatStudy          = cellfun(@(x,y) x(y)      , yLatAll   , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-GridPointsStudyCat = cellfun(@(x,y) cat(2,x,y), xLongStudy, yLatStudy                    , 'UniformOutput',false);
+xLongStudy = cellfun(@(x,y) x(y)      , xLongAll  , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+yLatStudy  = cellfun(@(x,y) x(y)      , yLatAll   , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+GrPtsStCat = cellfun(@(x,y) cat(2,x,y), xLongStudy, yLatStudy                    , 'UniformOutput',false);
 
 yLatMean = mean(cellfun(@(x) mean(x), yLatStudy));
 
-%% Creation of tables - Start of loop
-[InfoDetectedSoilSlips, InfoDetectedSoilSlipsAverage, InfoPointsNearDetectedSoilSlips] = deal(cell(1, length(FilesDetectedSoilSlip)));
-for i1 = 1:length(FilesDetectedSoilSlip)
+%% Creation of tables - start of loop
+[InfoDetectedSoilSlips, InfoDetectedSoilSlipsAverage, InfoPointsNearDetectedSoilSlips] = deal(cell(1, length(FlDetSlSp)));
+Ids2Rem = false(size(InfoDetectedSoilSlips));
+for i1 = 1:length(FlDetSlSp)
     %% Data extraction
     ProgressBar.Message = 'Data extraction...';
     
-    DetSSData      = readcell(strcat(fold_raw_det_ss,sl,FilesDetectedSoilSlip(i1)));
-    EmptyPositions = cellfun(@(x) all(ismissing(x)), DetSSData);
-    DetSSData(EmptyPositions) = {'Not specified'};
+    DetSSData = readcell(FullPthDetectSoilSlip(i1));
+    EmptyPosn = cellfun(@(x) all(ismissing(x)), DetSSData);
+    DetSSData(EmptyPosn) = {'Not specified'};
     
-    Municipalities   = DetSSData(2:end,1);
-    Locations        = DetSSData(2:end,2);
-    CoordDetSoilSlip = [cell2mat(DetSSData(2:end,4)), cell2mat(DetSSData(2:end,3))]; % MAKE THIS LINE AUTOMATIC!!!
+    Municipls = DetSSData(2:end,1);
+    Locations = DetSSData(2:end,2);
+    CrdDetSSs = [cell2mat(DetSSData(2:end,4)), cell2mat(DetSSData(2:end,3))]; % MAKE THIS LINE AUTOMATIC!!!
+    if UseDttm
+        DttmClmns = listdlg2({'Choose the datetime column'}, DetSSData(1,:), 'OutType','NumInd');
+        Datetimes = DetSSData{2:end,DttmClmns};
+        if not(isdatetime(Datetimes))
+            warning(['The specified column did not contain datetimes! ', ...
+                     'The Infodetected column will contain just NaT!'])
+            Datetimes = NaT(size(DetSSData(2:end,1)));
+        end
+    end
     
     %% Pre Processing and Initialization
     ProgressBar.Message = 'Processing...';
     [pp1, ee1] = getnan2([StudyAreaPolygonClean.Vertices; nan, nan]);
-    IndexPointsInsideStudyArea = find(inpoly([CoordDetSoilSlip(:,1), CoordDetSoilSlip(:,2)], pp1, ee1)==1);
+    IndexPointsInsideStudyArea = find(inpoly([CrdDetSSs(:,1), CrdDetSSs(:,2)], pp1, ee1)==1);
 
-    Municipalities   = Municipalities(IndexPointsInsideStudyArea);
-    Locations        = Locations(IndexPointsInsideStudyArea);
-    CoordDetSoilSlip = CoordDetSoilSlip(IndexPointsInsideStudyArea, :);
+    Municipls = Municipls(IndexPointsInsideStudyArea);
+    Locations = Locations(IndexPointsInsideStudyArea);
+    CrdDetSSs = CrdDetSSs(IndexPointsInsideStudyArea, :);
     
     if length(IndexPointsInsideStudyArea) ~= length(DetSSData(2:end,1))
         DeletedPoints = length(DetSSData(2:end,1))-length(IndexPointsInsideStudyArea);
-        warning(strcat(string(DeletedPoints),' points were deleted!'))
+        warning(strcat(string(DeletedPoints),' points deleted!'))
+        if isempty(IndexPointsInsideStudyArea)
+            warning(['After removing points outside Study Area, no one left! ', ...
+                     'The file ',char(FilesDetectedSoilSlip(i1)),' will be removed!'])
+            Ids2Rem(i1) = true;
+            continue
+        end
     end
     
-    InfoDetectedSoilSlips{i1} = cell(size(CoordDetSoilSlip,1), 19); % Array initialization
+    InfoDetectedSoilSlips{i1} = cell2table(repmat(TbCnTpF, size(CrdDetSSs,1), 1), 'VariableNames',TbCnNmF); % Initialization
     if SubArea
         InfoDetectedSoilSlipsAverage{i1}    = cell(1,2); % Array initialization
-        InfoDetectedSoilSlipsAverage{i1}{1} = repmat(polyshape, 1, size(CoordDetSoilSlip,1)); % Array initialization
-        InfoPointsNearDetectedSoilSlips{i1} = cell(size(CoordDetSoilSlip,1), 7); % Array initialization
+        InfoDetectedSoilSlipsAverage{i1}{1} = repmat(polyshape, 1, size(CrdDetSSs,1)); % Array initialization
+        InfoPointsNearDetectedSoilSlips{i1} = array2table(cell(size(CrdDetSSs,1), numel(TbCnNmR)), 'VariableNames',TbCnNmR); % Array initialization
 
-        Options = {'Circle', 'ImportPolygons'};
-        MethodForNearPoints = uiconfirm(Fig, ['How do you want to define area to average for file "', ...
-                                              char(FilesDetectedSoilSlip(i1)),'"?'], ...
-                                             'Sub areas', 'Options',Options);
-        switch MethodForNearPoints
+        switch MetNearPnts{i1}
             case 'Circle'
                 AreaDiamet = str2double(inputdlg2(['Set diameter [m] for file n. ',num2str(i1)], 'DefInp',{'50'}));
     
@@ -90,37 +109,44 @@ for i1 = 1:length(FilesDetectedSoilSlip)
                     error('You have to import the shapefile first (C_DetectedSoilSLips.m script)')
                 end
                 IDsDetSoilSlip = string(Locations);
+
+            otherwise
+                error('Near points method not recognized!')
         end
     end
 
     %% Processing
-    for i2 = 1:size(CoordDetSoilSlip,1)
-        InfoDetectedSoilSlips{i1}{i2,1} = Municipalities{i2};
-        InfoDetectedSoilSlips{i1}{i2,2} = Locations{i2};
+    for i2 = 1:size(CrdDetSSs,1)
+        InfoDetectedSoilSlips{i1}{i2,1} = string(Municipls{i2});
+        InfoDetectedSoilSlips{i1}{i2,2} = string(Locations{i2});
     
-        Point1 = CoordDetSoilSlip(i2,:);
+        CurrPnt = CrdDetSSs(i2,:);
     
-        Distance = cellfun(@(x) pdist2(x,Point1), GridPointsStudyCat, 'UniformOutput',false); 
-        MinDistanceInEachDTM = cellfun(@min, Distance, 'UniformOutput',false);
-        MinDistanceAll = min([MinDistanceInEachDTM{:}]);
+        CurrDistns = cellfun(@(x) pdist2(x,CurrPnt), GrPtsStCat, 'UniformOutput',false); 
+        MinDst4DTM = cellfun(@min, CurrDistns, 'UniformOutput',false);
+        MinDistAll = min([MinDst4DTM{:}]);
     
-        CheckDTMIncludingPoint = cellfun(@(x) x==MinDistanceAll, MinDistanceInEachDTM, 'UniformOutput',false);
+        CkPntInDTM = cellfun(@(x) x==MinDistAll, MinDst4DTM, 'UniformOutput',false);
     
-        tf = cellfun(@isempty, CheckDTMIncludingPoint);
-        CheckDTMIncludingPoint(tf) = {0}; % Zeros when Index are empty
+        tf = cellfun(@isempty, CkPntInDTM);
+        CkPntInDTM(tf) = {0}; % Zeros when Index are empty
     
-        DTMIncludingPoint = find([CheckDTMIncludingPoint{:}]);
+        DTMIncludingPoint = find([CkPntInDTM{:}]);
         InfoDetectedSoilSlips{i1}{i2,3} = DTMIncludingPoint;
     
-        CheckNearestPoint = cellfun(@(x) x==MinDistanceAll, Distance(DTMIncludingPoint), 'UniformOutput',false);
+        CheckNearestPoint = cellfun(@(x) x==MinDistAll, CurrDistns(DTMIncludingPoint), 'UniformOutput',false);
         NearestPoint = find([CheckNearestPoint{:}]); % This is an index of indices
         InfoDetectedSoilSlips{i1}{i2,4} = NearestPoint;
     
         InfoDetectedSoilSlips{i1}{i2,5} = xLongStudy{DTMIncludingPoint}(NearestPoint);
         InfoDetectedSoilSlips{i1}{i2,6} = yLatStudy{DTMIncludingPoint}(NearestPoint);
+
+        if UseDttm
+            InfoDetectedSoilSlips{i1}{i2,20} = Datetimes(i2);
+        end
     
         if SubArea
-            switch MethodForNearPoints
+            switch MetNearPnts{i1}
                 case 'Circle'
                     dLatRadius  = rad2deg(AreaDiamet/2/earthRadius); % /2 to have half of the size from the centre
                     dLongRadius = rad2deg(acos( (cos(AreaDiamet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
@@ -139,7 +165,7 @@ for i1 = 1:length(FilesDetectedSoilSlip)
 
                     if isempty(IndCurrID)
                         error(strcat("The polygon with ID: ",CurrID," was not found!")); 
-                    elseif numel(IndCurrID) == 1
+                    elseif isscalar(IndCurrID)
                         PolTemp = IDsPolygonsStudyArea(IndCurrID);
                     elseif numel(IndCurrID) > 1
                         PolTemp = union(IDsPolygonsStudyArea(IndCurrID));
@@ -147,15 +173,20 @@ for i1 = 1:length(FilesDetectedSoilSlip)
                     end
 
                     InfoDetectedSoilSlipsAverage{i1}{1}(i2) = PolTemp;
+
+                otherwise
+                    error('Method for near points not recognized!')
             end
 
             [pp2, ee2] = getnan2([PolTemp.Vertices; nan, nan]);
-            NearestPoints   = cellfun(@(x) find(inpoly(x, pp2,ee2)), GridPointsStudyCat, 'UniformOutput',false); % These are indices of indices
+            NearestPoints   = cellfun(@(x) find(inpoly(x, pp2,ee2)), GrPtsStCat, 'UniformOutput',false); % These are indices of indices
             DTMIntersecated = find(~cellfun(@isempty, NearestPoints)); % Check where is NOT empty thanks to ~
-            InfoPointsNearDetectedSoilSlips{i1}(i2,1:3) = {Municipalities{i2}; Locations{i2}; Point1};
+            InfoPointsNearDetectedSoilSlips{i1}{i2,1:3} = {Municipls{i2}, Locations{i2}, CurrPnt};
+            if UseDttm
+                InfoPointsNearDetectedSoilSlips{i1}{i2,8} = {Datetimes(i2)};
+            end
             
-            OverlapDTMs = false; % GIVE THE CHOICE TO USER!!
-            if OverlapDTMs
+            if OvrlDTM
                 InfoPointsNearTemp = [repmat(DTMIntersecated(1),size(NearestPoints{DTMIntersecated(1)})), ...
                                       NearestPoints{DTMIntersecated(1)}];
                 if length(DTMIntersecated)>1
@@ -164,24 +195,39 @@ for i1 = 1:length(FilesDetectedSoilSlip)
                                               [repmat(DTMIntersecated(i3),size(NearestPoints{DTMIntersecated(i3)})), NearestPoints{DTMIntersecated(i3)}] ];
                     end
                 end
-                InfoPointsNearDetectedSoilSlips{i1}{i2,4} = num2cell(InfoPointsNearTemp);
             else  
                 [~, DTMWithMorePoints] = max(cellfun(@length, NearestPoints));
-                InfoPointsNearDetectedSoilSlips{i1}{i2,4} = num2cell( [repmat(DTMWithMorePoints,size(NearestPoints{DTMWithMorePoints})), ...
-                                                                       NearestPoints{DTMWithMorePoints}] );
+                InfoPointsNearTemp = [repmat(DTMWithMorePoints,size(NearestPoints{DTMWithMorePoints})), NearestPoints{DTMWithMorePoints}];
             end
+
+            InfoPointsNearDetectedSoilSlips{i1}{i2,4} = {cell2table(repmat(TbCnTpM, size(InfoPointsNearTemp,1), 1), 'Variablenames',TbCnNmM)};
+            InfoPointsNearDetectedSoilSlips{i1}{i2,4}{:}{:,1:2} = InfoPointsNearTemp;
         end
 
     end
 end
 
-%% Adding variables names to save
-VariablesInfoDet = [VariablesInfoDet, {'InfoDetectedSoilSlips'}];
+%% Cleaning of empty objects
+FilesDetectedSoilSlip(Ids2Rem) = [];
+FullPthDetectSoilSlip(Ids2Rem) = [];
+InfoDetectedSoilSlips(Ids2Rem) = [];
 if SubArea
-    VariablesInfoDet = [VariablesInfoDet, {'InfoPointsNearDetectedSoilSlips', 'InfoDetectedSoilSlipsAverage'}];
+    InfoPointsNearDetectedSoilSlips(Ids2Rem) = [];
+    InfoDetectedSoilSlipsAverage(Ids2Rem)    = [];
+end
+
+IndDefInfoDet = 1;
+if not(isscalar(FilesDetectedSoilSlip))
+    IndDefInfoDet = listdlg2({'Default event:'}, FilesDetectedSoilSlip, 'OutType','NumInd');
+end
+
+%% Adding variables names to save
+VrInfDt = [VrInfDt, {'IndDefInfoDet', 'InfoDetectedSoilSlips'}];
+if SubArea
+    VrInfDt = [VrInfDt, {'InfoPointsNearDetectedSoilSlips', 'InfoDetectedSoilSlipsAverage'}];
 end
 
 %% Saving...
 ProgressBar.Message = 'Saving...';
 
-save([fold_var,sl,'InfoDetectedSoilSlips.mat'], VariablesInfoDet{:})
+saveswitch([fold_var,sl,'InfoDetectedSoilSlips.mat'], VrInfDt)

@@ -47,7 +47,7 @@ AvgValMns = zeros(length(FilesToRead), length(MunPolygon));
     DateEnd] = deal(NaT(length(FilesToRead), 1));
 ProgressBar.Indeterminate = 'off';
 for i1 = 1:length(FilesToRead)
-    ProgressBar.Message = strcat("Computing average NDVI for file n. ",num2str(i1)," of ", num2str(length(FilesToRead)));
+    ProgressBar.Message = ['Computing average NDVI for file n. ',num2str(i1),' of ',num2str(length(FilesToRead))];
     ProgressBar.Value   = i1/length(FilesToRead);
 
     [~, TmpNm] = fileparts(FilesToRead(i1));

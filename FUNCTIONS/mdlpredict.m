@@ -44,9 +44,9 @@ end
 %% Core
 if isa(Model, 'dlnetwork')
     if isa(Dataset, 'table')
-        warning(['Dataset to predict is a table but you have a dlnetwork ', ...
-                 'model -> input dataset will be converted in array, ', ...
-                 'check order of input dataset features!'])
+        warning(['mdlpredict| Dataset to predict is a table but you have ', ...
+                 'a dlnetwork model -> input dataset will be converted in ', ...
+                 'array, check order of input dataset features!'])
         DatasetArr = table2array(Dataset);
     end
 
@@ -64,7 +64,8 @@ end
 OutOfRng = any(CurrPreds < 0) | any(CurrPreds > 1);
 if OutOfRng
     CurrPreds = min(max(CurrPreds, 0), 1);
-    warning('Some values of the prediction were cutted out because out of range 0-1')
+    warning(['mdlpredict| Some values of the prediction ', ...
+             'were cutted out because out of range 0-1'])
 end
 
 FrstPreds = CurrPreds(:,1);
@@ -76,9 +77,9 @@ end
 
 if SnglCol
     CurrPreds = sum(CurrPreds, 2); % Correct only in case of softmax as last layer!
-    if OrigSize > 1 && not(isequal(single(1-round(FrstPreds, 2)), single(round(CurrPreds, 2))))
-        warning(['Summed probabilities are not equal to the first class! ' ...
-                 'Please check with predict function!'])
+    if OrigSize > 1 && not(all(single(round(FrstPreds, 2)) + single(round(CurrPreds, 2)) == 1))
+        warning(['mdlpredict| Summed probabilities are not equal to ' ...
+                 'the first class! Please check with predict function!'])
     end
 end
 

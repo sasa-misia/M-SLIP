@@ -1,6 +1,6 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig,'Title','Please wait..', 'Message','Loading files', ...
-                                'Cancelable','on', 'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Cancelable','off', 'Message','Reading files...');
 drawnow
 
 %% Import data
@@ -16,7 +16,13 @@ if exist([fold_var,sl,'AnalysisInformation.mat'], 'file')
 end
 
 if AnswerTypeRec == 1
-    load([fold_var,sl,'GeneralRainfall.mat'], 'Gauges','GeneralData')
+    load([fold_var,sl,'GeneralRainfall.mat'], 'Gauges','GeneralData','GenDataProps')
+    IndCumRain = 1;
+    if not(iscell(GeneralData)); error('Please, update Generaldata (run again Select file(s))'); end
+    if numel(GeneralData) > 1
+        IndCumRain = listdlg2({'Property of cumul. rain:'}, GenDataProps, 'OutType','NumInd');
+    end
+    GenCumRain = GeneralData{IndCumRain};
 end
 
 if AnswerTypeFor == 1
@@ -48,7 +54,7 @@ if AnswerTypeRec == 1
         % Check for Cancel button press
         if ProgressBar.CancelRequested; break; end
     
-        CurrIntrp = scatteredInterpolant(xLongSta, yLatSta, GeneralData(:,IndexInterpolation(i1)), 'natural');   
+        CurrIntrp = scatteredInterpolant(xLongSta, yLatSta, GenCumRain(IndexInterpolation(i1),:)', 'natural');
         for i2 = 1:size(xLongAll,2)
             xLong = xLongAll{i2}(IndexDTMPointsInsideStudyArea{i2});
             yLat  = yLatAll{i2}(IndexDTMPointsInsideStudyArea{i2});

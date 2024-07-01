@@ -74,6 +74,16 @@ if ~isempty(varargin)
     if InputDefInps ; DefInps = varargin{InputDefInps+1  }; end
 end
 
+if isnumeric(DefInps)
+    IsBin = all(ismember(DefInps, [0, 1]));
+    if IsBin
+        DefInps = logical(DefInps);
+    else
+        error(['If you specify a numeric array as ', ...
+               'DefInp, you must use just 0 and 1!'])
+    end
+end
+
 if not(islogical(DefInps)) || (numel(DefInps) ~= numel(Values))
     error(['DefInp variable is not a logical array or it ' ...
            'does not have the same size of Values variable!'])
