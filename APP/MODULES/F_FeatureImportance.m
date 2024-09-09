@@ -7,19 +7,19 @@ drawnow
 sl = filesep;
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
 
-MdlType = find([exist([fold_res_ml_curr,sl,'ANNsMdlA.mat'], 'file'), ...
-                exist([fold_res_ml_curr,sl,'ANNsMdlB.mat'], 'file')]);
+MdlType = find([exist([fold_res_ml_curr,sl,'MLMdlA.mat'], 'file'), ...
+                exist([fold_res_ml_curr,sl,'MLMdlB.mat'], 'file')]);
 if not(isscalar(MdlType)); error('More than one model found in your folder!'); end
 switch MdlType
     case 1
-        Fl2LdMdl = 'ANNsMdlA.mat';
-        load([fold_res_ml_curr,sl,Fl2LdMdl], 'ANNs','ModelInfo')
+        Fl2LdMdl = 'MLMdlA.mat';
+        load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLMdl','ModelInfo')
         NormData = false;
         DsetInfo = ModelInfo.Dataset;
 
     case 2
-        Fl2LdMdl = 'ANNsMdlB.mat';
-        load([fold_res_ml_curr,sl,Fl2LdMdl], 'ANNs','ModelInfo')
+        Fl2LdMdl = 'MLMdlB.mat';
+        load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLMdl','ModelInfo')
         NormData = ModelInfo.DatasetInfo{:}{1,'NormalizedData'};
         DsetInfo = ModelInfo.DatasetInfo{:};
 
@@ -67,13 +67,13 @@ end
 
 %% Features importance computation
 ProgressBar.Indeterminate = 'off';
-ANNs{'FeatsImportance',:} = {missing};
-for IndCurrMdl = 1:size(ANNs,2)
-    ProgressBar.Value   = IndCurrMdl/size(ANNs,2);
-    ProgressBar.Message = ['Assessing feat imp for model n. ',num2str(IndCurrMdl),' of ',num2str(size(ANNs,2))];
+MLMdl{'FeatsImportance',:} = {missing};
+for IndCurrMdl = 1:size(MLMdl,2)
+    ProgressBar.Value   = IndCurrMdl/size(MLMdl,2);
+    ProgressBar.Message = ['Assessing feat imp for model n. ',num2str(IndCurrMdl),' of ',num2str(size(MLMdl,2))];
 
-    CurrModel = ANNs{'Model',IndCurrMdl}{:};
-    CurrFeats = ANNs{'FeatsConsidered',IndCurrMdl}{:};
+    CurrModel = MLMdl{'Model',IndCurrMdl}{:};
+    CurrFeats = MLMdl{'FeatsConsidered',IndCurrMdl}{:};
 
     switch FeatImpChc
         case 'FeaturePermutation'
@@ -113,10 +113,10 @@ for IndCurrMdl = 1:size(ANNs,2)
             error('Method not recognized!')
     end
 
-    ANNs{'FeatsImportance',IndCurrMdl} = {TableFeatImp};
+    MLMdl{'FeatsImportance',IndCurrMdl} = {TableFeatImp};
 end
 ProgressBar.Indeterminate = 'on';
 
 %% Saving...
-VariablesToUpdate = {'ANNs', 'ModelInfo'};
+VariablesToUpdate = {'MLMdl', 'ModelInfo'};
 save([fold_res_ml_curr,sl,Fl2LdMdl], VariablesToUpdate{:}, '-append');

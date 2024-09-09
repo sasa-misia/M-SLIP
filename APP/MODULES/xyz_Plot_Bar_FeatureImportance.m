@@ -17,17 +17,17 @@ else
     SelFnSz = 8;
 end
 
-MdlType = find([exist([fold_res_ml_curr,sl,'ANNsMdlA.mat'], 'file'), ...
-                exist([fold_res_ml_curr,sl,'ANNsMdlB.mat'], 'file')]);
+MdlType = find([exist([fold_res_ml_curr,sl,'MLMdlA.mat'], 'file'), ...
+                exist([fold_res_ml_curr,sl,'MLMdlB.mat'], 'file')]);
 if not(isscalar(MdlType)); error('More than one model found in your folder!'); end
 switch MdlType
     case 1
-        load([fold_res_ml_curr,sl,'ANNsMdlA.mat'], 'ANNs','ANNsPerf','ModelInfo')
+        load([fold_res_ml_curr,sl,'MLMdlA.mat'], 'MLMdl','MLPerf','ModelInfo')
         ANNMode = ModelInfo.ANNsOptions.TrainMode;
         CurrFts = ModelInfo.Dataset.Datasets(1).Feats;
 
     case 2
-        load([fold_res_ml_curr,sl,'ANNsMdlB.mat'], 'ANNs','ANNsPerf','ModelInfo')
+        load([fold_res_ml_curr,sl,'MLMdlB.mat'], 'MLMdl','MLPerf','ModelInfo')
         ANNMode = ModelInfo.ANNMode;
         CurrFts = ModelInfo.DatasetInfo{1}.FeaturesNames{:};
 
@@ -50,21 +50,21 @@ if not(DynUpLm)
     FixdLimY = str2double(inputdlg2({'Upper limit in % :'}, 'DefInp',{'100'}));
 end
 
-IndMdls2Tk = true(1, size(ANNs,2));
+IndMdls2Tk = true(1, size(MLMdl,2));
 if FiltMdl
     Mtr4Flt = char(listdlg2({'Metric to use for filter'}, {'MSE', 'AUROC', 'Loss'}));
     switch Mtr4Flt
         case 'MSE'
             TextMetr = 'MSE';
-            TestMetr = [ANNsPerf{'Err','Test'}{:}{'MSE',:}];
+            TestMetr = [MLPerf{'Err','Test'}{:}{'MSE',:}];
 
         case 'AUROC'
             TextMetr = 'AUC';
-            TestMetr = [ANNsPerf{'ROC','Test'}{:}{'AUC',:}{:}];
+            TestMetr = [MLPerf{'ROC','Test'}{:}{'AUC',:}{:}];
 
         case 'Loss'
             TextMetr = 'Loss';
-            TestMetr = [ANNsPerf{'Err','Test'}{:}{'Loss',:}];
+            TestMetr = [MLPerf{'Err','Test'}{:}{'Loss',:}];
     end
     MetrThr = str2double(inputdlg2({[TextMetr,' threshold for models (max: ', ...
                                      num2str(max(TestMetr)),'; min: ', ...
@@ -83,8 +83,8 @@ if CstmNms
     FeatsLabels = array2table(FtsNewLabls, 'VariableNames',CurrFts);
 end
 
-if size(ANNs, 2) > 3
-    ClrsFI  = repmat({'#0097df'}, 1, size(ANNs, 2)); % Colors
+if size(MLMdl, 2) > 3
+    ClrsFI  = repmat({'#0097df'}, 1, size(MLMdl, 2)); % Colors
 else
     ClrsFI  = {'#739373', '#d3643c', '#0097df'}; % Colors
 end
@@ -97,7 +97,7 @@ if ~exist(fold_fig_curr, 'dir')
     mkdir(fold_fig_curr)
 end
 
-ANNsNames = ANNs.Properties.VariableNames;
+ANNsNames = MLMdl.Properties.VariableNames;
 for i1 = 1:length(IndMdls2Tk)
     if not(IndMdls2Tk(i1)); continue; end % To skip cycle if not good model
 
@@ -106,20 +106,20 @@ for i1 = 1:length(IndMdls2Tk)
     CurrAxs = axes(CurrFig, 'FontName',SelFont, 'FontSize',SelFnSz);
     set(CurrFig, 'Name',CurrFln, 'visible','off')
 
-    CurrPssFts = ANNs{'FeatsConsidered',i1}{:};
+    CurrPssFts = MLMdl{'FeatsConsidered',i1}{:};
     CrrFts2Use = CurrPssFts(ismember(CurrPssFts, FtsToUse));
     CurrFtsNms = FeatsLabels{1, CrrFts2Use};
 
-    ImpInPercs = ANNs{'FeatsImportance',i1}{:}{'PercentagesMSE',CrrFts2Use}*100;
+    ImpInPercs = MLMdl{'FeatsImportance',i1}{:}{'PercentagesMSE',CrrFts2Use}*100;
     FeatsNames = categorical(CurrFtsNms);
     FeatsNames = reordercats(FeatsNames, CurrFtsNms); % DON'T DELETE THIS ROW!!! Is necessary even if FeaturesNames is already in the correct order!
-    CurrntLoss = ANNsPerf{'Err','Test'}{:}{'Loss',i1};
-    CrrntAUROC = ANNsPerf{'ROC','Test'}{:}{'AUC',i1}{:};
+    CurrntLoss = MLPerf{'Err','Test'}{:}{'Loss',i1};
+    CrrntAUROC = MLPerf{'ROC','Test'}{:}{'AUC',i1}{:};
     switch ANNMode
         case {'Classic (V)', 'Classic (L)', 'Cross Validation (K-Fold M)', ...
                 'Cross Validation (K-Fold V)', 'Auto', 'Sensitivity Analysis', ...
                     'Deep (L)', 'Deep (V)'}
-            StructLyrs = ANNs{'Structure',i1}{:};
+            StructLyrs = MLMdl{'Structure',i1}{:};
             StructStrn = strjoin({num2str(StructLyrs)});
 
         case 'Logistic Regression'

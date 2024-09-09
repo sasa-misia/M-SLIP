@@ -8,8 +8,8 @@ sl = filesep;
 
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
 
-load([fold_res_ml_curr,sl,'ANNsMdlA.mat'], 'ANNs','ANNsPerf','ModelInfo')
-load([fold_var,sl,'DatasetMLA.mat'      ], 'DatasetInfo')
+load([fold_res_ml_curr,sl,'MLMdlA.mat'], 'MLMdl','MLPerf','ModelInfo')
+load([fold_var,sl,'DatasetMLA.mat'    ], 'DatasetInfo')
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize')
@@ -86,18 +86,18 @@ DsetLblAss = listdlg2({'Duration', 'NDVI', ...
 
 switch Mdl2Plt
     case 'All'
-        IndMdl2Tk = 1:size(ANNs,2);
+        IndMdl2Tk = 1:size(MLMdl,2);
 
     case 'Manual'
-        ANNsNms = ANNs.Properties.VariableNames;
-        [~, Bst4AUC] = max(cell2mat(ANNsPerf{'ROC','Test'}{:}{'AUC',:}));
-        [~, Bst4MSE] = min(ANNsPerf{'Err','Test'}{:}{'MSE',:});
-        IndMdl2Tk = checkbox2(ANNsNms, 'Title',{['Model to plot? (Best for tst AUC: ',ANNsNms{Bst4AUC}, ...
-                                                 '; Best for tst MSE: ',ANNsNms{Bst4MSE}]}, 'OutType','NumInd');
+        MdlNms = MLMdl.Properties.VariableNames;
+        [~, Bst4AUC] = max(cell2mat(MLPerf{'ROC','Test'}{:}{'AUC',:}));
+        [~, Bst4MSE] = min(MLPerf{'Err','Test'}{:}{'MSE',:});
+        IndMdl2Tk = checkbox2(MdlNms, 'Title',{['Model to plot? (Best for tst AUC: ',MdlNms{Bst4AUC}, ...
+                                                '; Best for tst MSE: ',MdlNms{Bst4MSE}]}, 'OutType','NumInd');
 
     case 'AUROC'
         ThreshAUC = str2double(inputdlg2({'Set AUROC threshold: '}, 'DefInp',{'0.7'}));
-        IndMdl2Tk = find(cell2mat(ANNsPerf{'ROC','Test'}{:}{'AUC',:}) > ThreshAUC);
+        IndMdl2Tk = find(cell2mat(MLPerf{'ROC','Test'}{:}{'AUC',:}) > ThreshAUC);
 
     otherwise
         error('Choice not recognized!')
@@ -112,9 +112,9 @@ else
     EventsYearUnique = num2cell(unique(EventsYear));
 end
 
-ANNsNames = ANNs.Properties.VariableNames;
+MdlNames = MLMdl.Properties.VariableNames;
 for IndCurr = IndMdl2Tk
-    CurrMdl = ANNs{'Model',IndCurr}{:};
+    CurrMdl = MLMdl{'Model',IndCurr}{:};
 
     PredOutsRaw = mdlpredict(CurrMdl, DsetFtsTot);
 
@@ -136,7 +136,7 @@ for IndCurr = IndMdl2Tk
         else
             EvsLabel = char(strjoin(string(EventsYearUnique{i1}), '-'));
         end
-        CurrNme = [ANNsNames{IndCurr},' preds rain - yr ',EvsLabel,' - ',char(MunList{IndDset2Tk})];
+        CurrNme = [MdlNames{IndCurr},' preds rain - yr ',EvsLabel,' - ',char(MunList{IndDset2Tk})];
 
         IndsEventsInYear = arrayfun(@(x) x == EventsYear, EventsYearUnique{i1}, 'UniformOutput',false);
         IndsEventsInYear = any(cat(2, IndsEventsInYear{:}), 2);

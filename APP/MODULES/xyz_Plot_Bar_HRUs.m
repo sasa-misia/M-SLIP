@@ -4,32 +4,30 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files
 drawnow
 
 %% Loading data
-load([fold_var,sl,'HRUs.mat'],            'CombinationsAll','HRUsAll','InfoLegLandUse','InfoLegSlope','InfoLegSoil')
+load([fold_var,sl,'HRUs.mat'           ], 'CombinationsAll','HRUsAll','InfoLegLandUse','InfoLegSlope','InfoLegSoil')
 load([fold_var,sl,'GridCoordinates.mat'], 'xLongAll','yLatAll')
+load([fold_var,sl,'DatasetStudy.mat'   ], 'StablePolygons','UnstablePolygons')
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelectedFont     = Font;
-    SelectedFontSize = FontSize;
+    SelFont = Font;
+    SelFtSz = FontSize;
+    if exist('LegendPosition', 'var')
+        LgndPos = LegendPosition;
+    end
 else
-    SelectedFont     = 'Times New Roman';
-    SelectedFontSize = 8;
-    LegendPosition   = 'Best';
+    SelFont = 'Times New Roman';
+    SelFtSz = 8;
+    LgndPos = 'Best';
 end
 
-fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
-load([fold_res_ml_curr,sl,'TrainedANNs.mat'], 'StablePolyMrgd','UnstablePolyMrgd')
-
-% figure(Fig)
-% drawnow
-
 %% Calculating indices of points inside polygons
-if length(UnstablePolyMrgd) > 1; UnstablePolyMrgd = union(UnstablePolyMrgd); end
-[pp1, ee1] = getnan2([UnstablePolyMrgd.Vertices; nan, nan]);
+if length(UnstablePolygons) > 1; UnstablePolygons = union(UnstablePolygons); end
+[pp1, ee1] = getnan2([UnstablePolygons.Vertices; nan, nan]);
 IndOfUnstabPoints = cellfun(@(x,y) find(inpoly([x(:),y(:)], pp1,ee1)), xLongAll, yLatAll, 'UniformOutput',false);
 
-if length(StablePolyMrgd) > 1; StablePolyMrgd = union(StablePolyMrgd); end
-[pp2, ee2] = getnan2([StablePolyMrgd.Vertices; nan, nan]);
+if length(StablePolygons) > 1; StablePolygons = union(StablePolygons); end
+[pp2, ee2] = getnan2([StablePolygons.Vertices; nan, nan]);
 IndOfStabPoints   = cellfun(@(x,y) find(inpoly([x(:),y(:)], pp2,ee2)), xLongAll, yLatAll, 'UniformOutput',false);
 
 %% Extraction of HRUs
@@ -91,12 +89,11 @@ if strcmp(HideLows, 'Yes')
 end
 
 %% Plot of bar charts
-cd(fold_fig)
 PlotArea = {'Unstable area', 'Stable area'};
 for i1 = 1:length(PlotArea)
     filename = [InfoType,' statistics (',PlotArea{i1},')'];
     curr_fig = figure(i1);
-    ax_curr  = axes(curr_fig, 'FontName',SelectedFont, 'FontSize',SelectedFontSize);
+    ax_curr  = axes(curr_fig, 'FontName',SelFont, 'FontSize',SelFtSz);
     set(curr_fig, 'visible','on')
     set(curr_fig, 'Name',filename);
     
@@ -110,7 +107,7 @@ for i1 = 1:length(PlotArea)
     yBarPos = BarPlot(1).YEndPoints;
     BarLbls = strcat(num2str(round(ClassesFreqs{i1}', 1)), '%');
     text(xBarPos, yBarPos, BarLbls, 'HorizontalAlignment','center', 'VerticalAlignment','bottom', ...
-                                    'FontName',SelectedFont, 'FontSize',0.9*SelectedFontSize)
+                                    'FontName',SelFont, 'FontSize',0.9*SelFtSz)
     
     if strcmp(HideLows, 'Yes')
         xLabText = ['Name of ',InfoType,' (only classes with freq >= ', num2str(FreqThr), '%)'];
@@ -118,8 +115,8 @@ for i1 = 1:length(PlotArea)
         xLabText = ['Name of ',InfoType];
     end
 
-    xlabel(xLabText          , 'FontName',SelectedFont, 'FontSize',1.2*SelectedFontSize)
-    ylabel('Num of cells [-]', 'FontName',SelectedFont, 'FontSize',1.2*SelectedFontSize)
+    xlabel(xLabText          , 'FontName',SelFont, 'FontSize',1.2*SelFtSz)
+    ylabel('Num of cells [-]', 'FontName',SelFont, 'FontSize',1.2*SelFtSz)
 
     ylim([0, 1.2*max(ClassesCount{i1})])
 
@@ -127,12 +124,11 @@ for i1 = 1:length(PlotArea)
     
     pbaspect([3.5, 1, 1])
     
-    title(    ['Bar plot of ',InfoType,' in ',PlotArea{i1}]    , 'FontName',SelectedFont, 'FontSize',1.5*SelectedFontSize )
-    subtitle( ['Consistency Index: ',num2str(ConsistToUse{i1})], 'FontName',SelectedFont, 'FontSize',SelectedFontSize     )
+    title(    ['Bar plot of ',InfoType,' in ',PlotArea{i1}]    , 'FontName',SelFont, 'FontSize',1.5*SelFtSz )
+    subtitle( ['Consistency Index: ',num2str(ConsistToUse{i1})], 'FontName',SelFont, 'FontSize',SelFtSz     )
 
-    exportgraphics(curr_fig, strcat(filename,'.png'), 'Resolution',600);
+    exportgraphics(curr_fig, [fold_fig,filesep,filename,'.png'], 'Resolution',600);
 end
-cd(fold0)
 
 %% Plot of tables
 ColumnNames = {'Class Name', 'Attribute'};

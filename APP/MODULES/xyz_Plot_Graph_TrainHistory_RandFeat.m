@@ -9,10 +9,10 @@ sl = filesep;
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize')
     SelFont = Font;
-    SelFnSz = FontSize;
+    SelFtSz = FontSize;
 else
     SelFont = 'Calibri';
-    SelFnSz = 8;
+    SelFtSz = 8;
 end
 
 FoldCntnt = {dir(fold_res).name};
@@ -30,24 +30,24 @@ for i1 = 1:length(FldrsToRd)
     if not(isscalar(MdlType)); error('More than one model found in your folder!'); end
     switch MdlType
         case 1
-            Fl2LdMdl = 'ANNsMdlA.mat';
-            load([fold_res_ml_curr,sl,Fl2LdMdl], 'ANNs','HistInfo')
+            Fl2LdMdl = 'MLMdlA.mat';
+            load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLMdl','HistInfo')
     
         case 2
-            Fl2LdMdl = 'ANNsMdlB.mat';
-            load([fold_res_ml_curr,sl,Fl2LdMdl], 'ANNs','HistInfo')
+            Fl2LdMdl = 'MLMdlB.mat';
+            load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLMdl','HistInfo')
     
         otherwise
             error('No trained ModelA or B found!')
     end
     
     if i1 == 1
-        Mdls2Tk = checkbox2(ANNs.Properties.VariableNames, 'Title','Models to take (max 5):', 'OutType','NumInd');
+        Mdls2Tk = checkbox2(MLMdl.Properties.VariableNames, 'Title','Models to take (max 5):', 'OutType','NumInd');
         if numel(Mdls2Tk) > 5 || numel(Mdls2Tk) < 1
             error('You must select 1 or more structures, up to 5!')
         end
     else
-        Mdls2Tk = cellfun(@(x) find(cellfun(@(y) isequal(y, x), ANNs{'Structure',:})), HistANNsStct{i1-1}, 'UniformOutput',false);
+        Mdls2Tk = cellfun(@(x) find(cellfun(@(y) isequal(y, x), MLMdl{'Structure',:})), HistANNsStct{i1-1}, 'UniformOutput',false);
         IsMptCl = cellfun(@isempty, Mdls2Tk);
         if any(IsMptCl)
             error(['Some structures do not have a match in folder ',fold_res_ml_curr])
@@ -59,10 +59,10 @@ for i1 = 1:length(FldrsToRd)
         end
     end
 
-    HistANNsNmes{i1} = ANNs.Properties.VariableNames(Mdls2Tk);
+    HistANNsNmes{i1} = MLMdl.Properties.VariableNames(Mdls2Tk);
     HistRndFtFld{i1} = HistInfo.FeatImp.RandFeat(:,Mdls2Tk);
-    HistANNsStct{i1} = ANNs{'Structure',Mdls2Tk};
-    clear('ANNs', 'HistInfo')
+    HistANNsStct{i1} = MLMdl{'Structure',Mdls2Tk};
+    clear('MLMdl', 'HistInfo')
 end
 
 if not(all(cellfun(@(x) isequal(x, HistANNsStct{1}), HistANNsStct)))
@@ -80,9 +80,9 @@ end
 %% Options
 ProgressBar.Message = 'Options...';
 
-ANNsStc = HistANNsStct{1};
-ANNsNms = inputdlg2(strcat({'New name for '},HistANNsNmes{1}), 'DefInp',HistANNsNmes{1});
-ANNsDst = inputdlg2(strcat({'New name for '},FldrsToRd), 'DefInp',FldrsToRd);
+MLStc = HistANNsStct{1};
+MLNms = inputdlg2(strcat({'New name for '},HistANNsNmes{1}), 'DefInp',HistANNsNmes{1});
+MLDst = inputdlg2(strcat({'New name for '},FldrsToRd), 'DefInp',FldrsToRd);
 
 PltOpts = checkbox2({'Show plots'}, 'OutType','LogInd');
 ShowPlt = PltOpts(1);
@@ -97,35 +97,35 @@ MaxRFIm = 8; % In percentage
 %% Plot core
 ProgressBar.Message = 'Plot...';
 
-CurrNme = ['RF Hist for ',strjoin(ANNsDst, '_')];
-CurrFig = figure('Position',[400, 20, 700, 200*numel(ANNsDst)], 'Name',CurrNme, 'Visible','off');
-CurrLay = tiledlayout(numel(ANNsDst), 1, 'Parent',CurrFig);
+CurrNme = ['RF Hist for ',strjoin(MLDst, '_')];
+CurrFig = figure('Position',[400, 20, 700, 200*numel(MLDst)], 'Name',CurrNme, 'Visible','off');
+CurrLay = tiledlayout(numel(MLDst), 1, 'Parent',CurrFig);
 
-[CurrAxs, LinePlt] = deal(cell(1, numel(ANNsDst)));
-for i1 = 1:numel(ANNsDst)
+[CurrAxs, LinePlt] = deal(cell(1, numel(MLDst)));
+for i1 = 1:numel(MLDst)
     CurrAxs{i1} = nexttile([1, 1]);
 
     hold(CurrAxs{i1}, 'on')
 
-    xlabel(CurrAxs{i1}, xLblTxt, 'FontName',SelFont, 'FontSize',SelFnSz)
-    ylabel(CurrAxs{i1}, yLblTxt, 'FontName',SelFont, 'FontSize',SelFnSz)
+    xlabel(CurrAxs{i1}, xLblTxt, 'FontName',SelFont, 'FontSize',SelFtSz)
+    ylabel(CurrAxs{i1}, yLblTxt, 'FontName',SelFont, 'FontSize',SelFtSz)
 
-    set(CurrAxs{i1}, 'FontName',SelFont, 'FontSize',.8*SelFnSz, ...
+    set(CurrAxs{i1}, 'FontName',SelFont, 'FontSize',.8*SelFtSz, ...
                      'XTick',0:25:ItrsNum, 'XLim', [0, ItrsNum], ...
                      'YTick',0:2:MaxRFIm, 'YLim', [0, MaxRFIm], ...
                      'YGrid','on', 'XGrid','on')
     % xlim(CurrAxs{i1}, [1, ItrsNum])
     % ylim(CurrAxs{i1}, [0, MaxRFIm])
 
-    title(CurrAxs{i1}, ANNsDst{i1}, 'FontName',SelFont, 'FontSize',SelFnSz)
+    title(CurrAxs{i1}, MLDst{i1}, 'FontName',SelFont, 'FontSize',SelFtSz)
 
-    LinePlt{i1} = cell(1, numel(ANNsStc));
-    for i2 = 1:numel(ANNsStc)
+    LinePlt{i1} = cell(1, numel(MLStc));
+    for i2 = 1:numel(MLStc)
         LinePlt{i1}{i2} = plot(CurrAxs{i1}, 1:ItrsNum, HistRndFtFld{i1}(:,i2).*100, '-', 'LineWidth',1.5, 'Color',StrcClr{i2});
     end
 end
 
-CurrLeg = legend([LinePlt{1}{:}], ANNsNms, 'FontName',SelFont, 'FontSize',SelFnSz*.7);
+CurrLeg = legend([LinePlt{1}{:}], MLNms, 'FontName',SelFont, 'FontSize',SelFtSz*.7);
 CurrLeg.Layout.Tile = 'East';
 
 %% Export

@@ -59,8 +59,8 @@ if exist([fold_an,sl,'AnalysisInformation.mat'], 'file')
         error('Instability analysis type not recognized in StabilityAnalysis file!')
     end
 
-elseif exist([fold_an,sl,'TrainedANNs.mat'], 'file')
-    InstAnTp = 'ANN';
+elseif exist([fold_an,sl,'MLMdlB.mat'], 'file')
+    InstAnTp = 'ML';
     error('Not implemented for ANNs!')
 
 else

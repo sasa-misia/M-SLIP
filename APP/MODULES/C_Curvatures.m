@@ -24,7 +24,7 @@ end
     MeanCurvatureAll, P1CurvatureAll, P2CurvatureAll] = deal(cell(size(xLongAll)));
 for i1 = 1:length(xLongAll)
     [xPlanAll{i1}, yPlanAll{i1}] = projfwd(ProjCRS, yLatAll{i1}, xLongAll{i1});
-    [GaussCurvatureAll{i1}, MeanCurvatureAll{i1}, P1CurvatureAll{i1}, P2CurvatureAll{i1}] = surfature(xPlanAll{i1}, yPlanAll{i1}, ElevationAll{i1});
+    [GaussCurvatureAll{i1}, MeanCurvatureAll{i1}, P1CurvatureAll{i1}, P2CurvatureAll{i1}] = dem_surfature(xPlanAll{i1}, yPlanAll{i1}, ElevationAll{i1});
 end
 
 [ProfileCurvatureAll, PlanformCurvatureAll] = deal(cell(size(xLongAll)));
@@ -36,7 +36,7 @@ for i1 = 1:length(xLongAll)
         error("You have a DEM of different sizes for cells in X and Y, provide another one")
     end
 
-    [ProfileCurvatureAll{i1}, PlanformCurvatureAll{i1}] = curvature(ElevationAll{i1}, dx);
+    [ProfileCurvatureAll{i1}, PlanformCurvatureAll{i1}] = dem_curvature(ElevationAll{i1}, dx);
 end
 
 %% Saving...

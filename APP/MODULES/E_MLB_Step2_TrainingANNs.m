@@ -37,46 +37,9 @@ FeatsNTS = not(strcmp('TimeSensitive', DatasetInfo{1,'FeaturesTypes'}{:}));
 
 ModelInfo = table("ANN FF FC", {DatasetInfo}, 'VariableNames',{'Type', 'DatasetInfo'});
 
-%% Dataset options
-DsetTbl = dataset_extraction(DatasetInfo);
-
+%% Dataset extraction and filtering
 DsetTpe = char(listdlg2({'Dataset to consider?'}, {'1T', '2T', 'All', 'Manual'}));
-switch DsetTpe
-    case '1T'
-        DatesToMantain = DatasetInfo.EventDate(DatasetInfo.LandslideEvent);
-
-    case '2T'
-        DatesToMantain = [ DatasetInfo.EventDate(DatasetInfo.LandslideEvent)
-                           DatasetInfo.BeforeEventDate(DatasetInfo.LandslideEvent) ];
-
-    case 'All'
-        DatesToMantain = unique(DsetTbl{'Total','Dates'}{:}{:,'Datetime'});
-
-    case 'Manual'
-        DatesChoosable = unique(DsetTbl{'Total','Dates'}{:}{:,'Datetime'});
-        IndsDatesChose = checkbox2(DatesChoosable, 'Title',{'Choose dates: '}, 'OutType','NumInd');
-        DatesToMantain = DatesChoosable(IndsDatesChose);
-end
-
-IndsToMantain = cell(size(DsetTbl,1), 1);
-for i1 = 1:numel(IndsToMantain)
-    if iscell(DsetTbl{i1,'Dates'}{:})
-        IndsToMantain{i1} = cell(1, numel(DsetTbl{i1,'Dates'}{:}));
-        for i2 = 1:numel(DsetTbl{i1,'Dates'}{:})
-            IndsToMantTmp = arrayfun(@(x) DsetTbl{i1,'Dates'}{:}{i2}{:,'Datetime'} == x, DatesToMantain, 'UniformOutput',false);
-            IndsToMantain{i1}{i2} = any([IndsToMantTmp{:}], 2);
-            for i3 = 1:size(DsetTbl,2)
-                DsetTbl{i1,i3}{:}{i2}(not(IndsToMantain{i1}{i2}), :) = []; % Cleaning of dates not to maintain
-            end
-        end
-    else
-        IndsToMantTmp = arrayfun(@(x) DsetTbl{i1,'Dates'}{:}{:,'Datetime'} == x, DatesToMantain, 'UniformOutput',false);
-        IndsToMantain{i1} = any([IndsToMantTmp{:}], 2);
-        for i2 = 1:size(DsetTbl,2)
-            DsetTbl{i1,i2}{:}(not(IndsToMantain{i1}), :) = []; % Cleaning of dates not to maintain
-        end
-    end
-end
+DsetTbl = dataset_extr_filtr(DatasetInfo, fltrCase=DsetTpe);
 
 %% ANN Options
 ProgressBar.Message = 'ANN options...';
@@ -199,7 +162,7 @@ if not(contains(ANNMode, 'Auto', 'IgnoreCase',true))
     LssTol = str2double(TunPar{4});
     StpTol = str2double(TunPar{5});
 
-    if strcmpi(ANNMode, 'Deep (V)') || contains(ANNMode, 'Validation', 'IgnoreCase',true)
+    if contains(ANNMode, '(V)', 'IgnoreCase',true) || contains(ANNMode, 'Validation', 'IgnoreCase',true)
         TunPr2 = inputdlg2({'Validation frequency:', 'Validation patience:'}, 'DefInp',{'4', '8'});
         ValFrq = str2double(TunPr2{1});
         ValPat = str2double(TunPr2{2});
@@ -215,14 +178,14 @@ if not(contains(ANNMode, 'Auto', 'IgnoreCase',true))
 end
 
 if contains(ANNMode, 'Auto', 'IgnoreCase',true)
-    MaxAutoEvs = str2double(inputdlg2({'Maximum number of evaluations:'}, 'DefInp',{'20'}));
+    MaxEvA = str2double(inputdlg2({'Maximum number of evaluations:'}, 'DefInp',{'20'}));
 end
 
 BstThrMthd = char(listdlg2({'Optimal threshold mode?'}, ...
                            {'MATLAB', 'MaximizeRatio-TPR-FPR', 'MaximizeArea-TPR-TNR'}));
 
 %% Adding vars to ModelInfo
-ModelInfo.ANNMode  = ANNMode;
+ModelInfo.MdlMode      = ANNMode;
 ModelInfo.TimeSensMode = TmSensMode;
 if not(strcmp(ANNMode, 'Auto'))
     ModelInfo.ActivationFunUsed = LyrAct;
@@ -233,18 +196,18 @@ ModelInfo.BestThrMethod = BstThrMthd;
 ModelInfo.RangesForNorm = {Rngs4Norm};
 
 %% Initialization of variables for loops
-ANNsRows = {'Model', 'FeatsConsidered', 'Structure'}; % If you touch these, please modify row below when you write ANNs
-ANNs     = table('RowNames',ANNsRows);
+MLRws = {'Model', 'FeatsConsidered', 'Structure'}; % If you touch these, please modify row below when you write ANNs
+MLMdl = table('RowNames',MLRws);
 
-ANNsResRows = {'ProbsTrain', 'ProbsTest'}; % If you touch these, please modify row below when you write ANNsRes
-ANNsRes     = table('RowNames',ANNsResRows);
+MLRsR = {'ProbsTrain', 'ProbsTest'}; % If you touch these, please modify row below when you write ANNsRes
+MLRes = table('RowNames',MLRsR);
 
 CrssVal = false;
 if contains(ANNMode, 'Cross Validation', 'IgnoreCase',true)
     CrssVal = true;
 end
 
-%% feats to consider for each model
+%% Feats to consider for each model
 switch TmSensMode
     case 'SeparateDays'
         %% Separate Days
@@ -254,8 +217,6 @@ switch TmSensMode
         for i1 = 1:length(LaySizeRw)
             for i2 = 1:Days4TmSns
                 i3 = i3 + 1;
-                ProgressBar.Value = i3/ANNsNumber;
-                ProgressBar.Message = ['Training model n. ',num2str(i3),' of ',num2str(ANNsNumber)];
 
                 TSFeatsToTake = cellfun(@(x) x(1:i2)', FeatsNmsTS, 'UniformOutput',false); % WRONG!
                 TSFeatsToTake = cellstr(cat(2, TSFeatsToTake{:}));
@@ -282,6 +243,7 @@ if ExistCrV
         CrossTrnAUC, CrossValAUC, CrossTstAUC] = deal(zeros(kFldNm, ANNsNumber));
 end
 
+ProgressBar.Indeterminate = 'off';
 for i1 = 1:ANNsNumber
     ProgressBar.Value = i1/ANNsNumber;
     ProgressBar.Message = ['Training model n. ',num2str(i1),' of ',num2str(ANNsNumber)];
@@ -460,31 +422,31 @@ for i1 = 1:ANNsNumber
         Model = compact(Model); % To eliminate training dataset and reduce size of the object!
     end
 
-    ANNs{ANNsRows, i1} = {Model; FeatsCnsid{i1}; LayerSizes{i1}}; % Pay attention to the order!
-    ANNsRes{ANNsResRows, i1} = {PrdPrbsTrn; PrdPrbsTst}; % Pay attention to the order!
+    MLMdl{MLRws, i1} = {Model; FeatsCnsid{i1}; LayerSizes{i1}}; % Pay attention to the order!
+    MLRes{MLRsR, i1} = {PrdPrbsTrn; PrdPrbsTst}; % Pay attention to the order!
 end
 
-ANNsCols = strcat("ANN",string(1:ANNsNumber));
-ANNs.Properties.VariableNames    = ANNsCols;
-ANNsRes.Properties.VariableNames = ANNsCols;
+MLCls = strcat("ANN",string(1:ANNsNumber));
+MLMdl.Properties.VariableNames = MLCls;
+MLRes.Properties.VariableNames = MLCls;
 
 %% Evaluation of prediction quality by means of ROC
 ProgressBar.Indeterminate = 'on';
 ProgressBar.Message       = 'Analyzing quality of models...';
 
-ANNsPrfR = {'FPR', 'TPR', 'AUC', 'BestThreshold', 'BestThrInd'};
-ANNsPerf = table('RowNames',{'ROC','Err'});
-ANNsPerf{'Err','Train'} = {array2table([TrnMSE; TrnLss], ...
-                                            'VariableNames',ANNsCols, ...
+MLPrfR = {'FPR', 'TPR', 'AUC', 'BestThreshold', 'BestThrInd'};
+MLPerf = table('RowNames',{'ROC','Err'});
+MLPerf{'Err','Train'} = {array2table([TrnMSE; TrnLss], ...
+                                            'VariableNames',MLCls, ...
                                             'RowNames',{'MSE','Loss'})};
-ANNsPerf{'Err','Test' } = {array2table([TstMSE; TstLss], ...
-                                            'VariableNames',ANNsCols, ...
+MLPerf{'Err','Test' } = {array2table([TstMSE; TstLss], ...
+                                            'VariableNames',MLCls, ...
                                             'RowNames',{'MSE','Loss'})};
-ANNsPerf{'ROC',{'Train','Test'}} = {table('RowNames',ANNsPrfR)};
+MLPerf{'ROC',{'Train','Test'}} = {table('RowNames',MLPrfR)};
 
 for i1 = 1:ANNsNumber
-    PrdPrbsTrn = ANNsRes{'ProbsTrain', i1}{:};
-    PrdPrbsTst = ANNsRes{'ProbsTest' , i1}{:};
+    PrdPrbsTrn = MLRes{'ProbsTrain', i1}{:};
+    PrdPrbsTst = MLRes{'ProbsTest' , i1}{:};
 
     ExpOutsTrn = DsetTbl{'Train','ExpOuts'}{:};
     ExpOutsTst = DsetTbl{'Test' ,'ExpOuts'}{:};
@@ -530,18 +492,18 @@ for i1 = 1:ANNsNumber
     end
     
     % General matrices creation
-    ANNsPerf{'ROC','Train'}{:}{ANNsPrfR, i1} = {FPR4ROC_Trn; TPR4ROC_Trn; AUC_Trn; BestThr_Trn; IndBest_Trn}; % Pay attention to the order!
-    ANNsPerf{'ROC','Test' }{:}{ANNsPrfR, i1} = {FPR4ROC_Tst; TPR4ROC_Tst; AUC_Tst; BestThr_Tst; IndBest_Tst}; % Pay attention to the order!
+    MLPerf{'ROC','Train'}{:}{MLPrfR, i1} = {FPR4ROC_Trn; TPR4ROC_Trn; AUC_Trn; BestThr_Trn; IndBest_Trn}; % Pay attention to the order!
+    MLPerf{'ROC','Test' }{:}{MLPrfR, i1} = {FPR4ROC_Tst; TPR4ROC_Tst; AUC_Tst; BestThr_Tst; IndBest_Tst}; % Pay attention to the order!
 end
 
-ANNsPerf{'ROC','Train'}{:}.Properties.VariableNames = ANNsCols;
-ANNsPerf{'ROC','Test' }{:}.Properties.VariableNames = ANNsCols;
+MLPerf{'ROC','Train'}{:}.Properties.VariableNames = MLCls;
+MLPerf{'ROC','Test' }{:}.Properties.VariableNames = MLCls;
 
 %% Plot for check % Finish to adjust for PlotOption 1 (or maybe delete it)
 if ChkPlt
     ProgressBar.Message = 'Check plot for predictions...';
 
-    check_plot_mdlb(ANNs, ANNsPerf, DsetTbl, {UnstabPolygons, IndecnPolygons, StablePolygons}, false, 30, DatasetInfo{1,'MultipleDays'}, fold0)
+    check_plot_mdlb(MLMdl, MLPerf, DsetTbl, {UnstabPolygons, IndecnPolygons, StablePolygons}, false, 30, DatasetInfo{1,'MultipleDays'}, fold0)
 end
 
 %% Creation of CrossInfo structure
@@ -623,10 +585,10 @@ end
 %% Saving...
 ProgressBar.Message = 'Saving files...';
 
-VariablesML = {'ANNs', 'ANNsRes', 'ANNsPerf', 'ModelInfo'};
+VariablesML = {'MLMdl', 'MLRes', 'MLPerf', 'ModelInfo'};
 if CrssVal
     VariablesML = [VariablesML, {'CrossInfo'}];
 end
-saveswitch([fold_res_ml_curr,sl,'ANNsMdlB.mat'], VariablesML)
+saveswitch([fold_res_ml_curr,sl,'MLMdlB.mat'], VariablesML)
 
 close(ProgressBar) % Fig instead of ProgressBar if in standalone version

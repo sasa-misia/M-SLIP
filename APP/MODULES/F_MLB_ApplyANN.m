@@ -12,7 +12,7 @@ load([fold_var,sl,'UserStudyArea_Answers.mat'], 'MunSel')
 load([fold_var,sl,'StudyAreaVariables.mat'   ], 'StudyAreaPolygon')
 load([fold_var,sl,'GridCoordinates.mat'      ], 'xLongAll','yLatAll')
 load([fold_var,sl,'DatasetStudy.mat'         ], 'DatasetStudyFeats','DatasetStudyCoords')
-load([fold_res_ml_curr,sl,'ANNsMdlB.mat'     ], 'ModelInfo','ANNs')
+load([fold_res_ml_curr,sl,'MLMdlB.mat'       ], 'ModelInfo','MLMdl')
 
 PreExistPredictions = false;
 if exist([fold_res_ml_curr,sl,'PredictionsStudy.mat'], 'file')
@@ -72,18 +72,18 @@ Dset2PredFts(:,Ids2Rem) = [];
 
 if MnBstMdl
     if size(PredProbs, 1) > 1
-        BstMdlNumb = find(strcmp(ANNs.Properties.VariableNames, PredProbs.Properties.VariableNames));
+        BstMdlNumb = find(strcmp(MLMdl.Properties.VariableNames, PredProbs.Properties.VariableNames));
     else
-        if size(ANNs, 2) == 1
+        if size(MLMdl, 2) == 1
             BstMdlNumb = 1;
         else
-            BstMdlNumb = checkbox2(ANNs.Properties.VariableNames, 'OutType','NumInd', 'Title','Model to use:');
+            BstMdlNumb = checkbox2(MLMdl.Properties.VariableNames, 'OutType','NumInd', 'Title','Model to use:');
         end
     end
     
-    ANNs = ANNs(:,BstMdlNumb);
+    MLMdl = MLMdl(:,BstMdlNumb);
 
-    RemainedMdl = strjoin(ANNs.Properties.VariableNames, '; ');
+    RemainedMdl = strjoin(MLMdl.Properties.VariableNames, '; ');
     warning(['Since you have selected the manual mode for the ', ...
              'best model, the models chosen are: ',RemainedMdl])
 end
@@ -222,20 +222,20 @@ for EvId = 1 : DaysNumb
     end
     
     ProgressBar.Indeterminate = 'off';
-    PredProbsCell = cell(1, size(ANNs, 2));
+    PredProbsCell = cell(1, size(MLMdl, 2));
     if Parallel
         ProgressBar.Message = 'Predictions of study area with parallelization...';
-        ModelsToUse = [ANNs{'Model',:}];
-        parfor i1 = 1:size(ANNs, 2)
+        ModelsToUse = [MLMdl{'Model',:}];
+        parfor i1 = 1:size(MLMdl, 2)
             CurrMdl = ModelsToUse{i1};
             PredProbsCell{i1} = mdlpredict(CurrMdl, Dset2PredFts);
         end
     else
-        for i1 = 1:size(ANNs, 2)
-            ProgressBar.Message = ['Predictions with model n. ',num2str(i1),' of ',num2str(size(ANNs, 2))];
-            ProgressBar.Value   = i1/size(ANNs, 2);
+        for i1 = 1:size(MLMdl, 2)
+            ProgressBar.Message = ['Predictions with model n. ',num2str(i1),' of ',num2str(size(MLMdl, 2))];
+            ProgressBar.Value   = i1/size(MLMdl, 2);
         
-            CurrMdl = ANNs{'Model',i1}{:};
+            CurrMdl = MLMdl{'Model',i1}{:};
             PredProbsCell{i1} = mdlpredict(CurrMdl, Dset2PredFts);
         end
     end
@@ -248,7 +248,7 @@ for EvId = 1 : DaysNumb
     else
         EventName = SuggFldNm;
     end
-    MdlsNames = ANNs.Properties.VariableNames;
+    MdlsNames = MLMdl.Properties.VariableNames;
     
     RowEvs2Wr = {'PredictionDate', 'Municipalities', 'SizeOfDTM', 'StudyAreaPolygon'};
     EventsInfo{RowEvs2Wr, EventName} = {CurrDate, MunSel, SizeDTM, StudyAreaPolygon}';
@@ -290,13 +290,13 @@ for EvId = 1 : DaysNumb
                                                                              'RowNames',{'Total'})};
     
     %% Evaluation of quality
-    [MSEQ, AUCQ] = deal(zeros(1, size(ANNs, 2)));
+    [MSEQ, AUCQ] = deal(zeros(1, size(MLMdl, 2)));
     [FPR4ROC_4Q, TPR4ROC_4Q, ...
-            ThrROC_4Q, OptPnt_4Q] = deal(cell(1, size(ANNs, 2)));
+            ThrROC_4Q, OptPnt_4Q] = deal(cell(1, size(MLMdl, 2)));
     if Parallel
         ProgressBar.Message = 'Computing quality for dataset in parallel...';
         IsLndDay = LandsDay(EvId);
-        parfor i1 = 1:size(ANNs, 2)
+        parfor i1 = 1:size(MLMdl, 2)
             PredPrbsTmp = [PredProbsCell{i1}(IdPntsUnstMrgd);
                            PredProbsCell{i1}(IdPntsStabMrgd)];
         
@@ -309,8 +309,8 @@ for EvId = 1 : DaysNumb
         end
         delete(ProgressParallel);
     else
-        for i1 = 1:size(ANNs, 2)
-            ProgressBar.Message = ['Predicting dataset for quality n. ',num2str(i1),' of ',num2str(size(ANNs, 2))];
+        for i1 = 1:size(MLMdl, 2)
+            ProgressBar.Message = ['Predicting dataset for quality n. ',num2str(i1),' of ',num2str(size(MLMdl, 2))];
     
             PredPrbsTmp = [PredProbsCell{i1}(IdPntsUnstMrgd);
                            PredProbsCell{i1}(IdPntsStabMrgd)];
@@ -327,10 +327,10 @@ for EvId = 1 : DaysNumb
     clear('PredProbsCell', 'PredPrbsTmp')
     
     %% Extraction of best threshold
-    BThQ = nan(1, size(ANNs, 2));
+    BThQ = nan(1, size(MLMdl, 2));
     if LandsDay(EvId)
         MtBstTh = ModelInfo.BestThrMethod;
-        for i1 = 1:size(ANNs, 2)
+        for i1 = 1:size(MLMdl, 2)
             switch MtBstTh
                 case 'MATLAB'
                     % Method integrated in MATLAB
@@ -385,8 +385,8 @@ if ClstPnts
     [~, BstMdlMSE4Ql] = min(EventsPerf.MSE{Ev2Check,:}); % In terms of loss
     [~, BstMdlAUC4Ql] = max(EventsPerf.AUROC{Ev2Check,:}); % In terms of AUC
 
-    Mdl2Tk = listdlg2({['Model to use? (Best loss: ',ANNs.Properties.VariableNames{BstMdlMSE4Ql}, ...
-                        '; Best AUC: ',ANNs.Properties.VariableNames{BstMdlAUC4Ql}]}, ANNs.Properties.VariableNames);
+    Mdl2Tk = listdlg2({['Model to use? (Best loss: ',MLMdl.Properties.VariableNames{BstMdlMSE4Ql}, ...
+                        '; Best AUC: ',MLMdl.Properties.VariableNames{BstMdlAUC4Ql}]}, MLMdl.Properties.VariableNames);
 
     [~, ClassCrds, ClassClrs, ~] = clusterize_points(Dset2PredCrd.Longitude, ...
                                                      Dset2PredCrd.Latitude, ...
@@ -417,5 +417,5 @@ if PltPolys
 
     DsetPlyChk = DsetTblPly{Ev2Check, :}{:};
 
-    check_plot_mdlb(ANNs, ANNsPerf, DsetPlyChk, {UnstPlys, IndePlys, StabPlys}, true, 30, true)
+    check_plot_mdlb(MLMdl, ANNsPerf, DsetPlyChk, {UnstPlys, IndePlys, StabPlys}, true, 30, true)
 end

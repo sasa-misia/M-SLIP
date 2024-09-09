@@ -47,8 +47,8 @@ end
 for i1 = 1:numel(Flds2Rd)
     fold_res_ml_curr = [fold_res_ml,sl,Flds2Rd{i1}];
 
-    MdlType = find([exist([fold_res_ml_curr,sl,'ANNsMdlA.mat'], 'file'), ...
-                    exist([fold_res_ml_curr,sl,'ANNsMdlB.mat'], 'file')]);
+    MdlType = find([exist([fold_res_ml_curr,sl,'MLMdlA.mat'], 'file'), ...
+                    exist([fold_res_ml_curr,sl,'MLMdlB.mat'], 'file')]);
     if isempty(MdlType)
         error('No trained model found in your folder!')
     elseif numel(MdlType) > 1
@@ -56,16 +56,16 @@ for i1 = 1:numel(Flds2Rd)
     end
     switch MdlType
         case 1
-            Fl2LdMdl = 'ANNsMdlA.mat';
+            Fl2LdMdl = 'MLMdlA.mat';
     
         case 2
-            Fl2LdMdl = 'ANNsMdlB.mat';
+            Fl2LdMdl = 'MLMdlB.mat';
 
         otherwise
             error('No trained ModelA or B found!')
     end
 
-    load([fold_res_ml_curr,sl,Fl2LdMdl], 'ANNsPerf')
+    load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLPerf')
 
     [~, MdlName, ~] = fileparts(fold_res_ml_curr);
     MdlNameRep = strrep(MdlName, '_', '-');
@@ -73,23 +73,23 @@ for i1 = 1:numel(Flds2Rd)
     %% Data extraction
     ProgressBar.Message = 'Data extraction...';
 
-    TrnROC = [ANNsPerf{'ROC', 'Train'}{:}{'AUC', :}{:}];
-    TstROC = [ANNsPerf{'ROC', 'Test' }{:}{'AUC', :}{:}];
-    TrnPRC = [ANNsPerf{'PRC', 'Train'}{:}{'AUC', :}{:}];
-    TstPRC = [ANNsPerf{'PRC', 'Test' }{:}{'AUC', :}{:}];
-    TrnF1S = [ANNsPerf{'F1S', 'Train'}{:}{'F1S', :}{:}];
-    TstF1S = [ANNsPerf{'F1S', 'Test' }{:}{'F1S', :}{:}];
-    TrnQCI = [ANNsPerf{'QCI', 'Train'}{:}{'QCI', :}{:}];
-    TstQCI = [ANNsPerf{'QCI', 'Test' }{:}{'QCI', :}{:}];
+    TrnROC = [MLPerf{'ROC', 'Train'}{:}{'AUC', :}{:}];
+    TstROC = [MLPerf{'ROC', 'Test' }{:}{'AUC', :}{:}];
+    TrnPRC = [MLPerf{'PRC', 'Train'}{:}{'AUC', :}{:}];
+    TstPRC = [MLPerf{'PRC', 'Test' }{:}{'AUC', :}{:}];
+    TrnF1S = [MLPerf{'F1S', 'Train'}{:}{'F1S', :}{:}];
+    TstF1S = [MLPerf{'F1S', 'Test' }{:}{'F1S', :}{:}];
+    TrnQCI = [MLPerf{'QCI', 'Train'}{:}{'QCI', :}{:}];
+    TstQCI = [MLPerf{'QCI', 'Test' }{:}{'QCI', :}{:}];
 
-    TrnBstROC = ANNsPerf{'ROC', 'BstMdlTrn'}{:}; % Wrong because if MaxCols is not enough large you do not have this value!!!
-    TstBstROC = ANNsPerf{'ROC', 'BstMdlTst'}{:};
-    TrnBstPRC = ANNsPerf{'PRC', 'BstMdlTrn'}{:};
-    TstBstPRC = ANNsPerf{'PRC', 'BstMdlTst'}{:};
-    TrnBstF1S = ANNsPerf{'F1S', 'BstMdlTrn'}{:};
-    TstBstF1S = ANNsPerf{'F1S', 'BstMdlTst'}{:};
-    TrnBstQCI = ANNsPerf{'QCI', 'BstMdlTrn'}{:};
-    TstBstQCI = ANNsPerf{'QCI', 'BstMdlTst'}{:};
+    TrnBstROC = MLPerf{'ROC', 'BstMdlTrn'}{:}; % Wrong because if MaxCols is not enough large you do not have this value!!!
+    TstBstROC = MLPerf{'ROC', 'BstMdlTst'}{:};
+    TrnBstPRC = MLPerf{'PRC', 'BstMdlTrn'}{:};
+    TstBstPRC = MLPerf{'PRC', 'BstMdlTst'}{:};
+    TrnBstF1S = MLPerf{'F1S', 'BstMdlTrn'}{:};
+    TstBstF1S = MLPerf{'F1S', 'BstMdlTst'}{:};
+    TrnBstQCI = MLPerf{'QCI', 'BstMdlTrn'}{:};
+    TstBstQCI = MLPerf{'QCI', 'BstMdlTst'}{:};
 
     MaxMdl = max([TrnBstROC, TstBstROC, TrnBstPRC, TstBstPRC, ...
                   TrnBstF1S, TstBstF1S, TrnBstQCI, TstBstQCI]);

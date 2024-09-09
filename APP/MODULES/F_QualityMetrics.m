@@ -8,13 +8,13 @@ sl = filesep;
 
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
 
-MdlType = find([exist([fold_res_ml_curr,sl,'ANNsMdlA.mat'], 'file'), ...
-                exist([fold_res_ml_curr,sl,'ANNsMdlB.mat'], 'file')]);
+MdlType = find([exist([fold_res_ml_curr,sl,'MLMdlA.mat'], 'file'), ...
+                exist([fold_res_ml_curr,sl,'MLMdlB.mat'], 'file')]);
 if not(isscalar(MdlType)); error('More than one model found in your folder!'); end
 switch MdlType
     case 1
         Fl2LdMdl = 'ANNsMdlA.mat';
-        load([fold_res_ml_curr,sl,Fl2LdMdl], 'ANNs','ANNsPerf','ModelInfo')
+        load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLMdl','MLPerf','ModelInfo')
         ANNMode = ModelInfo.ANNsOptions.TrainMode;
         DsetInf = ModelInfo.Dataset;
         CrssVal = ModelInfo.Dataset(end).Options.CrossDatasets;
@@ -24,7 +24,7 @@ switch MdlType
 
     case 2
         Fl2LdMdl = 'ANNsMdlB.mat';
-        load([fold_res_ml_curr,sl,Fl2LdMdl], 'ANNs','ANNsPerf','ModelInfo')
+        load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLMdl','MLPerf','ModelInfo')
         ANNMode = ModelInfo.ANNMode;
         DsetInf = ModelInfo.DatasetInfo{:};
         CrssVal = ModelInfo.DatasetInfo{:}{end,'CrossValidSet'};
@@ -59,7 +59,7 @@ if EvalRndFI
     end
 end
 
-ColsNms = ANNs.Properties.VariableNames;
+ColsNms = MLMdl.Properties.VariableNames;
 
 RegrANN = false;
 switch OutMode
@@ -135,17 +135,17 @@ end
 %% Processing
 ProgressBar.Message = 'Processing of normal dataset...';
 
-ANNsPerfRows = {'Reca', 'Prec', 'AUC', 'BestThr', 'BestThrInd'};
-ANNsPerf{{'PRC', 'PRGC'}, {'Train','Test'}} = {table('RowNames',ANNsPerfRows)};
+MLPrfR = {'Reca', 'Prec', 'AUC', 'BestThr', 'BestThrInd'};
+MLPerf{{'PRC', 'PRGC'}, {'Train','Test'}} = {table('RowNames',MLPrfR)};
 
 [Thr4Trn, Thr4Tst, PrecTrn, ReclTrn, PrecTst, ReclTst, ...
-    FScrTrn, FScrTst, PosMSETrn, NegMSETrn, PosMSETst, NegMSETst] = deal(nan(1, size(ANNs,2)));
-for i1 = 1:size(ANNs,2)
-    CurrMdl = ANNs{'Model', i1}{:};
+    FScrTrn, FScrTst, PosMSETrn, NegMSETrn, PosMSETst, NegMSETst] = deal(nan(1, size(MLMdl,2)));
+for i1 = 1:size(MLMdl,2)
+    CurrMdl = MLMdl{'Model', i1}{:};
 
     if UseBstThr
-        Thr4Trn(i1) = ANNsPerf{'ROC','Train'}{:}{'BestThreshold',i1}{:};
-        Thr4Tst(i1) = ANNsPerf{'ROC','Test' }{:}{'BestThreshold',i1}{:};
+        Thr4Trn(i1) = MLPerf{'ROC','Train'}{:}{'BestThreshold',i1}{:};
+        Thr4Tst(i1) = MLPerf{'ROC','Test' }{:}{'BestThreshold',i1}{:};
     else
         Thr4Trn(i1) = 0.5;
         Thr4Tst(i1) = 0.5;
@@ -206,24 +206,24 @@ for i1 = 1:size(ANNs,2)
     AUPRGCTst = calc_auprg(PRGCrvTst);
 
     % Update ANNsPerf
-    ANNsPerf{'PRC', 'Train'}{:}{ANNsPerfRows, i1} = {RcTrn; PrTrn; AUPRCTrn; BstThrTrn; IndBstTrn}; % Pay attention to the order!
-    ANNsPerf{'PRC', 'Test' }{:}{ANNsPerfRows, i1} = {RcTst; PrTst; AUPRCTst; BstThrTst; IndBstTst}; % Pay attention to the order!
+    MLPerf{'PRC', 'Train'}{:}{MLPrfR, i1} = {RcTrn; PrTrn; AUPRCTrn; BstThrTrn; IndBstTrn}; % Pay attention to the order!
+    MLPerf{'PRC', 'Test' }{:}{MLPrfR, i1} = {RcTst; PrTst; AUPRCTst; BstThrTst; IndBstTst}; % Pay attention to the order!
 
-    ANNsPerf{'PRGC','Train'}{:}{ANNsPerfRows, i1} = {RcGainTrn; PrGainTrn; AUPRGCTrn; nan; nan}; % Pay attention to the order!
-    ANNsPerf{'PRGC','Test' }{:}{ANNsPerfRows, i1} = {RcGainTst; PrGainTst; AUPRGCTst; nan; nan}; % Pay attention to the order!
+    MLPerf{'PRGC','Train'}{:}{MLPrfR, i1} = {RcGainTrn; PrGainTrn; AUPRGCTrn; nan; nan}; % Pay attention to the order!
+    MLPerf{'PRGC','Test' }{:}{MLPrfR, i1} = {RcGainTst; PrGainTst; AUPRGCTst; nan; nan}; % Pay attention to the order!
 end
 
 % Update ANNsPerf
-ANNsPerf{'PRC','Train'}{:}.Properties.VariableNames = ColsNms;
-ANNsPerf{'PRC','Test' }{:}.Properties.VariableNames = ColsNms;
+MLPerf{'PRC','Train'}{:}.Properties.VariableNames = ColsNms;
+MLPerf{'PRC','Test' }{:}.Properties.VariableNames = ColsNms;
 
-ANNsPerf{'PRGC','Train'}{:}.Properties.VariableNames = ColsNms;
-ANNsPerf{'PRGC','Test' }{:}.Properties.VariableNames = ColsNms;
+MLPerf{'PRGC','Train'}{:}.Properties.VariableNames = ColsNms;
+MLPerf{'PRGC','Test' }{:}.Properties.VariableNames = ColsNms;
 
-ANNsPerf{'Err','Train'}{:}{{'PosMSE','NegMSE'},ColsNms} = [PosMSETrn; NegMSETrn];
-ANNsPerf{'Err','Test' }{:}{{'PosMSE','NegMSE'},ColsNms} = [PosMSETst; NegMSETst];
+MLPerf{'Err','Train'}{:}{{'PosMSE','NegMSE'},ColsNms} = [PosMSETrn; NegMSETrn];
+MLPerf{'Err','Test' }{:}{{'PosMSE','NegMSE'},ColsNms} = [PosMSETst; NegMSETst];
 
-ANNsPerf{'F1S',{'Train','Test'}} = {array2table(num2cell([Thr4Trn; PrecTrn; ReclTrn; FScrTrn]), ...
+MLPerf{'F1S',{'Train','Test'}} = {array2table(num2cell([Thr4Trn; PrecTrn; ReclTrn; FScrTrn]), ...
                                                         'RowNames',{'Threshold','Precision','Recall','F1S'}, ...
                                                         'VariableNames',ColsNms), ...
                                     array2table(num2cell([Thr4Tst; PrecTst; ReclTst; FScrTst]), ...
@@ -232,18 +232,18 @@ ANNsPerf{'F1S',{'Train','Test'}} = {array2table(num2cell([Thr4Trn; PrecTrn; Recl
 
 % QCI
 MaxQCI = sqrt(4); % You have the maximum when you reach 1 in each metric! (square root of (1+1+1)). In this particular case you evaluate the Root mean square for QCITrn and QCITst
-QCITrn = sqrt([ANNsPerf{'ROC' , 'Train'}{:}{'AUC', :}{:}].^2 + ...
-              [ANNsPerf{'PRC' , 'Train'}{:}{'AUC', :}{:}].^2 + ...
-              [ANNsPerf{'F1S' , 'Train'}{:}{'F1S', :}{:}].^2 + ...
-              [ANNsPerf{'PRGC', 'Train'}{:}{'AUC', :}{:}].^2) ./ MaxQCI;
+QCITrn = sqrt([MLPerf{'ROC' , 'Train'}{:}{'AUC', :}{:}].^2 + ...
+              [MLPerf{'PRC' , 'Train'}{:}{'AUC', :}{:}].^2 + ...
+              [MLPerf{'F1S' , 'Train'}{:}{'F1S', :}{:}].^2 + ...
+              [MLPerf{'PRGC', 'Train'}{:}{'AUC', :}{:}].^2) ./ MaxQCI;
 
-QCITst = sqrt([ANNsPerf{'ROC' , 'Test' }{:}{'AUC', :}{:}].^2 + ...
-              [ANNsPerf{'PRC' , 'Test' }{:}{'AUC', :}{:}].^2 + ...
-              [ANNsPerf{'F1S' , 'Test' }{:}{'F1S', :}{:}].^2 + ...
-              [ANNsPerf{'PRGC', 'Test' }{:}{'AUC', :}{:}].^2) ./ MaxQCI;
+QCITst = sqrt([MLPerf{'ROC' , 'Test' }{:}{'AUC', :}{:}].^2 + ...
+              [MLPerf{'PRC' , 'Test' }{:}{'AUC', :}{:}].^2 + ...
+              [MLPerf{'F1S' , 'Test' }{:}{'F1S', :}{:}].^2 + ...
+              [MLPerf{'PRGC', 'Test' }{:}{'AUC', :}{:}].^2) ./ MaxQCI;
 
-ANNsPerf{'QCI',{'Train','Test'}} = {array2table(num2cell(QCITrn), 'RowNames',{'QCI'}, 'VariableNames',ColsNms), ...
-                                    array2table(num2cell(QCITst), 'RowNames',{'QCI'}, 'VariableNames',ColsNms)};
+MLPerf{'QCI',{'Train','Test'}} = {array2table(num2cell(QCITrn), 'RowNames',{'QCI'}, 'VariableNames',ColsNms), ...
+                                  array2table(num2cell(QCITst), 'RowNames',{'QCI'}, 'VariableNames',ColsNms)};
 
 %% Cross validation
 ProgressBar.Message = 'Processing cross validation...';
@@ -438,17 +438,17 @@ end
 %% Best mdls
 ProgressBar.Message = 'Update of ANNsPerf...';
 
-AUROCTrn  = cell2mat(ANNsPerf{'ROC','Train'}{:}{'AUC',:});
-AUROCTst  = cell2mat(ANNsPerf{'ROC','Test' }{:}{'AUC',:});
+AUROCTrn  = cell2mat(MLPerf{'ROC','Train'}{:}{'AUC',:});
+AUROCTst  = cell2mat(MLPerf{'ROC','Test' }{:}{'AUC',:});
 
-LssMSETrn = ANNsPerf{'Err','Train'}{:}{'MSE',:};
-LssMSETst = ANNsPerf{'Err','Test' }{:}{'MSE',:};
+LssMSETrn = MLPerf{'Err','Train'}{:}{'MSE',:};
+LssMSETst = MLPerf{'Err','Test' }{:}{'MSE',:};
 
-AUPRCTrn  = cell2mat(ANNsPerf{'PRC','Train'}{:}{'AUC',:});
-AUPRCTst  = cell2mat(ANNsPerf{'PRC','Test' }{:}{'AUC',:});
+AUPRCTrn  = cell2mat(MLPerf{'PRC','Train'}{:}{'AUC',:});
+AUPRCTst  = cell2mat(MLPerf{'PRC','Test' }{:}{'AUC',:});
 
-AUPRGCTrn = cell2mat(ANNsPerf{'PRGC','Train'}{:}{'AUC',:});
-AUPRGCTst = cell2mat(ANNsPerf{'PRGC','Test' }{:}{'AUC',:});
+AUPRGCTrn = cell2mat(MLPerf{'PRGC','Train'}{:}{'AUC',:});
+AUPRGCTst = cell2mat(MLPerf{'PRGC','Test' }{:}{'AUC',:});
 
 % The best one is always the first!
 [~, RankAUROCTrn]  = sort(AUROCTrn, 'descend');
@@ -489,38 +489,38 @@ BstMdlQCIndTrn  = RankQCIndTrn(1);
 BstMdlQCIndTst  = RankQCIndTst(1);
 
 % Update ANNsPerf with best mdls
-ANNsPerf{{'ROC','Err','PRC','PRGC','F1S','QCI'},'RankTrn'} = {RankAUROCTrn; ...
-                                                              RankLssMSETrn; ...
-                                                              RankAUPRCTrn; ...
-                                                              RankAUPRGCTrn; ...
-                                                              RankFScoreTrn; ...
-                                                              RankQCIndTrn};
+MLPerf{{'ROC','Err','PRC','PRGC','F1S','QCI'},'RankTrn'} = {RankAUROCTrn; ...
+                                                            RankLssMSETrn; ...
+                                                            RankAUPRCTrn; ...
+                                                            RankAUPRGCTrn; ...
+                                                            RankFScoreTrn; ...
+                                                            RankQCIndTrn};
 
-ANNsPerf{{'ROC','Err','PRC','PRGC','F1S','QCI'},'RankTst'} = {RankAUROCTst; ...
-                                                              RankLssMSETst; ...
-                                                              RankAUPRCTst; ...
-                                                              RankAUPRGCTst; ...
-                                                              RankFScoreTst; ...
-                                                              RankQCIndTst};
+MLPerf{{'ROC','Err','PRC','PRGC','F1S','QCI'},'RankTst'} = {RankAUROCTst; ...
+                                                            RankLssMSETst; ...
+                                                            RankAUPRCTst; ...
+                                                            RankAUPRGCTst; ...
+                                                            RankFScoreTst; ...
+                                                            RankQCIndTst};
 
-ANNsPerf{{'ROC','Err','PRC','PRGC','F1S','QCI'},'BstMdlTrn'} = {BstMdlAUROCTrn; ...
-                                                                BstMdlLssMSETrn; ...
-                                                                BstMdlAUPRCTrn; ...
-                                                                BstMdlAUPRGCTrn; ...
-                                                                BstMdlFScoreTrn; ...
-                                                                BstMdlQCIndTrn};
+MLPerf{{'ROC','Err','PRC','PRGC','F1S','QCI'},'BstMdlTrn'} = {BstMdlAUROCTrn; ...
+                                                              BstMdlLssMSETrn; ...
+                                                              BstMdlAUPRCTrn; ...
+                                                              BstMdlAUPRGCTrn; ...
+                                                              BstMdlFScoreTrn; ...
+                                                              BstMdlQCIndTrn};
 
-ANNsPerf{{'ROC','Err','PRC','PRGC','F1S','QCI'},'BstMdlTst'} = {BstMdlAUROCTst; ...
-                                                                BstMdlLssMSETst; ...
-                                                                BstMdlAUPRCTst; ...
-                                                                BstMdlAUPRGCTst; ...
-                                                                BstMdlFScoreTst; ...
-                                                                BstMdlQCIndTst};
+MLPerf{{'ROC','Err','PRC','PRGC','F1S','QCI'},'BstMdlTst'} = {BstMdlAUROCTst; ...
+                                                              BstMdlLssMSETst; ...
+                                                              BstMdlAUPRCTst; ...
+                                                              BstMdlAUPRGCTst; ...
+                                                              BstMdlFScoreTst; ...
+                                                              BstMdlQCIndTst};
 
 %% Saving (update)
 ProgressBar.Message = 'Saving...';
 
-VariablesToUpdate = {'ANNsPerf'};
+VariablesToUpdate = {'MLPerf'};
 if CrssVal
     VariablesToUpdate = [VariablesToUpdate, {'CrossInfo'}];
 end

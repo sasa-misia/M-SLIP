@@ -223,10 +223,11 @@ switch ANNMode
 end
 
 %% Initialization of tables
-ANNsRows    = {'Model', 'FeatsConsidered', 'Structure'}; % If you touch these, please modify row below when you write ANNs
-ANNsRaw     = table('RowNames',ANNsRows);
-ANNsResRows = {'PredTrain', 'PredTest'}; % If you touch these, please modify row below when you write ANNsResRaw
-ANNsResRaw  = table('RowNames',ANNsResRows);
+MLRws = {'Model', 'FeatsConsidered', 'Structure'}; % If you touch these, please modify row below when you write ANNs
+MLRsR = {'PredTrain', 'PredTest'}; % If you touch these, please modify row below when you write ANNsResRaw
+
+MLMdlRaw = table('RowNames',MLRws);
+MLResRaw = table('RowNames',MLRsR);
 
 %% Dataset recreation
 DsetTbl = dataset_extraction(DatasetInfo);
@@ -594,15 +595,15 @@ for i1 = 1:ANNsNumber
         Model = compact(Model); % To eliminate training dataset and reduce size of the object!
     end
 
-    ANNsRaw{ANNsRows, i1} = {Model; FeatsNm; LyrSzs{i1}}; % Pay attention to the order!
-    ANNsResRaw{ANNsResRows, i1} = {PredProbsTrain; PredProbsTest}; % Pay attention to the order!
+    MLMdlRaw{MLRws, i1} = {Model; FeatsNm; LyrSzs{i1}}; % Pay attention to the order!
+    MLResRaw{MLRsR, i1} = {PredProbsTrain; PredProbsTest}; % Pay attention to the order!
 end
 ProgressBar.Indeterminate = 'on';
 
 % Naming of columns
-ANNsColsRaw = strcat("ANN",string(1:ANNsNumber));
-ANNsRaw.Properties.VariableNames    = ANNsColsRaw;
-ANNsResRaw.Properties.VariableNames = ANNsColsRaw;
+MLClsRaw = strcat("ANN",string(1:ANNsNumber));
+MLMdlRaw.Properties.VariableNames = MLClsRaw;
+MLResRaw.Properties.VariableNames = MLClsRaw;
 
 % Averaging of cross values
 if CrssVal
@@ -615,43 +616,43 @@ end
 ProgressBar.Indeterminate = 'on';
 ProgressBar.Message       = 'Analyzing quality of models...';
 
-ANNsPerfRows = {'FPR', 'TPR', 'AUC', 'BestThreshold', 'BestThrInd'};
-ANNsPerfRaw  = table('RowNames',{'ROC','Err'});
+MLPrfR = {'FPR', 'TPR', 'AUC', 'BestThreshold', 'BestThrInd'};
+MLPerfRaw = table('RowNames',{'ROC','Err'});
 
-ANNsPerfRaw{'Err','Train'} = {array2table([TrainMSERaw; TrainLossRaw], ...
-                                            'VariableNames',ANNsColsRaw, ...
+MLPerfRaw{'Err','Train'} = {array2table([TrainMSERaw; TrainLossRaw], ...
+                                            'VariableNames',MLClsRaw, ...
                                             'RowNames',{'MSE','Loss'})};
-ANNsPerfRaw{'Err','Test'}  = {array2table([TestMSERaw; TestLossRaw], ...
-                                            'VariableNames',ANNsColsRaw, ...
+MLPerfRaw{'Err','Test'}  = {array2table([TestMSERaw; TestLossRaw], ...
+                                            'VariableNames',MLClsRaw, ...
                                             'RowNames',{'MSE','Loss'})};
 
 if CrssVal && RepAUC
-    ANNsPerfRaw{'Err','Train'} = {array2table([ mean(CrossTrnMSERaw,1);
+    MLPerfRaw{'Err','Train'} = {array2table([ mean(CrossTrnMSERaw,1);
                                                 nan(size(TrainLossRaw)) ], ...
-                                                'VariableNames',ANNsColsRaw, ...
+                                                'VariableNames',MLClsRaw, ...
                                                 'RowNames',{'MSE','Loss'})};
-    ANNsPerfRaw{'Err','Test'}  = {array2table([ mean(CrossValMSERaw,1);
+    MLPerfRaw{'Err','Test'}  = {array2table([ mean(CrossValMSERaw,1);
                                                 nan(size(TestLossRaw)) ], ...
-                                                'VariableNames',ANNsColsRaw, ...
+                                                'VariableNames',MLClsRaw, ...
                                                 'RowNames',{'MSE','Loss'})};
 end
 
-ANNsPerfRaw{'ROC',{'Train','Test'}} = {table('RowNames',ANNsPerfRows)};
+MLPerfRaw{'ROC',{'Train','Test'}} = {table('RowNames',MLPrfR)};
 if MltClss
-    ANNsPerfRawMC = table('RowNames',{'ROC'});
-    ANNsPerfRawMC{'ROC',{'Train','Test'}} = {table('RowNames',ANNsPerfRows)};
+    MLPerfRawMC = table('RowNames',{'ROC'});
+    MLPerfRawMC{'ROC',{'Train','Test'}} = {table('RowNames',MLPrfR)};
 
-    ANNsPrfSmmRows    = {'MeanAUC', 'MinAUC', 'MaxAUC', 'StDvAUC'};
-    ANNsPerfRawSummMC = table('RowNames',{'ROC'});
-    ANNsPerfRawSummMC{'ROC',{'Train','Test'}} = {table('RowNames',ANNsPrfSmmRows)};
+    MLPrfSmmRows    = {'MeanAUC', 'MinAUC', 'MaxAUC', 'StDvAUC'};
+    MLPerfRawSummMC = table('RowNames',{'ROC'});
+    MLPerfRawSummMC{'ROC',{'Train','Test'}} = {table('RowNames',MLPrfSmmRows)};
 end
-for i1 = 1:size(ANNsRaw,2)
+for i1 = 1:size(MLMdlRaw,2)
     if RegrANN
-        PredProbsTest  = rescale(ANNsResRaw{'PredTest' , i1}{:});
-        PredProbsTrain = rescale(ANNsResRaw{'PredTrain', i1}{:});
+        PredProbsTest  = rescale(MLResRaw{'PredTest' , i1}{:});
+        PredProbsTrain = rescale(MLResRaw{'PredTrain', i1}{:});
     else
-        PredProbsTest  = ANNsResRaw{'PredTest' , i1}{:};
-        PredProbsTrain = ANNsResRaw{'PredTrain', i1}{:};
+        PredProbsTest  = MLResRaw{'PredTest' , i1}{:};
+        PredProbsTrain = MLResRaw{'PredTrain', i1}{:};
     end
 
     ExpOutsTest  = ExpectedOutputsTst;
@@ -678,8 +679,8 @@ for i1 = 1:size(ANNsRaw,2)
     end
     
     % General matrices creation
-    ANNsPerfRaw{'ROC','Test'}{:}{ANNsPerfRows,  i1} = {FPR4ROC_Test_L ; TPR4ROC_Test_L ; AUC_Test_L ; BestThreshold_Test_L ; IndBest_Test_L }; % Pay attention to the order!
-    ANNsPerfRaw{'ROC','Train'}{:}{ANNsPerfRows, i1} = {FPR4ROC_Train_L; TPR4ROC_Train_L; AUC_Train_L; BestThreshold_Train_L; IndBest_Train_L}; % Pay attention to the order!
+    MLPerfRaw{'ROC','Test'}{:}{MLPrfR,  i1} = {FPR4ROC_Test_L ; TPR4ROC_Test_L ; AUC_Test_L ; BestThreshold_Test_L ; IndBest_Test_L }; % Pay attention to the order!
+    MLPerfRaw{'ROC','Train'}{:}{MLPrfR, i1} = {FPR4ROC_Train_L; TPR4ROC_Train_L; AUC_Train_L; BestThreshold_Train_L; IndBest_Train_L}; % Pay attention to the order!
 
     if MltClss
         % Test performance
@@ -713,30 +714,30 @@ for i1 = 1:size(ANNsRaw,2)
         StDvAUC_Train = std(cell2mat(AUC_Train));
 
         % General matrices creation
-        ANNsPerfRawMC{'ROC','Test' }{:}{ANNsPerfRows, i1} = {FPR4ROC_Test ; TPR4ROC_Test ; AUC_Test ; BestThreshold_Test ; IndBest_Test }; % Pay attention to the order!
-        ANNsPerfRawMC{'ROC','Train'}{:}{ANNsPerfRows, i1} = {FPR4ROC_Train; TPR4ROC_Train; AUC_Train; BestThreshold_Train; IndBest_Train}; % Pay attention to the order!
+        MLPerfRawMC{'ROC','Test' }{:}{MLPrfR, i1} = {FPR4ROC_Test ; TPR4ROC_Test ; AUC_Test ; BestThreshold_Test ; IndBest_Test }; % Pay attention to the order!
+        MLPerfRawMC{'ROC','Train'}{:}{MLPrfR, i1} = {FPR4ROC_Train; TPR4ROC_Train; AUC_Train; BestThreshold_Train; IndBest_Train}; % Pay attention to the order!
 
-        ANNsPerfRawSummMC{'ROC','Test' }{:}{ANNsPrfSmmRows, i1} = {MeanAUC_Test ; MinAUC_Test ; MaxAUC_Test ; StDvAUC_Test }; % Pay attention to the order!
-        ANNsPerfRawSummMC{'ROC','Train'}{:}{ANNsPrfSmmRows, i1} = {MeanAUC_Train; MinAUC_Train; MaxAUC_Train; StDvAUC_Train}; % Pay attention to the order!
+        MLPerfRawSummMC{'ROC','Test' }{:}{MLPrfSmmRows, i1} = {MeanAUC_Test ; MinAUC_Test ; MaxAUC_Test ; StDvAUC_Test }; % Pay attention to the order!
+        MLPerfRawSummMC{'ROC','Train'}{:}{MLPrfSmmRows, i1} = {MeanAUC_Train; MinAUC_Train; MaxAUC_Train; StDvAUC_Train}; % Pay attention to the order!
     end
 end
 
-ANNsPerfRaw{'ROC','Test' }{:}.Properties.VariableNames = ANNsColsRaw;
-ANNsPerfRaw{'ROC','Train'}{:}.Properties.VariableNames = ANNsColsRaw;
+MLPerfRaw{'ROC','Test' }{:}.Properties.VariableNames = MLClsRaw;
+MLPerfRaw{'ROC','Train'}{:}.Properties.VariableNames = MLClsRaw;
 if MltClss
-    ANNsPerfRawMC{'ROC','Test' }{:}.Properties.VariableNames = ANNsColsRaw;
-    ANNsPerfRawMC{'ROC','Train'}{:}.Properties.VariableNames = ANNsColsRaw;
+    MLPerfRawMC{'ROC','Test' }{:}.Properties.VariableNames = MLClsRaw;
+    MLPerfRawMC{'ROC','Train'}{:}.Properties.VariableNames = MLClsRaw;
 
-    ANNsPerfRawSummMC{'ROC','Test' }{:}.Properties.VariableNames = ANNsColsRaw;
-    ANNsPerfRawSummMC{'ROC','Train'}{:}.Properties.VariableNames = ANNsColsRaw;
+    MLPerfRawSummMC{'ROC','Test' }{:}.Properties.VariableNames = MLClsRaw;
+    MLPerfRawSummMC{'ROC','Train'}{:}.Properties.VariableNames = MLClsRaw;
 end
 
 %% Neural Network First Filter (Euclidean Minimization)
 if PrfFlt
-    FrstVecToMinimize = [1 - cell2mat(ANNsPerfRaw{'ROC','Train'}{:}{'AUC' ,:}); ... % The opposit of AUC because you want to minimize!
-                         1 - cell2mat(ANNsPerfRaw{'ROC','Test' }{:}{'AUC' ,:}); ... % The opposit of AUC because you want to minimize!
-                         ANNsPerfRaw{'Err','Train'}{:}{'Loss',:}; ...
-                         ANNsPerfRaw{'Err','Test' }{:}{'Loss',:}];
+    FrstVecToMinimize = [1 - cell2mat(MLPerfRaw{'ROC','Train'}{:}{'AUC' ,:}); ... % The opposit of AUC because you want to minimize!
+                         1 - cell2mat(MLPerfRaw{'ROC','Test' }{:}{'AUC' ,:}); ... % The opposit of AUC because you want to minimize!
+                         MLPerfRaw{'Err','Train'}{:}{'Loss',:}; ...
+                         MLPerfRaw{'Err','Test' }{:}{'Loss',:}];
     if CrssVal
         FrstVecToMinimize = [ FrstVecToMinimize ;
                               1-AvCrossTrnAUCRaw;
@@ -745,10 +746,10 @@ if PrfFlt
     
     EuclDistMdls = vecnorm(FrstVecToMinimize, 2, 1);
     
-    LossRngs = [min([ANNsPerfRaw{'Err','Train'}{:}{'Loss',:}, ANNsPerfRaw{'Err','Test' }{:}{'Loss',:}]), ...
-                max([ANNsPerfRaw{'Err','Train'}{:}{'Loss',:}, ANNsPerfRaw{'Err','Test' }{:}{'Loss',:}])];
-    AUCRngs  = [min([cell2mat(ANNsPerfRaw{'ROC','Train'}{:}{'AUC' ,:}), cell2mat(ANNsPerfRaw{'ROC','Test' }{:}{'AUC' ,:})]), ...
-                max([cell2mat(ANNsPerfRaw{'ROC','Train'}{:}{'AUC' ,:}), cell2mat(ANNsPerfRaw{'ROC','Test' }{:}{'AUC' ,:})])];
+    LossRngs = [min([MLPerfRaw{'Err','Train'}{:}{'Loss',:}, MLPerfRaw{'Err','Test' }{:}{'Loss',:}]), ...
+                max([MLPerfRaw{'Err','Train'}{:}{'Loss',:}, MLPerfRaw{'Err','Test' }{:}{'Loss',:}])];
+    AUCRngs  = [min([cell2mat(MLPerfRaw{'ROC','Train'}{:}{'AUC' ,:}), cell2mat(MLPerfRaw{'ROC','Test' }{:}{'AUC' ,:})]), ...
+                max([cell2mat(MLPerfRaw{'ROC','Train'}{:}{'AUC' ,:}), cell2mat(MLPerfRaw{'ROC','Test' }{:}{'AUC' ,:})])];
     
     ThrValsFilter = str2double(inputdlg2([strcat("Choose AUC threshold for a good model. Min is ", ...
                                                  string(AUCRngs(1))," and max is ",string(AUCRngs(2)))
@@ -769,26 +770,26 @@ if PrfFlt
     ModelInfo.ThrGoodModels.MaxLoss = ThrValsFilter(2);
 
 else
-    IndGdsMdls = true(1, size(ANNsRaw,2));
+    IndGdsMdls = true(1, size(MLMdlRaw,2));
 end
 
-ANNs     = ANNsRaw(:,IndGdsMdls);
-ANNsRes  = ANNsResRaw(:,IndGdsMdls);
-ANNsCols = ANNsColsRaw(:,IndGdsMdls);
-ANNsPerf = ANNsPerfRaw;
-for i1 = 1:size(ANNsPerfRaw, 1)
-    for i2 = 1:size(ANNsPerfRaw, 2)
-        ANNsPerf{i1,i2}{:}(:,not(IndGdsMdls)) = [];
+MLMdl  = MLMdlRaw(:,IndGdsMdls);
+MLRes  = MLResRaw(:,IndGdsMdls);
+MLCls  = MLClsRaw(:,IndGdsMdls);
+MLPerf = MLPerfRaw;
+for i1 = 1:size(MLPerfRaw, 1)
+    for i2 = 1:size(MLPerfRaw, 2)
+        MLPerf{i1,i2}{:}(:,not(IndGdsMdls)) = [];
     end
 end
 
 if MltClss
-    ANNsPerfMC     = ANNsPerfRawMC;
-    ANNsPerfSummMC = ANNsPerfRawSummMC;
-    for i1 = 1:size(ANNsPerfMC, 1)
-        for i2 = 1:size(ANNsPerfMC, 2)
-            ANNsPerfMC{i1,i2}{:}(:,not(IndGdsMdls))     = [];
-            ANNsPerfSummMC{i1,i2}{:}(:,not(IndGdsMdls)) = [];
+    MLPerfMC     = MLPerfRawMC;
+    MLPerfSummMC = MLPerfRawSummMC;
+    for i1 = 1:size(MLPerfMC, 1)
+        for i2 = 1:size(MLPerfMC, 2)
+            MLPerfMC{i1,i2}{:}(:,not(IndGdsMdls))     = [];
+            MLPerfSummMC{i1,i2}{:}(:,not(IndGdsMdls)) = [];
         end
     end
 end
@@ -943,7 +944,7 @@ end
 %% Neural Network Saving
 ProgressBar.Message = 'Saving files...';
 
-VariablesML = {'ModelInfo', 'ANNs', 'ANNsRes', 'ANNsPerf'};
+VariablesML = {'ModelInfo', 'MLMdl', 'MLRes', 'MLPerf'};
 if CrssVal
     VariablesML = [VariablesML, {'CrossInfo'}];
 end
@@ -954,7 +955,7 @@ if MdlHist
     VariablesML = [VariablesML, {'HistInfo' }];
 end
 if MltClss
-    VariablesML = [VariablesML, {'ANNsPerfMC', 'ANNsPerfSummMC'}];
+    VariablesML = [VariablesML, {'MLPerfMC', 'MLPerfSummMC'}];
 end
 
-saveswitch([fold_res_ml_curr,sl,'ANNsMdlA.mat'], VariablesML)
+saveswitch([fold_res_ml_curr,sl,'MLMdlA.mat'], VariablesML)

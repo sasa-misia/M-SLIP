@@ -15,11 +15,11 @@ else
 end
 
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
-load([fold_res_ml_curr,sl,'TrainedANNs.mat'], 'ANNs','ModelInfo')
+load([fold_res_ml_curr,sl,'MLMdlA.mat'], 'MLMdl','ModelInfo')
 
 NormData = ModelInfo.DatasetInfo{1,1}.NormalizedData;
 RegrANN  = false; % It should be better to include this info in ModelInfo!
-if strcmp(ANNs{'Model',1}{:}.ModelParameters.Type, 'regression')
+if strcmp(MLMdl{'Model',1}{:}.ModelParameters.Type, 'regression')
     RegrANN = true;
 end
 
@@ -77,20 +77,20 @@ end
 %% Partial Dependence (DIY Mode)
 if strcmp(PDPsMode, 'DIY')
     ProgressBar.Indeterminate = 'off';
-    PdpCurveVals = cell(1, size(ANNs,2));
-    for i1 = 1:size(ANNs,2)
-        ProgressBar.Value   = i1/size(ANNs,2);
+    PdpCurveVals = cell(1, size(MLMdl,2));
+    for i1 = 1:size(MLMdl,2)
+        ProgressBar.Value   = i1/size(MLMdl,2);
         ProgressBar.Message = strcat("Elaborating values of PDP for mdl n. ", ...
-                                     string(i1)," of ", string(size(ANNs,2)));
+                                     string(i1)," of ", string(size(MLMdl,2)));
 
-        CurrMdl  = ANNs{'Model',i1}{:};
+        CurrMdl  = MLMdl{'Model',i1}{:};
         FeatsMdl = CurrMdl.ExpandedPredictorNames;
 
         PdpCurveVals{i1} = table('RowNames',{'xVals','yVals','yMins','yMaxs'});
         PdpCurveVals{i1}{:,FeatsMdl} = {missing};
         for i2 = 1:length(FeatsMdl)
             ProgressBar.Message = strcat("Elaborating values of PDP for mdl n. ", ...
-                                         string(i1)," of ", string(size(ANNs,2)), ". Feat: ",FeatsMdl{i2});
+                                         string(i1)," of ", string(size(MLMdl,2)), ". Feat: ",FeatsMdl{i2});
             if AllRange
                 if not(NormData); error('AllRange can be used only with normalized datasets!'); end
                 PdpCurveVals{i1}{'xVals',FeatsMdl{i2}} = {(0 : 0.1 : 1)'};
@@ -128,7 +128,7 @@ if ~exist(fold_fig_curr, 'dir')
 end
 
 %% Plot
-for i1 = 1:size(ANNs,2)
+for i1 = 1:size(MLMdl,2)
     filename = ['PDPs of models n - ',num2str(i1),' - Dataset ',DatasetChoice];
     curr_fig = figure(i1);
     set(curr_fig, 'visible','off', 'Name',filename, 'Position', [280, 100, 1040, 980])
@@ -145,7 +145,7 @@ for i1 = 1:size(ANNs,2)
         end
         switch PDPsMode
             case 'MATLAB'
-                plotPartialDependence(ANNs{'Model',i1}{:}, FeatsMdl(i2), 1, 'Parent',curr_ax{i2}) % 'Conditional','absolute'
+                plotPartialDependence(MLMdl{'Model',i1}{:}, FeatsMdl(i2), 1, 'Parent',curr_ax{i2}) % 'Conditional','absolute'
 
             case 'DIY'
                 plot(PdpCurveVals{i1}{'xVals',FeatsMdl(i2)}{:}, PdpCurveVals{i1}{'yVals',FeatsMdl(i2)}{:}, ...
