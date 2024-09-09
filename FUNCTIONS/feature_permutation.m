@@ -133,12 +133,13 @@ ExpOutsSg = double(ExpOutsToUse >= 1); % It is to have a single column also in c
 RngOfVals = linspace(RangeVals(1), RangeVals(2), RandIters);
 CurrFeats = DatasetToUse.Properties.VariableNames;
 CurrPreds = mdlpredict(ModelToUse, DatasetToUse, 'SingleCol',true);
-CurrMSE   = mse(ExpOutsSg, CurrPreds);
 CurrLoss  = crossentropy2(CurrPreds, ExpOutsSg); % 'crossentropy' is appropriate only for neural network models.
+CurrMSE   = mse(ExpOutsSg, CurrPreds);
+CurrRMSE  = rmse(CurrPreds, ExpOutsSg);
 
 rng(RandSeed) % To control the randomization process
 [IndRand,  RngVals] = deal(zeros(size(DatasetToUse, 1), RandIters));
-[PermLoss, PermMSE] = deal(zeros(RandIters, length(CurrFeats)));
+[PermLoss, PermMSE, PermRMSE] = deal(zeros(RandIters, length(CurrFeats)));
 for i1 = 1:RandIters
     switch PermType
         case 'shuffle'
@@ -158,24 +159,29 @@ for i1 = 1:RandIters
                 DatasetPerm{:,CurrFeats{i2}} = RngVals(:,i1);
         end
 
-        PermPreds       = mdlpredict(ModelToUse, DatasetPerm, 'SingleCol',true);
-        PermMSE(i1,i2)  = mse(ExpOutsSg, PermPreds);
+        PermPreds = mdlpredict(ModelToUse, DatasetPerm, 'SingleCol',true);
+
         PermLoss(i1,i2) = crossentropy2(PermPreds, ExpOutsSg); % 'crossentropy' is appropriate only for neural network models.
+        PermMSE(i1,i2)  = mse(ExpOutsSg, PermPreds);
+        PermRMSE(i1,i2) = rmse(PermPreds, ExpOutsSg);
     end
 end
 
 MeanPermLoss = max(PermLoss, [], 1); % You can also average values: mean(PermLoss,1);
-MeanPermMSE  = max(PermMSE,  [], 1); % You can also average values: mean(PermLoss,1);
+MeanPermMSE  = max(PermMSE,  [], 1); % You can also average values: mean(PermMSE,1);
+MeanPermRMSE = max(PermRMSE, [], 1); % You can also average values: mean(PermRMSE,1);
 
 FeatImpDiffLoss = MeanPermLoss-CurrLoss;
 FeatImpDiffMSE  = MeanPermMSE-CurrMSE;
+FeatImpDiffRMSE = MeanPermRMSE-CurrRMSE;
 
 FeatImpPercLoss = max(FeatImpDiffLoss,0)/sum(max(FeatImpDiffLoss,0)); % The importance can not be negative, thus if a value is negative (better when random) it will be capped to 0 with max(value,0)
 FeatImpPercMSE  = max(FeatImpDiffMSE,0)/sum(max(FeatImpDiffMSE,0));   % The importance can not be negative, thus if a value is negative (better when random) it will be capped to 0 with max(value,0)
+FeatImpPercRMSE = max(FeatImpDiffRMSE,0)/sum(max(FeatImpDiffRMSE,0));   % The importance can not be negative, thus if a value is negative (better when random) it will be capped to 0 with max(value,0)
 
-FeatureImportance = array2table([FeatImpDiffLoss; FeatImpDiffMSE; ...
-                                 FeatImpPercLoss; FeatImpPercMSE], 'RowNames',{'LossDifferences', 'MSEDifferences', ...
-                                                                               'PercentagesLoss', 'PercentagesMSE'}, ...
-                                                                   'VariableNames',CurrFeats);
+FeatureImportance = array2table([FeatImpDiffLoss; FeatImpDiffMSE; FeatImpDiffRMSE; ...
+                                 FeatImpPercLoss; FeatImpPercMSE; FeatImpPercRMSE], ...
+                                                'RowNames',{'LossDifferences', 'MSEDifferences', 'RMSEDifferences', ...
+                                                            'PercentagesLoss', 'PercentagesMSE', 'PercentagesRMSE'}, 'VariableNames',CurrFeats);
 
 end

@@ -22,10 +22,22 @@ function PredictionProbabilities = mdlpredict(Model, Dataset, varargin)
 %   you want to mantain separate columns for each class (except for the
 %   first one that is always delted, since it is complementary). If no value
 %   is specified, then 'false' will be take as default.
+%   
+%   - 'CutValues', logical : is to specify if you want to cut values out of 
+%   the range [0, 1], in case of probabilities on a classification model. 
+%   If no value is specified, then 'false' will be take as default for 
+%   regression and true for classification.
 
 %% Settings initialization
 ScndOut = contains(class(Model), 'class', 'IgnoreCase',true); % Default
+if not(ScndOut) && any(strcmpi(fieldnames(Model), 'modelparameters'))
+    ScndOut = strcmpi(Model.ModelParameters.Type, {'classification'});
+end
+if not(ScndOut) && any(strcmpi(fieldnames(Model), 'method'))
+    ScndOut = any(strcmpi(Model.Method, {'classification'}));
+end
 SnglCol = false; % Default
+CutVals = ScndOut;
 
 if ~isempty(varargin)
     StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
@@ -36,51 +48,51 @@ if ~isempty(varargin)
 
     InputSecondOut = find(cellfun(@(x) strcmpi(x, "secondout"), vararginCopy));
     InputSingleCol = find(cellfun(@(x) strcmpi(x, "singlecol"), vararginCopy));
+    InputCutValues = find(cellfun(@(x) strcmpi(x, "cutvalues"), vararginCopy));
 
     if InputSecondOut; ScndOut = varargin{InputSecondOut+1}; end
     if InputSingleCol; SnglCol = varargin{InputSingleCol+1}; end
+    if InputCutValues; CutVals = varargin{InputCutValues+1}; end
 end
 
 %% Core
-if isa(Model, 'dlnetwork')
-    if isa(Dataset, 'table')
-        warning(['mdlpredict| Dataset to predict is a table but you have ', ...
-                 'a dlnetwork model -> input dataset will be converted in ', ...
-                 'array, check order of input dataset features!'])
-        DatasetArr = table2array(Dataset);
-    end
+if isa(Model, 'dlnetwork') && isa(Dataset, 'table')
+    warning(['mdlpredict| Dataset to predict is a table but you have ', ...
+             'a dlnetwork model -> input dataset will be converted in ', ...
+             'array, check order of input dataset features!'])
+    Dataset = table2array(Dataset);
+end
 
-    CurrPreds = predict(Model, DatasetArr);
-
+if ScndOut
+    [~, CurrPreds] = predict(Model, Dataset);
 else
-    if ScndOut
-        [~, CurrPreds] = predict(Model, Dataset);
+    CurrPreds = predict(Model, Dataset);
+end
 
-    else
-        CurrPreds = predict(Model, Dataset);
-    end
+if ScndOut && any(CurrPreds < 0, 'all') % If there is ScndOut it means that it is a classificator!
+    CurrPreds = exp(CurrPreds)./(exp(CurrPreds)+1);
+    warning('Scores were supposed to be odds, thus converted into probabilities!')
 end
 
 OutOfRng = any(CurrPreds < 0) | any(CurrPreds > 1);
-if OutOfRng
+if OutOfRng && CutVals
     CurrPreds = min(max(CurrPreds, 0), 1);
     warning(['mdlpredict| Some values of the prediction ', ...
              'were cutted out because out of range 0-1'])
 end
 
 FrstPreds = CurrPreds(:,1);
-OrigSize  = 1;
-if size(CurrPreds, 2) > 1
-    OrigSize  = size(CurrPreds, 2);
+if size(CurrPreds, 2) > 1 % In case of multiple columns it should be a classification!
     CurrPreds = CurrPreds(:,2:end);
+
+    if not(all(single(round(FrstPreds, 2)) + single(round(sum(CurrPreds, 2), 2)) == 1)) % sum(CurrPreds, 2) is the remaining part, which summed must return 1-FrstPreds
+        warning(['mdlpredict| Summed probabilities after 2nd column are not ' ...
+                 'equal to the first one! Please check with "predict" function!'])
+    end
 end
 
 if SnglCol
     CurrPreds = sum(CurrPreds, 2); % Correct only in case of softmax as last layer!
-    if OrigSize > 1 && not(all(single(round(FrstPreds, 2)) + single(round(CurrPreds, 2)) == 1))
-        warning(['mdlpredict| Summed probabilities are not equal to ' ...
-                 'the first class! Please check with predict function!'])
-    end
 end
 
 PredictionProbabilities = CurrPreds;
