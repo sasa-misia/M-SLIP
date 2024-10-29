@@ -15,13 +15,14 @@ if exist([fold_var,sl,'Orthophoto.mat'], 'file')
 end
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'])
-    SelectedFont = Font;
-    SelectedFontSize = FontSize;
+    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
+    SlFont = Font;
+    SlFnSz = FontSize;
+    if exist('LegendPosition', 'var'); LegPos = LegendPosition; end
 else
-    SelectedFont = 'Times New Roman';
-    SelectedFontSize = 8;
-    LegendPosition = 'best';
+    SlFont = 'Calibri';
+    SlFnSz = 8;
+    LegPos = 'Best';
 end
 
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
@@ -183,9 +184,9 @@ for i1 = IndModels
 
     fig_settings(fold0)
 
-    title('Risk map', 'FontName',SelectedFont, 'FontSize',1.5*SelectedFontSize)
+    title('Risk map', 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
     subtitle(['Event MSE: ',num2str(CurrentMSE),'; Event AUC: ',num2str(CurrentAUC),'; ANN Struct: [',strjoin({num2str(LayerStruct)}),']'], ...
-              'FontName',SelectedFont, 'FontSize',SelectedFontSize)
+              'FontName',SlFont, 'FontSize',SlFnSz)
 
     axis off
     % set(findall(ax_curr, 'type', 'text'), 'visible', 'on') % To show again titles

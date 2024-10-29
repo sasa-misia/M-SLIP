@@ -13,7 +13,7 @@ MdlType = find([exist([fold_res_ml_curr,sl,'MLMdlA.mat'], 'file'), ...
 if not(isscalar(MdlType)); error('More than one model found in your folder!'); end
 switch MdlType
     case 1
-        Fl2LdMdl = 'ANNsMdlA.mat';
+        Fl2LdMdl = 'MLMdlA.mat';
         load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLMdl','MLPerf','ModelInfo')
         ANNMode = ModelInfo.ANNsOptions.TrainMode;
         DsetInf = ModelInfo.Dataset;
@@ -23,7 +23,7 @@ switch MdlType
         OutMode = DsetInf(end).Options.OutputType;
 
     case 2
-        Fl2LdMdl = 'ANNsMdlB.mat';
+        Fl2LdMdl = 'MLMdlB.mat';
         load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLMdl','MLPerf','ModelInfo')
         ANNMode = ModelInfo.ANNMode;
         DsetInf = ModelInfo.DatasetInfo{:};

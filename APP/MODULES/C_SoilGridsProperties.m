@@ -12,25 +12,25 @@ InterpMethod = uiconfirm(Fig, 'What interpolation method do you want to use?', .
                               'Interpolation methods', 'Options',Options);
 
 ProgressBar.Message = 'Clay content interpolation...';
-WaitAns1 = uiconfirm(Fig, 'Now you will search for clay content raster file!', 'Search file', 'Options',{'Ok, come on!'});
+waitAns1 = uiconfirm(Fig, 'Now you will search for clay content raster file!', 'Search file', 'Options',{'Ok, come on!'});
 [FileNameClay, FilePathClay] = uigetfile('*.tif', 'Choose your raster for clay content', 'MultiSelect','off');
 FullNameClay = [FilePathClay,FileNameClay];
 ClayContentAll = raster_interpolation(xLongAll, yLatAll, FullNameClay, InterpMethod);
 
 ProgressBar.Message = 'Sand content interpolation...';
-WaitAns2 = uiconfirm(Fig, 'Now you will search for sand content raster file!', 'Search file', 'Options',{'Ok, come on!'});
+waitAns2 = uiconfirm(Fig, 'Now you will search for sand content raster file!', 'Search file', 'Options',{'Ok, come on!'});
 [FileNameSand, FilePathSand] = uigetfile('*.tif', 'Choose your raster for sand content', 'MultiSelect','off');
 FullNameSand = [FilePathSand,FileNameSand];
 SandContentAll = raster_interpolation(xLongAll, yLatAll, FullNameSand, InterpMethod);
 
 ProgressBar.Message = 'NDVI values interpolation...';
-WaitAns3 = uiconfirm(Fig, 'Now you will search for NDVI raster file!', 'Search file', 'Options',{'Ok, come on!'});
+waitAns3 = uiconfirm(Fig, 'Now you will search for NDVI raster file!', 'Search file', 'Options',{'Ok, come on!'});
 [FileNameNDVI, FilePathNDVI] = uigetfile('*.tif', 'Choose your raster for NDVI', 'MultiSelect','off');
 FullNameNDVI = [FilePathNDVI,FileNameNDVI];
 NdviAll = raster_interpolation(xLongAll, yLatAll, FullNameNDVI, InterpMethod);
 
 ProgressBar.Message = 'Vegetation probabilities values interpolation...';
-WaitAns4 = uiconfirm(Fig, 'Now you will search for vegetation probability files!', 'Search file', 'Options',{'Ok, come on!'});
+waitAns4 = uiconfirm(Fig, 'Now you will search for vegetation probability files!', 'Search file', 'Options',{'Ok, come on!'});
 [FileNameVgPr, FilePathVgPr] = uigetfile('*.tif', 'Choose your rasters for vegetation probabilities', 'MultiSelect','on');
 FullNameVgPr = strcat(FilePathVgPr,FileNameVgPr);
 VgPrAll = cell(numel(FileNameVgPr), numel(xLongAll));

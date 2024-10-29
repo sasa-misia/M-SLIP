@@ -45,8 +45,8 @@ for i1 = 1:length(NameFile1)
 
     elseif strcmp(RasterRef.CoordinateSystemType,"geographic")
         [yTBS, xTBS] = geographicGrid(RasterRef);
-        dX = acos(sind(yTBS(1,1))*sind(yTBS(1,2))+cosd(yTBS(1,1))*cosd(yTBS(1,2))*cosd(xTBS(1,2)-xTBS(1,1)))*earthRadius;
-        dY = acos(sind(yTBS(1,1))*sind(yTBS(2,1))+cosd(yTBS(1,1))*cosd(yTBS(2,1))*cosd(xTBS(2,1)-xTBS(1,1)))*earthRadius;
+        dX = acos(sind(yTBS(1,1))*sind(yTBS(1,2))+cosd(yTBS(1,1))*cosd(yTBS(1,2))*cosd(xTBS(1,2)-xTBS(1,1)))*earthRadius; % see Sa notes
+        dY = acos(sind(yTBS(1,1))*sind(yTBS(2,1))+cosd(yTBS(1,1))*cosd(yTBS(2,1))*cosd(xTBS(2,1)-xTBS(1,1)))*earthRadius; % see Sa notes
     end
 
     if AnswerChangeDTMResolution == 1
@@ -121,7 +121,7 @@ if exist('OriginalProjCRS', 'var')
         NamesOriginalProjCRS(i1) = OriginalProjCRS{i1}.Name;
     end
 
-    if numel(unique(NamesOriginalProjCRS)) == 1
+    if isscalar(unique(NamesOriginalProjCRS))
         OriginalProjCRS = OriginalProjCRS{1};
     else
         SameCRSForAll = false;
@@ -167,8 +167,12 @@ if OrthophotoAnswer
     LimLatMap = [MinExtremes(2), MaxExtremes(2)];
     LimLonMap = [MinExtremes(1), MaxExtremes(1)];
 
+    Res2UseRd = str2double(inputdlg2('Please specify the resolution of ortophoto:', 'DefInp',{'8192'}));
+
     [ZOrtho, xLongOrtho, yLatOrtho, ROrtho] = deal(cell(1,1));
-    [ZOrtho{1}, xLongOrtho{1}, yLatOrtho{1}, ROrtho{1}] = readortophoto([fold_raw_sat,sl,'UrlMap.txt'], LimLonMap, LimLatMap, Resolution=8192);
+    [ZOrtho{1}, xLongOrtho{1}, ...
+        yLatOrtho{1}, ROrtho{1}] = readortophoto([fold_raw_sat,sl,'UrlMap.txt'], ...
+                                                            LimLonMap, LimLatMap, Resolution=Res2UseRd);
 
     fig_ort = figure(1);
     axs_ort = axes('Parent',fig_ort);
@@ -224,6 +228,8 @@ nAll            = cellfun(@(x) NaN(x), SizeGridInCell, 'UniformOutput',false);
 BetaStarAll     = cellfun(@cosd, SlopeAll, 'UniformOutput',false); % If Vegetation is not associated, betastar will depends on slope
 RootCohesionAll = cellfun(@zeros, SizeGridInCell, 'UniformOutput',false); % If Vegetation is not associated, root cohesion will be zero
 
+%% Saving...
+ProgressBar.Message = 'Saving...';
 
 % Creatings string names of variables in cell arrays to save at the end
 VariablesMorph       = {'ElevationAll', 'RasterInfoGeoAll', 'AspectAngleAll', 'SlopeAll', 'GradNAll', 'GradEAll', ...
@@ -240,9 +246,6 @@ if OrthophotoAnswer; VariablesOrtho = {'ZOrtho', 'ROrtho', 'xLongOrtho', 'yLatOr
 
 VegAttribution = false;
 VariablesAnswerVeg = {'VegAttribution'};
-
-%% Saving...
-ProgressBar.Message = 'Saving...';
 
 if OrthophotoAnswer; save([fold_var,sl,'Orthophoto.mat'], VariablesOrtho{:}); end
 save([fold_var,sl,'UserMorph_Answers.mat'   ], VariablesAnswerMorph{:})

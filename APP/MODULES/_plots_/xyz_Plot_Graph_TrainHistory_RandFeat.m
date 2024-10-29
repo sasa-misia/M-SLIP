@@ -25,8 +25,8 @@ if numel(FldrsToRd) > 4; error('Please, select less folders!'); end
 [HistRndFtFld, HistANNsNmes, HistANNsStct] = deal(cell(1, length(FldrsToRd)));
 for i1 = 1:length(FldrsToRd)
     fold_res_ml_curr = [fold_res,sl,FldrsToRd{i1}];
-    MdlType = find([exist([fold_res_ml_curr,sl,'ANNsMdlA.mat'], 'file'), ...
-                    exist([fold_res_ml_curr,sl,'ANNsMdlB.mat'], 'file')]);
+    MdlType = find([exist([fold_res_ml_curr,sl,'MLMdlA.mat'], 'file'), ...
+                    exist([fold_res_ml_curr,sl,'MLMdlB.mat'], 'file')]);
     if not(isscalar(MdlType)); error('More than one model found in your folder!'); end
     switch MdlType
         case 1

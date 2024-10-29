@@ -1,27 +1,23 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
-                                 'Message','Reading files...', 'Cancelable','off', ...
-                                 'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
 %% File loading
 sl = filesep;
 
-load([fold_var,sl,'GridCoordinates.mat'],      'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
-load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll','AspectAngleAll','OriginallyProjected','SameCRSForAll')
-load([fold_var,sl,'SoilParameters.mat'],       'PhiAll','CohesionAll')
+load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll','AspectAngleAll')
+load([fold_var,sl,'SoilParameters.mat'      ], 'PhiAll','CohesionAll')
 load([fold_var,sl,'VegetationParameters.mat'], 'RootCohesionAll')
-load([fold_var,sl,'UserMorph_Answers.mat'],    'OrthophotoAnswer')
+load([fold_var,sl,'UserMorph_Answers.mat'   ], 'OrthophotoAnswer')
+
+ProjCRS = load_prjcrs(fold_var);
+
+[InfoDetExst, InfoDet2Use] = load_info_detected(fold_var);
 
 if OrthophotoAnswer
     load([fold_var,sl,'Orthophoto.mat'], 'ZOrtho','xLongOrtho','yLatOrtho')
-end
-
-InfoDetectedExist = false;
-if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
-    load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
-    InfoDetectedExist = true;
 end
 
 InstDepth = 1.2;
@@ -122,22 +118,12 @@ end
 %% Geo to planar conversion, NOTE: IT IS IMPORTANT TO HAVE METERS AS COORDINATES!
 ProgressBar.Message = 'Conversion of coordinates from geo to plan...';
 
-if OriginallyProjected && SameCRSForAll
-    load([fold_var,sl,'MorphologyParameters.mat'], 'OriginalProjCRS')
-
-    ProjCRS = OriginalProjCRS;
-else
-    EPSG    = str2double(inputdlg2({['DTM EPSG (Sicily -> 32633, ' ...
-                                     'Emilia Romagna -> 25832):']}, 'DefInp',{'25832'}));
-    ProjCRS = projcrs(EPSG);
-end
-
 [xPlanAll, yPlanAll] = deal(cell(size(xLongAll)));
 for i1 = 1:length(xLongAll)
     [xPlanAll{i1}, yPlanAll{i1}] = projfwd(ProjCRS, yLatAll{i1}, xLongAll{i1});
 end
 
-DetLandsGeo = cell2mat(InfoDetectedSoilSlipsToUse(:, 5:6));
+DetLandsGeo = InfoDet2Use{:, 5:6};
 [DetLandsPln(:,1), DetLandsPln(:,2)] = projfwd(ProjCRS, DetLandsGeo(:,2), DetLandsGeo(:,1));
 
 %% Update of PathsInfo
@@ -147,7 +133,7 @@ PathsInfo.PlanarProjCRS = ProjCRS;
 if SngGrid
     error('Not yet implemented, please contact the support!')
 end
-% TO IMPLEMENT! (A function should be already written!)
+% TO IMPLEMENT! (A function should have been already written!)
 
 %% Loop over all DEM cells
 [DBScanValues, GrdSize] = deal(cell(1, length(xLongAll)));
@@ -190,8 +176,8 @@ for i1 = 1:length(xLongAll)
             IndUnstPntsRaw = find(FsStudyArea(:) <= CritFS & FsStudyArea(:) >= 0);
 
         case 'Detected points'
-            IndWithCurrDTM = cell2mat(InfoDetectedSoilSlipsToUse(:, 3)) == i1;
-            IndUnstPntsRaw = cell2mat(InfoDetectedSoilSlipsToUse(IndWithCurrDTM, 4));
+            IndWithCurrDTM = InfoDet2Use{:, 3} == i1;
+            IndUnstPntsRaw = InfoDet2Use{IndWithCurrDTM, 4};
 
         otherwise
             error('Type of points for land bodies not recognized!')
@@ -253,7 +239,7 @@ for i1 = 1:length(xLongAll)
         if ProgressBar.CancelRequested; break; end
         
         CoordsTemp      = UnstCoordsRaw(IndPntCl{1, i2}, :);
-        PolyUnstPlnTmp  = polybuffpoint2(CoordsTemp, [1.01*dX/2, 1.01*dY/2], 'UniquePoly',true); % 1.01 to allow the merging of single polygons!
+        PolyUnstPlnTmp  = polybuffpoint2(CoordsTemp, [1.01*dX/2, 1.01*dY/2], uniquePoly=true); % 1.01 to allow the merging of single polygons!
         [CntPX, CntPY]  = centroid(PolyUnstPlnTmp);
         PolyUnstGeoTmp  = projinvpoly(PolyUnstPlnTmp, ProjCRS);
         [CntGX, CntGY]  = centroid(PolyUnstGeoTmp);
@@ -549,7 +535,7 @@ for i1 = 1:length(xLongAll)
         [CoheTop, CoheBot] = deal(PthCohe);
         [PthDltH, PthTopFS, PthBotFS] = deal(zeros(size(PthStpAc, 1), 1));
         for i3 = 1:size(PthDltH, 1)
-            [PhiBot, PhiTop] = deal(mean(PthPhi(i3),PthPhi(i3+1))*2/3);
+            [PhiBot, PhiTop] = deal(mean([PthPhi(i3), PthPhi(i3+1)])*2/3);
             PthTopFS(i3) = CoheTop(i3) / (GammaSoil*CrrBdyH*sind(PthStpSl(i3))*cosd(PthStpSl(i3))) + ...
                            ( 1 - SkemptonB*(1 + SkemptonA*tand(PthStpSl(i3))) )*tand(PhiTop) / tand(PthStpSl(i3));
             PthBotFS(i3) = CoheBot(i3) / (GammaSoil*(CrrBdyH+ErodDpt)*sind(PthStpSl(i3))*cosd(PthStpSl(i3))) + ...

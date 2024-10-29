@@ -91,6 +91,11 @@ end
 if size(p,2)~=2
    error('P must be an Nx2 array.');
 end
+if size(p,1)==0 % No points, then output must be empty logical vectors!
+    cn = logical([]);
+    on = logical([]);
+    return
+end
 if size(node,2)~=2
    error('NODE must be an Mx2 array.');
 end

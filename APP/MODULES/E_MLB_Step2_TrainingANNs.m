@@ -434,7 +434,7 @@ MLRes.Properties.VariableNames = MLCls;
 ProgressBar.Indeterminate = 'on';
 ProgressBar.Message       = 'Analyzing quality of models...';
 
-MLPrfR = {'FPR', 'TPR', 'AUC', 'BestThreshold', 'BestThrInd'};
+MLPrfR = {'FPR', 'TPR', 'AUC', 'BestThreshold', 'BestThrInd', 'Class'};
 MLPerf = table('RowNames',{'ROC','Err'});
 MLPerf{'Err','Train'} = {array2table([TrnMSE; TrnLss], ...
                                             'VariableNames',MLCls, ...
@@ -451,49 +451,8 @@ for i1 = 1:ANNsNumber
     ExpOutsTrn = DsetTbl{'Train','ExpOuts'}{:};
     ExpOutsTst = DsetTbl{'Test' ,'ExpOuts'}{:};
 
-    % Train performance
-    [FPR4ROC_Trn, TPR4ROC_Trn, ThresholdsROC_Trn, AUC_Trn, OptPoint_Trn] = perfcurve(ExpOutsTrn, PrdPrbsTrn, 1);
-    switch BstThrMthd
-        case 'MATLAB'
-            % Method integrated in MATLAB
-            IndBest_Trn = find(ismember([FPR4ROC_Trn, TPR4ROC_Trn], OptPoint_Trn, 'rows'));
-            BestThr_Trn = ThresholdsROC_Trn(IndBest_Trn);
-        case 'MaximizeRatio-TPR-FPR'
-            % Method max ratio TPR/FPR
-            RatTPR_FPR_Trn = TPR4ROC_Trn./FPR4ROC_Trn;
-            RatTPR_FPR_Trn(isinf(RatTPR_FPR_Trn)) = nan;
-            [~, IndBest_Trn]  = max(RatTPR_FPR_Trn);
-            BestThr_Trn = ThresholdsROC_Trn(IndBest_Trn);
-        case 'MaximizeArea-TPR-TNR'
-            % Method max product TPR*TNR
-            AreaTPR_TNR_Trn = TPR4ROC_Trn.*(1-FPR4ROC_Trn);
-            [~, IndBest_Trn] = max(AreaTPR_TNR_Trn);
-            BestThr_Trn = ThresholdsROC_Trn(IndBest_Trn);
-    end
-
-    % Test performance
-    [FPR4ROC_Tst, TPR4ROC_Tst, ThresholdsROC_Tst, AUC_Tst, OptPoint_Tst] = perfcurve(ExpOutsTst, PrdPrbsTst, 1); % To adjust ExpectedOutputsTest
-    switch BstThrMthd
-        case 'MATLAB'
-            % Method integrated in MATLAB
-            IndBest_Tst = find(ismember([FPR4ROC_Tst, TPR4ROC_Tst], OptPoint_Tst, 'rows'));
-            BestThr_Tst = ThresholdsROC_Tst(IndBest_Tst);
-        case 'MaximizeRatio-TPR-FPR'
-            % Method max ratio TPR/FPR
-            RatTPR_FPR_Tst = TPR4ROC_Tst./FPR4ROC_Tst;
-            RatTPR_FPR_Tst(isinf(RatTPR_FPR_Tst)) = nan;
-            [~, IndBest_Tst] = max(RatTPR_FPR_Tst);
-            BestThr_Tst = ThresholdsROC_Tst(IndBest_Tst);
-        case 'MaximizeArea-TPR-TNR'
-            % Method max product TPR*TNR
-            AreaTPR_TNR_Tst = TPR4ROC_Tst.*(1-FPR4ROC_Tst);
-            [~, IndBest_Tst] = max(AreaTPR_TNR_Tst);
-            BestThr_Tst = ThresholdsROC_Tst(IndBest_Tst);
-    end
-    
-    % General matrices creation
-    MLPerf{'ROC','Train'}{:}{MLPrfR, i1} = {FPR4ROC_Trn; TPR4ROC_Trn; AUC_Trn; BestThr_Trn; IndBest_Trn}; % Pay attention to the order!
-    MLPerf{'ROC','Test' }{:}{MLPrfR, i1} = {FPR4ROC_Tst; TPR4ROC_Tst; AUC_Tst; BestThr_Tst; IndBest_Tst}; % Pay attention to the order!
+    MLPerf{'ROC','Train'}{:}(:, i1) = roccurve2(PrdPrbsTrn, ExpOutsTrn, bestThrMethod=BstThrMthd);
+    MLPerf{'ROC','Test' }{:}(:, i1) = roccurve2(PrdPrbsTst, ExpOutsTst, bestThrMethod=BstThrMthd);
 end
 
 MLPerf{'ROC','Train'}{:}.Properties.VariableNames = MLCls;

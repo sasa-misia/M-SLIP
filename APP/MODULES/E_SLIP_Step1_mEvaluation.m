@@ -6,10 +6,10 @@ drawnow
 %% Data import
 sl = filesep;
 
-load([fold_var,sl,'GridCoordinates.mat'],      'xLongAll','IndexDTMPointsInsideStudyArea')
-load([fold_var,sl,'SoilParameters.mat'],       'KtAll')
-load([fold_var,sl,'RainInterpolated.mat'],     'RainInterpolated')
-load([fold_var,sl,'AnalysisInformation.mat'],  'StabilityAnalysis')
+load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'SoilParameters.mat'      ], 'KtAll')
+load([fold_var,sl,'RainInterpolated.mat'    ], 'RainInterpolated')
+load([fold_var,sl,'AnalysisInformation.mat' ], 'StabilityAnalysis')
 load([fold_var,sl,'UserTimeSens_Answers.mat'], 'AnswerTypeFor')
 if not(exist('AnswerTypeFor','var')); AnswerTypeFor = false; end
 if AnswerTypeFor
@@ -24,11 +24,12 @@ clear('xLongAll')
 
 AnalysisNumber = StabilityAnalysis{1};
 RainStart = StabilityAnalysis{3}(1);
-RW = 30*24;
-dt = (RW:-1:1);
+RW = 30*24; % In hours (because kt is in hours)
+dR = hours(StabilityAnalysis{2}(2) - StabilityAnalysis{2}(1));
+dt = (RW : -dR : 1);
 
 if AnswerTypeFor == 1
-    HoursPrediction = cellfun(@max,SelectedHoursRun(:,1));
+    HoursPrediction = cellfun(@max, SelectedHoursRun(:,1));
 end
 
 KtStudyArea = cellfun(@(x,y) x(y), KtAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
@@ -39,7 +40,7 @@ ProgressBar.Indeterminate = 'off';
 ProgressBar.Cancelable    = 'on';
 
 tic
-IndRnAn  = arrayfun(@(x) x:x+RW-1, 1:StabilityAnalysis{1}, 'UniformOutput',false);
+IndRnAn  = arrayfun(@(x) x : x+RW-1, 1:StabilityAnalysis{1}, 'UniformOutput',false);
 Steps    = AnalysisNumber*NumberOfDTM*numel(dt);
 DmCumPar = cell(AnalysisNumber,NumberOfDTM);
 for i1 = 1:AnalysisNumber
@@ -52,7 +53,7 @@ for i1 = 1:AnalysisNumber
         load([fold_var_rain_for,sl,'RainForecastInterpolated',num2str(RunForecast)], 'RainForecastInterpolated');
 
         RainForecast = RainForecastInterpolated(SelectedHoursRun{i1,1},:);
-        IndToReplace = RW-HoursPrediction(i1)+1:RW;
+        IndToReplace = RW-HoursPrediction(i1)+1 : RW;
     end
 
     for i2 = 1:NumberOfDTM

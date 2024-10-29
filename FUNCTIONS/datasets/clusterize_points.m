@@ -26,8 +26,8 @@ function [ClassInds, ClassCrds, ClassClrs, ClassVals] = clusterize_points(xLonCo
 %   - yLatCoords : numeric array containing the latitudes of the points to
 %   clusterize.
 %   
-%   - ValuesToClust : numeric array containing the values based on which
-%   clusterize the points. It is suggested to use probabilities of predictions.
+%   - Values : numeric array containing the values based on which clusterize 
+%   the points. It is suggested to use probabilities of predictions.
 %   
 % Optional arguments:
 %   - 'Threshold', numeric : is to declare the threshold to apply in order

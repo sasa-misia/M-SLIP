@@ -350,6 +350,8 @@ if SepMtrc
     
             xlim([0, HistNmbr])
             ylim(yLmCont{i2})
+
+            ytickformat(hAxsHist, '%.1f')
     
             SubTxt = join(strcat(Mdl2Plt{i1},{': ['},cellfun(@(x) char(join(string(x),',')), MdlStrc{i1}, 'UniformOutput',false),{'];'}), ' ');
             

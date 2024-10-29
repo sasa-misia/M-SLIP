@@ -110,7 +110,7 @@ if AnswerTypeFor == 1
     
     ForecastData = cell(size(ChoiceForcstFile,2),5);
     for i1 = 1:size(ChoiceForcstFile,2)
-        GribData = ncdataset(FileNameForecast(i1,:));  
+        GribData = ncdataset(FileNameForecast(i1,:));
         GribLat  = double(GribData.data('lat'));
         GribLong = double(GribData.data('lon'));
         [MeshLong, MeshLat] = meshgrid(GribLong, GribLat);
@@ -148,12 +148,12 @@ switch AnalysisCase
                    'It could become too large and it may not work! ', ...
                    'Please contanct the support.'])
         elseif hours(dTRecsAdj) > 1
-            error(['Rain data is discretized in more than 1 hour. ', ...
-                   'It may not work! Please contanct the support.'])
+            warning(['Rain data is discretized in more than 1 hour. ', ...
+                     'It may not work! Please contanct the support.'])
         end
 
         %% SLIP process
-        dTRecsShifted         = RecDatesEndCommon(2)-RecDatesEndCommon(1);
+        dTRecsShifted         = RecDatesEndCommon(2) - RecDatesEndCommon(1);
         AnalysisDateMaxRange  = [min(RecDatesEndCommon)+days(30), max(RecDatesEndCommon)];
         PossibleAnalysisDates = AnalysisDateMaxRange(1) : dTRecsShifted : AnalysisDateMaxRange(2);
         PossibleAnalysisDates.Format = 'dd/MM/yyyy HH:mm:ss';
@@ -172,9 +172,6 @@ switch AnalysisCase
 
         ChoiceEvent    = checkbox2(string(PossibleAnalysisDates), 'Title',{'Select event(s) to analyse:'}, 'OutType','NumInd');
         AnalysisEvents = PossibleAnalysisDates(ChoiceEvent);
-        
-        drawnow % Remember to remove if in Standalone version
-        figure(Fig) % Remember to remove if in Standalone version
 
         AnalysisInterval = {AnalysisEvents(1)-days(30)+dTRecsShifted, AnalysisEvents(end)}; % +dTRecsShifted because these are end dates and include an hour of rec
         AnalysisIndices  = [ find(abs(minutes(GeneralDatesEnd-AnalysisInterval{1})) <= 1), ...
@@ -280,6 +277,6 @@ else
 end
 
 save([fold_var,sl,'UserTimeSens_Answers.mat'], VariablesFilenames{:},'AnalysisCase',AnswerType{:});
-save([fold_var,sl,NameGeneral],                VariablesRecorded{:});
+save([fold_var,sl,NameGeneral               ], VariablesRecorded{:});
 
 close(ProgressBar) % Remember to replace ProgressBar with Fig if you are in standalone version

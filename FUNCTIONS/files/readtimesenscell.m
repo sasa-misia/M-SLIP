@@ -1,4 +1,4 @@
-function [DatesStart, DatesEnd, NumericData, Gauges] = readtimesenscell(FileToRead, varargin)
+function [datesStart, datesEnd, numericData, gauges] = readtimesenscell(file2Read, varargin)
 
 % Function to read georaster values, reference object and info.
 %   
@@ -56,20 +56,20 @@ function [DatesStart, DatesEnd, NumericData, Gauges] = readtimesenscell(FileToRe
 %   be take as default!
 
 %% Input check
-if not(ischar(FileToRead) || isstring(FileToRead) || iscellstr(FileToRead))
+if not(ischar(file2Read) || isstring(file2Read) || iscellstr(file2Read))
     error('FileToRead (1st input) must be a char or a string!')
 end
 
-FileToRead = string(FileToRead); % To have consistency!
+file2Read = string(file2Read); % To have consistency!
 
 SuppFiles = {'.xlsx'};
-[~, ~, BaseExt] = fileparts(FileToRead);
+[~, ~, BaseExt] = fileparts(file2Read);
 if not(any(strcmpi(BaseExt, SuppFiles)))
     error(['File of type "',char(BaseExt),'" not supported. Please make ' ...
            'shure your extension is: ',char(join(SuppFiles, '; ')),'!'])
 end
 
-if numel(FileToRead) > 1
+if numel(file2Read) > 1
     error(['You specified more than one file to read! Please ' ...
            'open a for cycle that call this function instead.'])
 end
@@ -143,18 +143,18 @@ end
 
 %% Core
 %%% Reading and reordering %%%
-SheetStatRaw = readcell(FileToRead, 'Sheet',StaSheet); % REMEMBER: in this sheet stations should have the same order of Data sheet!
-SheetDataRaw = readcell(FileToRead, 'Sheet',DatSheet);
+SheetStatRaw = readcell(file2Read, 'Sheet',StaSheet); % REMEMBER: in this sheet stations should have the same order of Data sheet!
+SheetDataRaw = readcell(file2Read, 'Sheet',DatSheet);
 
 % Reordering of stations (according to Data sheet!)
-HdStsRow = find(sum(cellfun(@(x) ischar(x) || isstring(x), SheetStatRaw), 2) > 3, 1); % The header row is the first row that ccontains at least 3 titles (station, long, lat)!
+HdStsRow = find(sum(cellfun(@(x) ischar(x) || isstring(x), SheetStatRaw), 2) >= 3, 1); % The header row is the first row that ccontains at least 3 titles (station, long, lat)!
 if isempty(StatsCol)
     StatsCol = listdlg2({'Column with station names:', 'Column with longitudes:', ...
                          'Column with latitudes:'}, cellstr(SheetStatRaw(HdStsRow, :)), 'OutType','NumInd');
 end
 SheetStatCnt = SheetStatRaw;
 SheetStatCnt(HdStsRow, :) = [];
-StatRowInds = sum(cellfun(@(x) all(isnumeric(x)), SheetStatCnt), 2) > 2; % Rows that contain a station must have at least 2 numeric cells with coordinates!
+StatRowInds = sum(cellfun(@(x) all(isnumeric(x)), SheetStatCnt), 2) >= 2; % Rows that contain a station must have at least 2 numeric cells with coordinates!
 StationsRaw = string(SheetStatCnt(StatRowInds, StatsCol(1)));
 
 IndStrPartDataSheet = cellfun(@(x) any(strcmp(class(x), {'char','string'})), SheetDataRaw);
@@ -192,7 +192,10 @@ Stations   = string(SheetStatOrd(:,1));
 xLongSta   = [SheetStatOrd{:, StatsCol(2)}]';
 yLatSta    = [SheetStatOrd{:, StatsCol(3)}]';
 CrdsGauges = [xLongSta, yLatSta];
-Gauges     = {Stations, CrdsGauges};
+gauges     = {Stations, CrdsGauges};
+
+SheetStatCnt(cellfun(@(x) all(ismissing(x)), SheetStatCnt)) = {''}; % To convert ismissing object into empty char (otherwise isequal will not work)
+SheetStatOrd(cellfun(@(x) all(ismissing(x)), SheetStatOrd)) = {''}; % To convert ismissing object into empty char (otherwise isequal will not work)
 
 if not(isequal(SheetStatCnt, SheetStatOrd))
     warning(['Station table sheet in excel was automatically reordered ', ...
@@ -212,7 +215,7 @@ if StatFilt
     xLongSta   = [SheetStatOrd{:, StatsCol(2)}]';
     yLatSta    = [SheetStatOrd{:, StatsCol(3)}]';
     CrdsGauges = [xLongSta, yLatSta];
-    Gauges     = {Stations, CrdsGauges};
+    gauges     = {Stations, CrdsGauges};
 end
 
 %%% Check for consistency in excel %%%
@@ -435,8 +438,8 @@ elseif not(DataIsConsistentNew)
 end
 
 % Extraction of data in single cells and shifting of datetime
-DatesStart  = cellfun(@(x) [x{:}]', RecDatesStartsPerSta, 'UniformOutput',false);
-DatesEnd    = cellfun(@(x) [x{:}]', RecDatesEndsPerSta  , 'UniformOutput',false);
-NumericData = cellfun(@cell2mat   , RecNumDataPerSta    , 'UniformOutput',false);
+datesStart  = cellfun(@(x) [x{:}]', RecDatesStartsPerSta, 'UniformOutput',false);
+datesEnd    = cellfun(@(x) [x{:}]', RecDatesEndsPerSta  , 'UniformOutput',false);
+numericData = cellfun(@cell2mat   , RecNumDataPerSta    , 'UniformOutput',false);
 
 end

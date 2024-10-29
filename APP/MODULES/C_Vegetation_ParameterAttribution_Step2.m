@@ -1,159 +1,111 @@
-% Fig = uifigure; % Remember to comment if in app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Attribution of vegetation parameters', ...
-                                 'Message','Reading file', 'Cancelable','on', ...
-                                 'Indeterminate','on');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
 %% Loading of variables previously created
-cd(fold_var)
-load('GridCoordinates.mat')
-load('VegetationParameters.mat')
-load('VegPolygonsStudyArea.mat')
+sl = filesep;
+
+load([fold_var,sl,'GridCoordinates.mat'     ], 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
+load([fold_var,sl,'VegetationParameters.mat'], 'BetaStarAll','RootCohesionAll')
+load([fold_var,sl,'VegPolygonsStudyArea.mat'], 'FileName_VegAssociation','VegPolygonsStudyArea','VegetationAllUnique')
+
+InfoDetExst = false;
+if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
+    load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
+    InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
+    InfoDetExst = true;
+end
+
+ModVegInDet = 'No';
+if InfoDetExst
+    ModVegInDet = char(listdlg2('Delete vegetation in det soil slips?', {'Yes', 'No', 'Average'}));
+end
+
+VegAttribution = true;
+
+%% Options
+AssOpts = checkbox2({'Manual colors veg classes', ...
+                     'Manual colors veg units (DVC)', ...
+                     'Check association at the end'}, 'OutType','LogInd', 'DefInp',[0, 0, 1], ...
+                                                      'Title','Association options');
+
+ClrsChc = AssOpts(1:2);
+ChckAss = AssOpts(3);
+
+%% Data extraction
+xLonStudy = cellfun(@(x,y) x(y), xLongAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+if not(ChckAss); clear('xLongAll'); end
+
+yLatStudy = cellfun(@(x,y) x(y), yLatAll , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+if not(ChckAss); clear('yLatAll'); end
 
 %% Excel reading and coefficient matrix writing
 ProgressBar.Message = 'Reading excel...';
 
-cd(fold_user)
-Sheet_DVCPar = readcell(FileName_VegAssociation,'Sheet','DVCParameters');
-Sheet_Ass = readcell(FileName_VegAssociation,'Sheet','Association');
-
-VU2DVC = Sheet_Ass(2:size(Sheet_Ass,1),2);
-SelectedVeg = find(cellfun(@ismissing,VU2DVC)==0);
-
-if isempty(SelectedVeg); error('V 1'); end
-
-VUAbbr = string(Sheet_Ass(SelectedVeg+1,3)); % Plus 1 because of headers
-
-Options = {'Yes', 'No, yet assigned in excel'};
-ChoiceVU = uiconfirm(Fig, 'Would you like to choose VU color?', ...
-                          'Window type', 'Options',Options);
-ChoiceDVC = uiconfirm(Fig, 'Would you like to choose DVC color?', ...
-                           'Window type', 'Options',Options);
-
-if string(ChoiceVU) == string(Options{2})
-
-    try
-        VUColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
-                                Sheet_Ass(SelectedVeg+1,4), 'UniformOutput',false));
-    catch me
-        getReport(me)
-        uialert(Fig, ['An error occurred reading colors (see MATLAB command), ' ...
-                      'VU Colors will be randomly generated...'], ...
-                      'VU Color Error')
-        VUColors = uint8(rand(size(SelectedVeg,1),3).*255);
-    end
-
-elseif string(ChoiceVU) == string(Options{1})
-
-    for i1 = 1:size(SelectedVeg,1)
-        VUColors(i1,:) = uisetcolor(strcat("Chose a color for ",VUAbbr(i1))).*255;
-    end
-
-end
-
-if string(ChoiceDVC) == string(Options{2})
-
-    try
-        DVCColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
-                 Sheet_DVCPar(2:size(Sheet_DVCPar,1),4), 'UniformOutput',false));
-    catch me
-        getReport(me)
-        uialert(Fig, ['An error occurred reading colors (see MATLAB command), ' ...
-                      'DVC Colors will be randomly generated...'], ...
-                      'DVC Color Error')
-        DVCColors = uint8(rand(size(Sheet_DVCPar,1)-1, 3).*255);
-    end
-
-elseif string(ChoiceDVC) == string(Options{1})
-
-    for i1 = 1:(size(Sheet_DVCPar,1)-1)
-        DVCColors(i1,:) = uisetcolor(strcat("Chose a color for UV ",num2str(i1))).*255;
-    end
-
-end
-
-% Correspondence VU->DVC
-VegAcronyms = VUAbbr(:,1);
-DVC = VU2DVC(SelectedVeg,1);
-
-% Vegetation parameter for the single-point assignment procedure
-DVC_cr = [Sheet_DVCPar{2:size(Sheet_DVCPar,1),2}]';
-DVC_betastar = [Sheet_DVCPar{2:size(Sheet_DVCPar,1),3}]';
-
-% Vegetation non associated
-SelectedVUByUserPolygons = VegPolygonsStudyArea(SelectedVeg);
+[VegAssociation, ...
+    VegParameters] = read_association_spreadsheet([fold_user,sl,FileName_VegAssociation], ...
+                                                   VegPolygonsStudyArea, VegetationAllUnique, ...
+                                                                    fileType='Vegetation', slColors=ClrsChc, alertFig=Fig);
 
 %% InPolygon Procedure
-cd(fold_var)
-MantainVegOfSS = 'No';
-if exist('InfoDetectedSoilSlips.mat', 'file')
-    Options = {'Yes', 'No', 'Average'};
-    MantainVegOfSS = uiconfirm(Fig, 'Do you want to mantain soil slip points with no vegetation?', ...
-                               'Window type', 'Options',Options);
-    if strcmp(MantainVegOfSS, 'Yes') || strcmp(MantainVegOfSS, 'Average')
-        load('InfoDetectedSoilSlips.mat')
-        DTMi = InfoDetectedSoilSlips(:,3);
-        Indexi = InfoDetectedSoilSlips(:,4);
-        IndexAlli = cellfun(@(x,y) IndexDTMPointsInsideStudyArea{x}(y), DTMi, Indexi, 'UniformOutput',false);
-        RootCohesionToMantain = cellfun(@(x,y) RootCohesionAll{x}(y), DTMi, IndexAlli);
-        BetaStarToMantain = cellfun(@(x,y) BetaStarAll{x}(y), DTMi, IndexAlli);
-    end
+if strcmp(ModVegInDet, 'Yes') || strcmp(ModVegInDet, 'Average')
+    load([fold_var,sl,'InfoDetectedSoilSlips.mat'])
+    DetDTM = InfoDet2Use{:,3};
+    DetInd = InfoDet2Use{:,4}; % These indices are relative to StudyArea, not to xLongAll!
+    DetIdA = arrayfun(@(x,y) IndexDTMPointsInsideStudyArea{x}(y), DetDTM, DetInd); % Now these are relative to xLongAll
+    Cr2Mnt = arrayfun(@(x,y) RootCohesionAll{x}(y), DetDTM, DetIdA);
+    Bs2Mnt = arrayfun(@(x,y) BetaStarAll{x}(y)    , DetDTM, DetIdA);
 end
 
 tic
 ProgressBar.Indeterminate = 'off';
-for i1 = 1:size(SelectedVUByUserPolygons,2)
-    ProgressBar.Message = strcat("Attributing parameters of VU n. ",num2str(i1)," of ", num2str(size(SelectedVUByUserPolygons,2)));
-    ProgressBar.Value = i1/size(SelectedVUByUserPolygons,2);
+for i1 = 1:size(VegParameters, 1)
+    ProgressBar.Message = ['Working on VU n. ',num2str(i1),' of ', num2str(size(VegParameters, 1))];
+    ProgressBar.Value = i1/size(VegParameters, 1);
 
-    VUPolygon = SelectedVUByUserPolygons(i1);
-    [pp,ee] = getnan2([VUPolygon.Vertices;nan nan]); % Conversion NaN-delimited polygon format to node-edge topological layout required by inpoly2
-    for i2 = 1:size(xLongAll,2)    
+    CurrPolygon = VegParameters{i1, 'Polygon'};
+    [ppVU, eeVU] = getnan2([CurrPolygon.Vertices; nan, nan]);
+    for i2 = 1:numel(RootCohesionAll)
+        IndRelInLUPoly = find(inpoly([xLonStudy{i2},yLatStudy{i2}], ppVU, eeVU) == 1);
 
-        IndexGridPointInsideVegPolygon = find(inpoly([xLongAll{i2}(IndexDTMPointsInsideStudyArea{i2}),...
-                    yLatAll{i2}(IndexDTMPointsInsideStudyArea{i2})],pp,ee)==1);
-        
-        RootCohesionAll{i2}(IndexDTMPointsInsideStudyArea{i2}(IndexGridPointInsideVegPolygon)) = ...
-                                            DVC_cr(VU2DVC{SelectedVeg(i1),1});
-        if DVC_betastar(VU2DVC{SelectedVeg(i1),1})~=0
-            BetaStarAll{i2}(IndexDTMPointsInsideStudyArea{i2}(IndexGridPointInsideVegPolygon)) = ...
-                                            DVC_betastar(VU2DVC{SelectedVeg(i1),1});
+        RootCohesionAll{i2}(IndexDTMPointsInsideStudyArea{i2}(IndRelInLUPoly)) = VegParameters{i1, 'cr'  };
+
+        if VegParameters{i1, 'beta'} ~= 0
+            BetaStarAll{i2}(IndexDTMPointsInsideStudyArea{i2}(IndRelInLUPoly)) = VegParameters{i1, 'beta'};
         end
     end
-    disp(strcat('Finished VU',num2str(i1),'of ',num2str(size(SelectedVUByUserPolygons,2))))
+
+    disp(['Finished VU',num2str(i1),'of ',num2str(size(VegParameters, 1))])
+end
+ProgressBar.Indeterminate = 'on';
+
+if ChckAss
+    ProgressBar.Message = 'Checking association...';
+
+    AttrCheck = check_poly2grid([xLongAll; yLatAll], [RootCohesionAll; BetaStarAll], VegParameters{:, 'Polygon'});
+    if not(all(AttrCheck)); error('Some polygons were not correctly associated!'); end
 end
 
-if strcmp(MantainVegOfSS, 'Yes') || strcmp(MantainVegOfSS, 'Average')
-    for i1 = 1:length(BetaStarToMantain)
-        if strcmp(MantainVegOfSS, 'Average')
-            RootCohesionAll{DTMi{i1}}(IndexAlli{i1}) = (RootCohesionToMantain(i1)+RootCohesionAll{DTMi{i1}}(IndexAlli{i1}))/2;
-            BetaStarAll{DTMi{i1}}(IndexAlli{i1}) = (BetaStarToMantain(i1)+BetaStarAll{DTMi{i1}}(IndexAlli{i1}))/2;
+if strcmp(ModVegInDet, 'Yes') || strcmp(ModVegInDet, 'Average') % Must be after check, because otherwise the check will fail!
+    for i1 = 1:length(Bs2Mnt)
+        if strcmp(ModVegInDet, 'Average')
+            RootCohesionAll{DetDTM(i1)}(DetIdA(i1)) = (Cr2Mnt(i1) + RootCohesionAll{DetDTM(i1)}(DetIdA(i1))) / 2;
+            BetaStarAll{DetDTM(i1)}(DetIdA(i1))     = (Bs2Mnt(i1) + BetaStarAll{DetDTM(i1)}(DetIdA(i1))) / 2;
         else
-            RootCohesionAll{DTMi{i1}}(IndexAlli{i1}) = RootCohesionToMantain(i1);
-            BetaStarAll{DTMi{i1}}(IndexAlli{i1}) = BetaStarToMantain(i1);
+            RootCohesionAll{DetDTM(i1)}(DetIdA(i1)) = Cr2Mnt(i1);
+            BetaStarAll{DetDTM(i1)}(DetIdA(i1))     = Bs2Mnt(i1);
         end
     end
 end
 toc
 
-VegAttribution = true;
-
-VU_DVC = {VegAcronyms, DVC};
-VU_DVCPlotColors = {VUColors, DVCColors};
-DVCParameters = {DVC_cr, DVC_betastar};
-
-VariablesAnswerD = {'VegAttribution'};
-VariablesVUPar = {'VU_DVCPlotColors', 'VU_DVC', 'VUAbbr', 'DVCParameters', 'SelectedVeg', 'VU2DVC'};
-VariablesVegPar = {'RootCohesionAll', 'BetaStarAll'};
-
-ProgressBar.Indeterminate = 'on';
+%% Saving..
 ProgressBar.Message = 'Finising...';
 
-%% Saving..
-cd(fold_var)
-save('UserVeg_Answers.mat', VariablesAnswerD{:}, '-append');
-save('VUDVCMapParameters.mat', VariablesVUPar{:})
-save('VegetationParameters.mat', VariablesVegPar{:});
-cd(fold0)
+VariablesVUPar = {'VegAssociation', 'VegParameters'};
+VariablesVgPar = {'RootCohesionAll', 'BetaStarAll'};
 
-close(ProgressBar) % Fig instead of ProgressBar if in Standalone version
+save([fold_var,sl,'UserVeg_Answers.mat'     ], 'VegAttribution', '-append');
+save([fold_var,sl,'VUDVCMapParameters.mat'  ], VariablesVUPar{:})
+save([fold_var,sl,'VegetationParameters.mat'], VariablesVgPar{:}, '-append');

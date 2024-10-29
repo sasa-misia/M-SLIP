@@ -11,20 +11,20 @@ load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll','OriginallyProject
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelFont = Font;
-    SlFntSz = FontSize;
-    if exist('LegendPosition', 'var'); LgndPos = LegendPosition; else; LgndPos = 'Best'; end
+    SlFont = Font;
+    SlFnSz = FontSize;
+    if exist('LegendPosition', 'var'); LegPos = LegendPosition; else; LegPos = 'Best'; end
 else
-    SelFont = 'Times New Roman';
-    SlFntSz = 8;
-    LgndPos = 'Best';
+    SlFont = 'Calibri';
+    SlFnSz = 8;
+    LegPos = 'Best';
 end
 
-InfoDetectedExist = false;
+InfoDetExst = false;
 if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
     load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfDtSoilSlps2Use = InfoDetectedSoilSlips{IndDefInfoDet};
-    InfoDetectedExist = true;
+    InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
+    InfoDetExst = true;
 end
 
 %% For scatter dimension
@@ -39,14 +39,14 @@ ShowMuns = PltOpAns(2);
 ShowPlot = PltOpAns(3);
 GrpYears = PltOpAns(4);
 
-if any(isnat(InfDtSoilSlps2Use{:,'Datetime'}))
+if any(isnat(InfoDet2Use{:,'Datetime'}))
     warning('Some NaT datetimes were found! They will be replaced with the input prompt.')
     Dttm2Use = datetime(inputdlg2({'Datetime of this dataset:'}, 'DefInp',{'dd-mm-yyyy'}), 'InputFormat','dd-MM-yyyy');
-    InfDtSoilSlps2Use{isnat(InfDtSoilSlps2Use{:,'Datetime'}),'Datetime'} = repmat(Dttm2Use, sum(isnat(InfDtSoilSlps2Use{:,'Datetime'})), 1);
+    InfoDet2Use{isnat(InfoDet2Use{:,'Datetime'}),'Datetime'} = repmat(Dttm2Use, sum(isnat(InfoDet2Use{:,'Datetime'})), 1);
 end
 
 %% Group years
-DetYears = num2cell(unique(year(InfDtSoilSlps2Use{:,'Datetime'}))); % The default if no grouping
+DetYears = num2cell(unique(year(InfoDet2Use{:,'Datetime'}))); % The default if no grouping
 if GrpYears
     BinsNumb = int64(str2double(inputdlg2({'Number of gropus (max 18):'}, 'DefInp',{'4'})));
     if (BinsNumb < 1) || (BinsNumb > 18)
@@ -64,7 +64,7 @@ if GrpYears
     end
 end
 
-IdsDetXYr = cellfun(@(x) ismember(year(InfDtSoilSlps2Use{:,'Datetime'}), x), DetYears, 'UniformOutput',false);
+IdsDetXYr = cellfun(@(x) ismember(year(InfoDet2Use{:,'Datetime'}), x), DetYears, 'UniformOutput',false);
 
 YearColor = {"#a2142f", "#4dbeee", "#77ac30", "#7e2f8e", "#edb120", "#d95319", "#0072bd", "#7d00d9", "#88b9c5", ...
              "#998866", "#ff0084", "#ffe0bd", "#8b7b8b", "#ff0062", "#ffd1d9", "#effefe", "#f2eedf", "#000080"};
@@ -174,23 +174,23 @@ end
 
 fig_settings(fold0)
 
-if InfoDetectedExist
+if InfoDetExst
     hDet = cell(1, length(IdsDetXYr));
     for i1 = 1:length(IdsDetXYr)
         hDet{i1} = arrayfun(@(x,y) scatter(x, y, DetPixelSize, 'filled', 'MarkerFaceColor',YearColor{i1}, ...
                                                                'Marker','o', 'MarkerEdgeColor','k', ...
                                                                'LineWidth',PixelSize, 'Parent',curr_ax), ...
-                                              InfDtSoilSlps2Use{IdsDetXYr{i1},'Longitude'}, ...
-                                              InfDtSoilSlps2Use{IdsDetXYr{i1},'Latitude' });
+                                              InfoDet2Use{IdsDetXYr{i1},'Longitude'}, ...
+                                              InfoDet2Use{IdsDetXYr{i1},'Latitude' });
         uistack(hDet{i1},'top')
     end
 end
 
-if exist('LgndPos', 'var')
+if exist('LegPos', 'var')
     LegendObjects = {};
     LegendCaption = {};
 
-    if InfoDetectedExist
+    if InfoDetExst
         LegendObjects = [LegendObjects; cellfun(@(x) x(1), hDet, 'UniformOutput',false)'];
         LegendCaption = [LegendCaption; cellstr(strcat("Landslides Year ", cellfun(@(x) strcat(string(x(1))," - ",string(x(end))), DetYears)))'];
     end
@@ -198,17 +198,17 @@ if exist('LgndPos', 'var')
     hLeg = legend([LegendObjects{:}], ...
                    LegendCaption, ...
                   'NumColumns',2, ...
-                  'FontName',SelFont, ...
-                  'FontSize',0.7*SlFntSz, ...
-                  'Location',LgndPos, ...
+                  'FontName',SlFont, ...
+                  'FontSize',0.7*SlFnSz, ...
+                  'Location',LegPos, ...
                   'Box','off');
     
     legend('AutoUpdate','off');
     hLeg.ItemTokenSize(1) = 5;
     
-    title(hLeg, 'Hillshade plot', 'FontName',SelFont, 'FontSize',SlFntSz*1.2, 'FontWeight','bold')
+    title(hLeg, 'Hillshade plot', 'FontName',SlFont, 'FontSize',SlFnSz*1.2, 'FontWeight','bold')
 
-    fig_rescaler(curr_fig, hLeg, LgndPos)
+    fig_rescaler(curr_fig, hLeg, LegPos)
 
 end
 

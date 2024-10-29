@@ -28,7 +28,7 @@ else
           "UserA_StudyArea and select no when prompted")
 end
 
-VariablesLandUse = {'AllLandUnique', 'LandUsePolygonsStudyArea', 
+VariablesLandUse = {'AllLandUnique', 'LandUsePolygonsStudyArea', ...
                     'LandToRemovePolygon', 'IndexLandUsesToRemove'};
 
 ProgressBar.Indeterminate = 'on';

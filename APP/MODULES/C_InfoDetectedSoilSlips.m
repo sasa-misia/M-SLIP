@@ -100,7 +100,7 @@ for i1 = 1:length(FlDetSlSp)
 
         switch MetNearPnts{i1}
             case 'Circle'
-                AreaDiamet = str2double(inputdlg2(['Set diameter [m] for file n. ',num2str(i1)], 'DefInp',{'50'}));
+                CircleDiamet = str2double(inputdlg2(['Set diameter [m] for file n. ',num2str(i1)], 'DefInp',{'50'}));
     
             case 'ImportPolygons'
                 if exist([fold_var,sl,'SoilSlipPolygonsStudyArea.mat'], 'file')
@@ -148,14 +148,7 @@ for i1 = 1:length(FlDetSlSp)
         if SubArea
             switch MetNearPnts{i1}
                 case 'Circle'
-                    dLatRadius  = rad2deg(AreaDiamet/2/earthRadius); % /2 to have half of the size from the centre
-                    dLongRadius = rad2deg(acos( (cos(AreaDiamet/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
-    
-                    Angles       = linspace(0, 2*pi, 50);
-                    xLongEllTemp = dLongRadius*cos(Angles) + InfoDetectedSoilSlips{i1}{i2,5};
-                    yLatEllTemp  = dLatRadius*sin(Angles)  + InfoDetectedSoilSlips{i1}{i2,6};
-
-                    PolTemp = polyshape(xLongEllTemp, yLatEllTemp);
+                    PolTemp = polybuffpoint2(InfoDetectedSoilSlips{i1}{i2,5:6}, CircleDiamet/2, coordType='geo');
 
                     InfoDetectedSoilSlipsAverage{i1}{1}(i2) = PolTemp;
     

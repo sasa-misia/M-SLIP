@@ -154,11 +154,7 @@ end
 MinCrdPly = min(PolyMask.Vertices);
 MaxCrdPly = max(PolyMask.Vertices);
 
-EBMet = 500;
-EBLat = rad2deg(EBMet/earthRadius); % See my notes for more information (Sa)
-EBLon = rad2deg(acos( (cos(EBMet/earthRadius) - ...
-                       sind((MinCrdPly(2)+MaxCrdPly(2))/2)^2) / ...
-                       cosd((MinCrdPly(2)+MaxCrdPly(2))/2)^2    )); % See my notes for more information (Sa)
+[EBLon, EBLat] = meters2lonlat( 500, (MinCrdPly(2)+MaxCrdPly(2))/2 );
 BBox  = [ MinCrdPly(2)-EBLat, MaxCrdPly(2)+EBLat;
           MinCrdPly(1)-EBLon, MaxCrdPly(1)+EBLon ];
 BBPly = polyshape([BBox(2), BBox(4), BBox(4), BBox(2)], ...

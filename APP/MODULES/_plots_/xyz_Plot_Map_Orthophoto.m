@@ -7,25 +7,25 @@ drawnow
 %% File loading
 sl = filesep;
 load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon')
-load([fold_var,sl,'Orthophoto.mat'],         'OrthoRGB','ZOrtho','xLongOrtho', ...
+load([fold_var,sl,'Orthophoto.mat'        ], 'OrthoRGB','ZOrtho','xLongOrtho', ...
                                              'yLatOrtho','IndOrthoInStudyArea')
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelFnt   = Font;
-    SelFntSz = FontSize;
-    LgndSize = LegendPosition;
+    SlFont   = Font;
+    SlFnSz = FontSize;
+    if exist('LegendPosition', 'var'); LegPos = LegendPosition; end
 else
-    SelFnt   = 'Times New Roman';
-    SelFntSz = 8;
-    LgndSize = 'Best';
+    SlFont = 'Calibri';
+    SlFnSz = 8;
+    LegPos = 'Best';
 end
 
-InfoDetExist = false;
+InfoDetExst = false;
 if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
     load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfoDetSSToUse = InfoDetectedSoilSlips{IndDefInfoDet};
-    InfoDetExist   = true;
+    InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
+    InfoDetExst = true;
 end
 
 %% For scatter dimension
@@ -69,31 +69,31 @@ plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5, 'Parent',curr_ax)
 
 fig_settings(fold0)
 
-if InfoDetExist
-    hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), InfoDetSSToUse(:,5), InfoDetSSToUse(:,6));
+if InfoDetExst
+    hdetected = arrayfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), InfDet2Use{:,5}, InfDet2Use{:,6});
     uistack(hdetected,'top')
 end
 
-if exist('LegendPosition', 'var')
+if exist('LegPos', 'var')
     LegendObjects = {};
     LegendCaption = {};
 
-    if InfoDetExist
+    if InfoDetExst
         LegendObjects = [LegendObjects; {hdetected(1)}];
         LegendCaption = [LegendCaption; {"Points Analyzed"}];
 
         hleg3 = legend([LegendObjects{:}], ...
                         LegendCaption, ...
                        'NumColumns',2, ...
-                       'FontName',SelFnt, ...
-                       'FontSize',SelFntSz, ...
-                       'Location',LgndSize, ...
+                       'FontName',SlFont, ...
+                       'FontSize',SlFnSz, ...
+                       'Location',LegPos, ...
                        'Box','off');
         
         legend('AutoUpdate','off');
         hleg3.ItemTokenSize(1) = 5;
     
-        fig_rescaler(curr_fig, hleg3, LgndSize)
+        fig_rescaler(curr_fig, hleg3, LegPos)
     end
 end
 

@@ -4,28 +4,15 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ..
 drawnow
 
 %% Loading data
-cd(fold_var)
-load('StudyAreaVariables.mat', 'StudyAreaPolygon')
-load('GridCoordinates.mat',    'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
-load('HRUs.mat',               'CombinationsAll','HRUsAll','ClassesForCombsAll','InfoLegLandUse','InfoLegSlope','InfoLegSoil')
-load('DatasetStudy.mat',       'StablePolygons','UnstablePolygons')
+sl = filesep;
 
-if exist('PlotSettings.mat', 'file')
-    load('PlotSettings.mat')
-    SelectedFont = Font;
-    SelectedFontSize = FontSize;
-else
-    SelectedFont = 'Times New Roman';
-    SelectedFontSize = 8;
-    LegendPosition = 'Best';
-end
+load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon')
+load([fold_var,sl,'GridCoordinates.mat'   ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'HRUs.mat'              ], 'CombAll','HRUsAll','Class4CombAll')
+load([fold_var,sl,'DatasetStudy.mat'      ], 'StablePolygons','UnstablePolygons')
 
-InfoDetectedExist = false;
-if exist('InfoDetectedSoilSlips.mat', 'file')
-    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
-    InfoDetectedExist = true;
-end
+[SlFont, SlFnSz, LegPos  ] = load_plot_settings(fold_var);
+[InfoDetExst, InfoDet2Use] = load_info_detected(fold_var);
 
 %% Plot settings
 ProgressBar.Message = 'Plot settings...';
@@ -95,14 +82,14 @@ end
 ProgressBar.Message = 'Creation of colors...';
 
 % Combinations
-CombinationsAllCatPerDTM = cellfun(@(x) [x(:)], CombinationsAll, 'UniformOutput',false);
+CombinationsAllCatPerDTM = cellfun(@(x) [x(:)], CombAll, 'UniformOutput',false);
 [CombinationsAllUnique, ~, IndCombsAllUnique] = unique(cat(1, CombinationsAllCatPerDTM{:}));
 CombsColorsUnique  = arrayfun(@(x) rand(1, 3), CombinationsAllUnique, 'UniformOutput',false);
 CombsColorPerPixel = CombsColorsUnique(IndCombsAllUnique);
 
 IndStart = 1;
-CombsColorsAll = cellfun(@(x) cell(size(x)), CombinationsAll, 'UniformOutput',false);
-for i1 = 1:length(CombinationsAll)
+CombsColorsAll = cellfun(@(x) cell(size(x)), CombAll, 'UniformOutput',false);
+for i1 = 1:length(CombAll)
     NumEl = numel(CombsColorsAll{i1});
     CombsColorsAll{i1}(:) = CombsColorPerPixel(IndStart : IndStart+NumEl-1);
     IndStart = IndStart+NumEl;
@@ -123,23 +110,23 @@ for i1 = 1:length(HRUsAll)
 end
 
 % Classes for combs
-ClassesForCombsColorsAll = cell(1, size(ClassesForCombsAll, 2));
-for i1 = 1:size(ClassesForCombsAll, 2)
-    Classes4CombsAllCatPerDTM = cellfun(@(x) [x(:)], ClassesForCombsAll{1,i1}{:}, 'UniformOutput',false);
+ClassesForCombsColorsAll = cell(1, size(Class4CombAll, 2));
+for i1 = 1:size(Class4CombAll, 2)
+    Classes4CombsAllCatPerDTM = cellfun(@(x) [x(:)], Class4CombAll{1,i1}{:}, 'UniformOutput',false);
     [Classes4CombsAllUnique, ~, IndClassesAllUnique] = unique(cat(1, Classes4CombsAllCatPerDTM{:}));
     ClassesColorsUnique  = arrayfun(@(x) rand(1, 3), Classes4CombsAllUnique, 'UniformOutput',false);
     ClassesColorPerPixel = ClassesColorsUnique(IndClassesAllUnique);
     
     IndStart = 1;
-    ClassesColorsAllTemp = cellfun(@(x) cell(size(x)), ClassesForCombsAll{1,i1}{:}, 'UniformOutput',false);
-    for i2 = 1:length(ClassesForCombsAll{1,i1}{:})
+    ClassesColorsAllTemp = cellfun(@(x) cell(size(x)), Class4CombAll{1,i1}{:}, 'UniformOutput',false);
+    for i2 = 1:length(Class4CombAll{1,i1}{:})
         NumEl = numel(ClassesColorsAllTemp{i2});
         ClassesColorsAllTemp{i2}(:) = ClassesColorPerPixel(IndStart : IndStart+NumEl-1);
         IndStart = IndStart+NumEl;
     end
     ClassesForCombsColorsAll{i1} = ClassesColorsAllTemp;
 end
-ClassesForCombsColorsAll = array2table(ClassesForCombsColorsAll, 'VariableNames',ClassesForCombsAll.Properties.VariableNames);
+ClassesForCombsColorsAll = array2table(ClassesForCombsColorsAll, 'VariableNames',Class4CombAll.Properties.VariableNames);
 
 %% Extraction of data
 ProgressBar.Message = 'Extraction of data...';
@@ -152,7 +139,7 @@ ProgressBar.Message = 'Extraction of data...';
 for i1 = 1:length(AreaToPlot)
     xLongToPlot(i1,:) = cellfun(@(x,y) x(y), xLongAll       , IndToPlot(i1,:), 'UniformOutput',false);
     yLatToPlot(i1,:)  = cellfun(@(x,y) x(y), yLatAll        , IndToPlot(i1,:), 'UniformOutput',false);
-    CombsToPlot(i1,:) = cellfun(@(x,y) x(y), CombinationsAll, IndToPlot(i1,:), 'UniformOutput',false);
+    CombsToPlot(i1,:) = cellfun(@(x,y) x(y), CombAll, IndToPlot(i1,:), 'UniformOutput',false);
     HRUsToPlot(i1,:)  = cellfun(@(x,y) x(y), HRUsAll        , IndToPlot(i1,:), 'UniformOutput',false);
 
     CombsColorsToPlot(i1,:) = cellfun(@(x,y) x(y), CombsColorsAll, IndToPlot(i1,:), 'UniformOutput',false);
@@ -174,13 +161,13 @@ end
 % Classes for combs
 [Class4CombsToPlot, Class4CombsColorsToPlot, Class4CombsCatPerAreaToPlot, ...
     Class4CombsUniquePerArea, Class4CombsIndUnique, ...
-    Class4CombsIndPerArea,  Class4CombsColorsPerArea] = deal(cell(size(ClassesForCombsAll)));
-for i1 = 1:size(ClassesForCombsAll, 2)
+    Class4CombsIndPerArea,  Class4CombsColorsPerArea] = deal(cell(size(Class4CombAll)));
+for i1 = 1:size(Class4CombAll, 2)
     [Class4CombsToPlot{i1}, Class4CombsColorsToPlot{i1}] = deal(cell(size(IndToPlot)));
     [Class4CombsCatPerAreaToPlot{i1}, Class4CombsUniquePerArea{i1}, Class4CombsIndUnique{i1}, ...
         Class4CombsIndPerArea{i1}, Class4CombsColorsPerArea{i1}] = deal(cell(1, length(AreaToPlot)));
     for i2 = 1:length(AreaToPlot)
-        Class4CombsToPlot{i1}(i2,:) = cellfun(@(x,y) x(y), ClassesForCombsAll{1,i1}{:}, IndToPlot(i2,:), 'UniformOutput',false);
+        Class4CombsToPlot{i1}(i2,:) = cellfun(@(x,y) x(y), Class4CombAll{1,i1}{:}, IndToPlot(i2,:), 'UniformOutput',false);
     
         Class4CombsColorsToPlot{i1}(i2,:) = cellfun(@(x,y) x(y), ClassesForCombsColorsAll{1,i1}{:}, IndToPlot(i2,:), 'UniformOutput',false);
     
@@ -228,7 +215,7 @@ switch InfoType
         % ClassIndToUse = Class4CombsIndPerArea;
         ClassInd4Uniq = Class4CombsIndUnique;
         ClassesColors = Class4CombsColorsPerArea;
-        ClassesTitles = ClassesForCombsAll.Properties.VariableNames;
+        ClassesTitles = Class4CombAll.Properties.VariableNames;
 end
 
 %% Plot
@@ -264,9 +251,8 @@ for i1 = 1:length(AreaToPlot)
 
         plot(AreaToPlot(i1), 'FaceColor','none', 'LineWidth',LineExtSize, 'Parent',ax_curr)
     
-        if InfoDetectedExist
-            hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled', 'Parent',ax_curr), ...
-                                        InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
+        if InfoDetExst
+            hdetected = arrayfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled', 'Parent',ax_curr), InfoDet2Use{:,5}, InfoDet2Use{:,6});
             uistack(hdetected,'top')
         end
     
@@ -278,9 +264,9 @@ for i1 = 1:length(AreaToPlot)
         fig_settings(fold0, 'SetExtremes',Extremes)
     
         if strcmp(AreaType, 'Study Area')
-            title([ClassesTitles{i2},' for ',AreaType], 'FontName',SelectedFont, 'FontSize',1.5*SelectedFontSize)
+            title([ClassesTitles{i2},' for ',AreaType], 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
         elseif strcmp(AreaType, 'Stable and Unstable')
-            title([ClassesTitles{i2},' for ',AreaType,' areas n. ',num2str(i1)], 'FontName',SelectedFont, 'FontSize',1.5*SelectedFontSize)
+            title([ClassesTitles{i2},' for ',AreaType,' areas n. ',num2str(i1)], 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
         end
     
         set(ax_curr, 'visible','off') % To hide axis (but it will hide also titles)

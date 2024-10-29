@@ -1,29 +1,19 @@
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', ...
-                                 'Message','Reading files...', 'Indeterminate','on');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
 %% Loading data and initialization of AnalysisInformation
-cd(fold_var)
-load('StudyAreaVariables.mat',   'StudyAreaPolygon')
-load('GridCoordinates.mat',      'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
-load('MorphologyParameters.mat', 'ElevationAll','SlopeAll','OriginallyProjected','SameCRSForAll')
-cd(fold0)
+sl = filesep;
+
+load([fold_var,sl,'StudyAreaVariables.mat'  ], 'StudyAreaPolygon')
+load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll','SlopeAll')
+
+ProjCRS = load_prjcrs(fold_var);
 
 %% Defining contributing area (upslope area) and TWI
-ProgressBar.Message = "Defining contributing area...";
-
-if OriginallyProjected && SameCRSForAll
-    cd(fold_var)
-    load('MorphologyParameters.mat', 'OriginalProjCRS')
-    cd(fold0)
-
-    ProjCRS = OriginalProjCRS;
-else
-    EPSG    = str2double(inputdlg2({['DTM EPSG (Sicily -> 32633, ' ...
-                                     'Emilia Romagna -> 25832):']}, 'DefInp',{'25832'}));
-    ProjCRS = projcrs(EPSG);
-end
+ProgressBar.Message = 'Defining contributing area...';
 
 [xPlanAll, yPlanAll, dx, dy, CellsArea] = deal(cell(size(xLongAll)));
 for i1 = 1:length(xLongAll)
@@ -35,9 +25,9 @@ for i1 = 1:length(xLongAll)
 end
 
 Options = {'MergedDTM', 'SeparateDTMs'};
-MethodFlow = uiconfirm(Fig, 'How do you want to define flow routing?', ...
-                            'Flow Routing', 'Options',Options);
-switch MethodFlow
+FlowMtd = uiconfirm(Fig, 'How do you want to define flow routing?', ...
+                         'Flow Routing', 'Options',Options);
+switch FlowMtd
     case 'MergedDTM'
         dxMean   = mean([dx{:}]);
         dyMean   = mean([dy{:}]);
@@ -92,16 +82,17 @@ end
 
 %% Plot for check
 ProgressBar.Message = 'Plotting to check...';
-fig_check = figure(1);
-ax_check  = axes(fig_check);
-hold(ax_check,'on')
+
+CheckFig = figure(1);
+CheckAxs = axes(CheckFig);
+hold(CheckAxs,'on')
 
 for i1 = 1:length(xLongAll)
     fastscatter(xLongAll{i1}(IndexDTMPointsInsideStudyArea{i1}), ...
                 yLatAll{i1}(IndexDTMPointsInsideStudyArea{i1}), ...
                 ContributingAreaLogAll{i1}(IndexDTMPointsInsideStudyArea{i1}))
 end
-colormap(ax_check, colormap('sky'))
+colormap(CheckAxs, colormap('sky'))
 
 plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5);
 
@@ -111,9 +102,8 @@ fig_settings(fold0, 'AxisTick');
 
 %% Saving...
 ProgressBar.Message = 'Saving...';
-cd(fold_var)
-VariablesFlowRouting = {'ContributingAreaAll', 'TwiAll'};
-save('FlowRouting.mat', VariablesFlowRouting{:});
-cd(fold0)
+
+VarsFlowRouting = {'ContributingAreaAll', 'TwiAll'};
+save([fold_var,sl,'FlowRouting.mat'], VarsFlowRouting{:});
 
 close(ProgressBar)

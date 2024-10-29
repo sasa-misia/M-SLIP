@@ -1,17 +1,22 @@
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
-                                 'Indeterminate','on');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
 %% Loading data, extraction and initialization of variables
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelectedFont     = Font;
-    SelectedFontSize = FontSize;
+    SlFont = Font;
+    SlFnSz = FontSize;
 else
-    SelectedFont     = 'Times New Roman';
-    SelectedFontSize = 8;
-    LegendPosition   = 'Best';
+    SlFont = 'Calibri';
+    SlFnSz = 8;
+end
+
+if exist('LegendPosition', 'var')
+    LegPos = LegendPosition;
+else
+    LegPos = 'Best';
 end
 
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
@@ -152,9 +157,9 @@ for i1 = 1:size(MLMdl,2)
                                                     'LineWidth',1, 'Marker','.', 'Color','#A2142F', 'Parent',curr_ax{i2})
         end
 
-        xlabel('', 'FontName',SelectedFont, 'FontSize',0.6*SelectedFontSize)
-        ylabel('Avg prob.', 'FontName',SelectedFont, 'FontSize',0.6*SelectedFontSize)
-        title([FeatsMdl{i2},' PDP'], 'FontName',SelectedFont, 'FontSize',0.6*SelectedFontSize)
+        xlabel('', 'FontName',SlFont, 'FontSize',0.6*SlFnSz)
+        ylabel('Avg prob.', 'FontName',SlFont, 'FontSize',0.6*SlFnSz)
+        title([FeatsMdl{i2},' PDP'], 'FontName',SlFont, 'FontSize',0.6*SlFnSz)
 
         if RealCorr
             yyaxis(curr_ax{i2}, 'right')
@@ -190,16 +195,16 @@ for i1 = 1:size(MLMdl,2)
 
                     plot(xVals, yVals, 'LineWidth',0.7, 'Marker','.', 'Color','#77AC30', 'Parent',curr_ax{i2})
 
-                    ylabel('Landslides', 'FontName',SelectedFont, 'FontSize',0.6*SelectedFontSize)
+                    ylabel('Landslides', 'FontName',SlFont, 'FontSize',0.6*SlFnSz)
 
                 otherwise
                     error('Real correlation type not recognized!')
             end
         end
 
-        curr_ax{i2}.XAxis.FontSize = 0.6*SelectedFontSize;
+        curr_ax{i2}.XAxis.FontSize = 0.6*SlFnSz;
         for i3 = 1:length(curr_ax{i2}.YAxis)
-            curr_ax{i2}.YAxis(i3).FontSize = 0.6*SelectedFontSize;
+            curr_ax{i2}.YAxis(i3).FontSize = 0.6*SlFnSz;
         end
     end
 

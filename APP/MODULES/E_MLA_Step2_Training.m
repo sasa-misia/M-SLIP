@@ -577,18 +577,18 @@ for i1 = 1:ANNsNumber
     end
     
     % Common prediction process
-    PredProbsTrain = mdlpredict(Model, DatasetEvsFeatsTrn, 'SecondOut',DblOut);
-    PredProbsTest  = mdlpredict(Model, DatasetEvsFeatsTst, 'SecondOut',DblOut);
+    PrdPrbsTrn = mdlpredict(Model, DatasetEvsFeatsTrn, 'SecondOut',DblOut);
+    PrdPrbsTst = mdlpredict(Model, DatasetEvsFeatsTst, 'SecondOut',DblOut);
 
-    TrainLossRaw(i1) = crossentropy2(PredProbsTrain, ExpectedOutputsTrn); % 'crossentropy' is appropriate only for neural network models.
-    TestLossRaw(i1)  = crossentropy2(PredProbsTest,  ExpectedOutputsTst); % 'crossentropy' is appropriate only for neural network models.
+    TrainLossRaw(i1) = crossentropy2(PrdPrbsTrn, ExpectedOutputsTrn); % 'crossentropy' is appropriate only for neural network models.
+    TestLossRaw(i1)  = crossentropy2(PrdPrbsTst,  ExpectedOutputsTst); % 'crossentropy' is appropriate only for neural network models.
 
     if RegrANN
-        TrainMSERaw(i1) = mse(PredProbsTrain, ExpectedOutputsTrn);
-        TestMSERaw(i1)  = mse(PredProbsTest , ExpectedOutputsTst);
+        TrainMSERaw(i1) = mse(PrdPrbsTrn, ExpectedOutputsTrn);
+        TestMSERaw(i1)  = mse(PrdPrbsTst, ExpectedOutputsTst);
     else
-        TrainMSERaw(i1) = mse( PredProbsTrain, double(ExpectedOutputsTrn == (1:size(PredProbsTrain, 2))) );
-        TestMSERaw(i1)  = mse( PredProbsTest , double(ExpectedOutputsTst == (1:size(PredProbsTest, 2)))  );
+        TrainMSERaw(i1) = mse( PrdPrbsTrn, double(ExpectedOutputsTrn == (1:size(PrdPrbsTrn, 2))) );
+        TestMSERaw(i1)  = mse( PrdPrbsTst, double(ExpectedOutputsTst == (1:size(PrdPrbsTst, 2))) );
     end
 
     if CmpMdl && not(contains(ANNMode, 'Deep', 'IgnoreCase',true)) && not(contains(class(Model), 'Compact', 'IgnoreCase',true))
@@ -596,7 +596,7 @@ for i1 = 1:ANNsNumber
     end
 
     MLMdlRaw{MLRws, i1} = {Model; FeatsNm; LyrSzs{i1}}; % Pay attention to the order!
-    MLResRaw{MLRsR, i1} = {PredProbsTrain; PredProbsTest}; % Pay attention to the order!
+    MLResRaw{MLRsR, i1} = {PrdPrbsTrn; PrdPrbsTst}; % Pay attention to the order!
 end
 ProgressBar.Indeterminate = 'on';
 
@@ -616,7 +616,7 @@ end
 ProgressBar.Indeterminate = 'on';
 ProgressBar.Message       = 'Analyzing quality of models...';
 
-MLPrfR = {'FPR', 'TPR', 'AUC', 'BestThreshold', 'BestThrInd'};
+MLPrfR = {'FPR', 'TPR', 'AUC', 'BestThreshold', 'BestThrInd', 'Class'};
 MLPerfRaw = table('RowNames',{'ROC','Err'});
 
 MLPerfRaw{'Err','Train'} = {array2table([TrainMSERaw; TrainLossRaw], ...
@@ -647,78 +647,26 @@ if MltClss
     MLPerfRawSummMC{'ROC',{'Train','Test'}} = {table('RowNames',MLPrfSmmRows)};
 end
 for i1 = 1:size(MLMdlRaw,2)
-    if RegrANN
-        PredProbsTest  = rescale(MLResRaw{'PredTest' , i1}{:});
-        PredProbsTrain = rescale(MLResRaw{'PredTrain', i1}{:});
-    else
-        PredProbsTest  = MLResRaw{'PredTest' , i1}{:};
-        PredProbsTrain = MLResRaw{'PredTrain', i1}{:};
-    end
+    PrdPrbsTrn = MLResRaw{'PredTrain', i1}{:};
+    PrdPrbsTst = MLResRaw{'PredTest' , i1}{:};
 
-    ExpOutsTest  = ExpectedOutputsTst;
-    ExpOutsTrain = ExpectedOutputsTrn;
-
-    % Test performance
-    [FPR4ROC_Test_L, TPR4ROC_Test_L, ThresholdsROC_Test_L, ...
-            AUC_Test_L, OptPoint_Test_L] = perfcurve(double(ExpOutsTest>=1), sum(PredProbsTest,2), 1); % The quality in predicting a landslide, independently from class
-    IndBest_Test_L = find(ismember([FPR4ROC_Test_L, TPR4ROC_Test_L], OptPoint_Test_L, 'rows'));
-    BestThreshold_Test_L = ThresholdsROC_Test_L(IndBest_Test_L);
-    
-    % Train performance
-    [FPR4ROC_Train_L, TPR4ROC_Train_L, ThresholdsROC_Train_L, ...
-            AUC_Train_L, OptPoint_Train_L] = perfcurve(double(ExpOutsTrain>=1), sum(PredProbsTrain,2), 1); % The quality in predicting a landslide, independently from class
-    IndBest_Train_L = find(ismember([FPR4ROC_Train_L, TPR4ROC_Train_L], OptPoint_Train_L, 'rows'));
-    BestThreshold_Train_L = ThresholdsROC_Train_L(IndBest_Train_L);
-
-    if CrssVal && RepAUC
-        AUC_Train_L = AvCrossTrnAUCRaw(i1);
-        AUC_Test_L  = AvCrossValAUCRaw(i1);
-
-        [FPR4ROC_Test_L, TPR4ROC_Test_L, BestThreshold_Test_L, IndBest_Test_L, ...
-            FPR4ROC_Train_L, TPR4ROC_Train_L, BestThreshold_Train_L, IndBest_Train_L] = deal(NaN);
-    end
+    ExpOutsTrn = ExpectedOutputsTrn;
+    ExpOutsTst = ExpectedOutputsTst;
     
     % General matrices creation
-    MLPerfRaw{'ROC','Test'}{:}{MLPrfR,  i1} = {FPR4ROC_Test_L ; TPR4ROC_Test_L ; AUC_Test_L ; BestThreshold_Test_L ; IndBest_Test_L }; % Pay attention to the order!
-    MLPerfRaw{'ROC','Train'}{:}{MLPrfR, i1} = {FPR4ROC_Train_L; TPR4ROC_Train_L; AUC_Train_L; BestThreshold_Train_L; IndBest_Train_L}; % Pay attention to the order!
+    MLPerfRaw{'ROC','Train'}{:}(:, i1) = roccurve2(PrdPrbsTrn, ExpOutsTrn, multiClass=false);
+    MLPerfRaw{'ROC','Test' }{:}(:, i1) = roccurve2(PrdPrbsTst, ExpOutsTst, multiClass=false);
+
+    if CrssVal && RepAUC
+        MLPerfRaw{'ROC','Train'}{:}{:, i1} = {NaN; NaN; AvCrossTrnAUCRaw(i1); NaN; NaN};
+        MLPerfRaw{'ROC','Test' }{:}{:, i1} = {NaN; NaN; AvCrossTstAUCRaw(i1); NaN; NaN};
+    end
 
     if MltClss
-        % Test performance
-        [FPR4ROC_Test, TPR4ROC_Test, ThresholdsROC_Test, AUC_Test, OptPoint_Test, ...
-                IndBest_Test, BestThreshold_Test] = deal(cell(1, size(PredProbsTest, 2)));
-        for i2 = 1:size(PredProbsTest, 2)
-            [FPR4ROC_Test{i2}, TPR4ROC_Test{i2}, ThresholdsROC_Test{i2}, ...
-                    AUC_Test{i2}, OptPoint_Test{i2}] = perfcurve(ExpOutsTest, PredProbsTest(:,i2), i2); % To adjust ExpectedOutputsTst for CrossValidation
-            IndBest_Test{i2} = find(ismember([FPR4ROC_Test{i2}, TPR4ROC_Test{i2}], OptPoint_Test{i2}, 'rows'));
-            BestThreshold_Test{i2} = ThresholdsROC_Test{i2}(IndBest_Test{i2});
-        end
-
-        MeanAUC_Test = mean(cell2mat(AUC_Test));
-        MinAUC_Test  = min(cell2mat(AUC_Test));
-        MaxAUC_Test  = max(cell2mat(AUC_Test));
-        StDvAUC_Test = std(cell2mat(AUC_Test));
-
-        % Train performance
-        [FPR4ROC_Train, TPR4ROC_Train, ThresholdsROC_Train, AUC_Train, OptPoint_Train, ...
-                IndBest_Train, BestThreshold_Train] = deal(cell(1, size(PredProbsTrain, 2)));
-        for i2 = 1:size(PredProbsTrain, 2)
-            [FPR4ROC_Train{i2}, TPR4ROC_Train{i2}, ThresholdsROC_Train{i2}, ...
-                    AUC_Train{i2}, OptPoint_Train{i2}] = perfcurve(ExpOutsTrain, PredProbsTrain(:,i2), i2);
-            IndBest_Train{i2} = find(ismember([FPR4ROC_Train{i2}, TPR4ROC_Train{i2}], OptPoint_Train{i2}, 'rows'));
-            BestThreshold_Train{i2} = ThresholdsROC_Train{i2}(IndBest_Train{i2});
-        end
-
-        MeanAUC_Train = mean(cell2mat(AUC_Train));
-        MinAUC_Train  = min(cell2mat(AUC_Train));
-        MaxAUC_Train  = max(cell2mat(AUC_Train));
-        StDvAUC_Train = std(cell2mat(AUC_Train));
-
-        % General matrices creation
-        MLPerfRawMC{'ROC','Test' }{:}{MLPrfR, i1} = {FPR4ROC_Test ; TPR4ROC_Test ; AUC_Test ; BestThreshold_Test ; IndBest_Test }; % Pay attention to the order!
-        MLPerfRawMC{'ROC','Train'}{:}{MLPrfR, i1} = {FPR4ROC_Train; TPR4ROC_Train; AUC_Train; BestThreshold_Train; IndBest_Train}; % Pay attention to the order!
-
-        MLPerfRawSummMC{'ROC','Test' }{:}{MLPrfSmmRows, i1} = {MeanAUC_Test ; MinAUC_Test ; MaxAUC_Test ; StDvAUC_Test }; % Pay attention to the order!
-        MLPerfRawSummMC{'ROC','Train'}{:}{MLPrfSmmRows, i1} = {MeanAUC_Train; MinAUC_Train; MaxAUC_Train; StDvAUC_Train}; % Pay attention to the order!
+        [MLPerfRawMC{'ROC','Train'}{:}(:, i1), ...
+            MLPerfRawSummMC{'ROC','Train'}{:}(:, i1)] = roccurve2(PrdPrbsTrn, ExpOutsTrn, multiClass=true);
+        [MLPerfRawMC{'ROC','Test' }{:}(:, i1), ...
+            MLPerfRawSummMC{'ROC','Test' }{:}(:, i1)] = roccurve2(PrdPrbsTst, ExpOutsTst, multiClass=true);
     end
 end
 
@@ -892,32 +840,36 @@ switch ANNMode
         error('Train type not recognized!')
 end
 
-AcFnAbb = cell(1, numel(LayAct));
-for i1 = 1:numel(LayAct)
-    switch LayAct{i1}
-        case 'sigmoid'
-            AcFnAbb{i1} = 'Sigm';
+if sctrcmp(ANNMode, 'Logistic Regression')
+    AcFnAbb = {'ND'};
+else
+    AcFnAbb = cell(1, numel(LayAct));
+    for i1 = 1:numel(LayAct)
+        switch LayAct{i1}
+            case 'sigmoid'
+                AcFnAbb{i1} = 'Sigm';
+        
+            case 'relu'
+                AcFnAbb{i1} = 'ReLU';
+        
+            case 'tanh'
+                AcFnAbb{i1} = 'Tanh';
     
-        case 'relu'
-            AcFnAbb{i1} = 'ReLU';
+            case 'none'
+                AcFnAbb{i1} = 'None';
     
-        case 'tanh'
-            AcFnAbb{i1} = 'Tanh';
-
-        case 'none'
-            AcFnAbb{i1} = 'None';
-
-        case 'elu'
-            AcFnAbb{i1} = 'ELU';
-
-        case 'gelu'
-            AcFnAbb{i1} = 'GeLU';
-
-        case 'softplus'
-            AcFnAbb{i1} = 'Sft+';
+            case 'elu'
+                AcFnAbb{i1} = 'ELU';
     
-        otherwise
-            error('Layer activation function not recognized!')
+            case 'gelu'
+                AcFnAbb{i1} = 'GeLU';
+    
+            case 'softplus'
+                AcFnAbb{i1} = 'Sft+';
+        
+            otherwise
+                error('Layer activation function not recognized!')
+        end
     end
 end
 

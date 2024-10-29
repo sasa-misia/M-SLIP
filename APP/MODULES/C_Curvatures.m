@@ -5,20 +5,12 @@ drawnow
 
 %% Loading data and initialization of AnalysisInformation
 load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','yLatAll')
-load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll','OriginallyProjected','SameCRSForAll')
+load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll')
+
+ProjCRS = load_prjcrs(fold_var);
 
 %% Defining different types of curvature
 ProgressBar.Message = "Defining curvature...";
-
-if OriginallyProjected && SameCRSForAll
-    load([fold_var,sl,'MorphologyParameters.mat'], 'OriginalProjCRS')
-
-    ProjCRS = OriginalProjCRS;
-else
-    EPSG    = str2double(inputdlg2({['DTM EPSG (Sicily -> 32633, ' ...
-                                     'Emilia Romagna -> 25832):']}, 'DefInp',{'25832'}));
-    ProjCRS = projcrs(EPSG);
-end
 
 [xPlanAll, yPlanAll, GaussCurvatureAll, ...
     MeanCurvatureAll, P1CurvatureAll, P2CurvatureAll] = deal(cell(size(xLongAll)));

@@ -1,35 +1,54 @@
-function [WriteFile] = checkduplicate(FigWherePrompt, DataToWrite, FilePath, NewFileName)
-%CHECKDUPLICATE
-%
-%       checkduplicate(FigWherePrompt, DataToWrite, FilePath, NewFileName) 
-%       check if a file already exist. In that case it will check if columns 
-%       of the two files are the same.
+function [writeFile] = check_duplicate_spreadsheet(uiFig2Use, data2Write, fileName)
 
-cd(FilePath)
-WriteFile = true;
+% Purpose: function to check if a spreadsheet already exist. In that case,
+%          it will check if content of the two files is the same.
+% 
+% Outputs: 
+%       - writeFile   = [logical]
+% 
+% Inputs:
+%       - uiFig2Use   = [matlab.ui.Figure] the ui figure where you have to
+%                       decide if you want to write the excel in case of
+%                       duplicates.
+%       - data2Write  = [cell] the content to write in the Association sheet.
+%       - fileName    = [char] the full filename of the file to write.
+% 
+% Optional inputs:
+%       - []
+% 
+% Dependencies: -
 
-if isfile(NewFileName)
+arguments
+    uiFig2Use (1,1) matlab.ui.Figure
+    data2Write (:,:) cell
+    fileName (1,:) char
+end
+
+%% Core
+writeFile = true;
+
+if isfile(fileName)
     Options = {'Yes, thanks', 'No, for God!'};
-    DeleteFile = uiconfirm(FigWherePrompt, ['There is an existing association file. ' ...
-                                            'Do you want to overwrite it?'], ...
+    delFile = uiconfirm(uiFig2Use, ['Spreadsheet file already exists. ', ...
+                                    'Do you want to overwrite it?'], ...
                                             'Window type', 'Options',Options);
 
-    if strcmp(DeleteFile,'Yes, thanks')
-        delete(NewFileName)
+    if strcmp(delFile,'Yes, thanks')
+        delete(fileName)
     else
-        WriteFile = false;
-        OldExcel = readcell(NewFileName, 'Sheet','Association');
-        OldEqualNew = isequal(size(OldExcel), size(DataToWrite)) && ...
-                      all( strcmp(string(OldExcel(2:end,1)), string(DataToWrite(2:end,1))) );
-        if ~OldEqualNew
-            DeleteFile = uiconfirm(FigWherePrompt, ['Row of the first column are different! ' ...
-                                                    'If you mantain the previous file, ' ...
-                                                    'you will probably get an error. ' ...
-                                                    'Do you want to overwrite it?'], ...
+        writeFile = false;
+        oldSpreadSht = readcell(fileName, 'Sheet','Association');
+        isEqual2New  = isequal(size(oldSpreadSht), size(data2Write)) && ...
+                       isequal(string(oldSpreadSht(2:end,1)), string(data2Write(2:end,1)));
+        if ~isEqual2New
+            delFile = uiconfirm(uiFig2Use, ['Row of the first column are different! ', ...
+                                            'If you mantain the previous file, ', ...
+                                            'you will probably get an error. ', ...
+                                            'Do you want to overwrite it?'], ...
                                                     'Window type', 'Options',Options);
-            if strcmp(DeleteFile,'Yes, thanks')
-                delete(NewFileName)
-                WriteFile = true;
+            if strcmp(delFile,'Yes, thanks')
+                delete(fileName)
+                writeFile = true;
             end
         end
     end

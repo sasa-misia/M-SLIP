@@ -42,14 +42,12 @@ end
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelFnt = Font;
-    SelFSz = FontSize;
-    if exist('LegendPosition', 'var')
-        LegPos = LegendPosition;
-    end
+    SlFont = Font;
+    SlFnSz = FontSize;
+    if exist('LegendPosition', 'var'); LegPos = LegendPosition; end
 else
-    SelFnt = 'Times New Roman';
-    SelFSz = 8;
+    SlFont = 'Calibri';
+    SlFnSz = 8;
     LegPos = 'Best';
 end
 
@@ -270,7 +268,7 @@ for i1 = 1:numel(UnstPolys)
 
         title(CurrAxs, FigDts{i2})
         
-        set(CurrAxs, 'FontName',SelFnt, ...
+        set(CurrAxs, 'FontName',SlFont, ...
                      'Box','on', ...
                      'TickLength',[0 0], ...
                      'XTickLabel',[], ...
@@ -292,15 +290,15 @@ for i1 = 1:numel(UnstPolys)
         end
 
         hleg1 = legend([LegendObjects{:}], LegendCaption, ...
-                       'FontName',SelFnt, ...
-                       'FontSize',SelFSz, ...
+                       'FontName',SlFont, ...
+                       'FontSize',SlFnSz, ...
                        'Location','south'); % LegPos);
         
         hleg1.ItemTokenSize(1) = 3;
 
         title(hleg1, 'Classification')
 
-        set(CurrAxs, 'FontName',SelFnt, 'Box','off', 'Visible','off')
+        set(CurrAxs, 'FontName',SlFont, 'Box','off', 'Visible','off')
 
         CurrAxsPos = CurrAxs.Position;
         CurrLegPos = hleg1.Position;

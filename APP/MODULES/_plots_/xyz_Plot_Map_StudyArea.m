@@ -1,86 +1,84 @@
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
+drawnow
+
 %% File loading
-cd(fold_var)
-load('UserStudyArea_Answers.mat')
-load('StudyAreaVariables.mat')
+sl = filesep;
 
-OrthophotoAnswer = 0;
-if exist("Orthophoto.mat", 'file')
-    load("Orthophoto.mat")
-    OrthophotoAnswer = 1;
-end
+load([fold_var,sl,'UserStudyArea_Answers.mat'], 'MunSel')
+load([fold_var,sl,'StudyAreaVariables.mat'   ], 'MunPolygon','StudyAreaPolygon')
 
-if exist('PlotSettings.mat', 'file')
-    load('PlotSettings.mat')
-    SelectedFont = Font;
-    SelectedFontSize = FontSize;
+if exist([fold_var,sl,'PlotSettings.mat'], 'file')
+    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
+    SlFont = Font;
+    SlFnSz = FontSize;
+    if exist('LegendPosition', 'var'); LegPos = LegendPosition; end
 else
-    SelectedFont = 'Times New Roman';
-    SelectedFontSize = 8;
-    LegendPosition = 'best';
+    SlFont = 'Calibri';
+    SlFnSz = 8;
+    LegPos = 'best';
 end
 
-InfoDetectedExist = false;
-if exist('InfoDetectedSoilSlips.mat', 'file')
-    load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
-    InfoDetectedExist = true;
+InfoDetExst = false;
+if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
+    load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
+    InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
+    InfoDetExst = true;
 end
-
-cd(fold0)
 
 %% For scatter dimension
 [PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon, 'RefArea',.035, 'Extremes',true);
 
 %% Loading Excel
-MunColors = zeros(length(MunPolygon),3);
-% Fig = uifigure; % Remember to comment if in App version
+MunClrs = zeros(length(MunPolygon),3);
 Options = {'Yes, thanks', 'No, manually'};
-AssignRndColors = uiconfirm(Fig, 'Do you want to assign random RGB triplets?', ...
+RndClrs = uiconfirm(Fig, 'Do you want to assign random RGB triplets?', ...
                                  'Window type', 'Options',Options);
-switch AssignRndColors
+switch RndClrs
     case 'Yes, thanks'
-        MunColors = rand(length(MunPolygon),3);
+        MunClrs = rand(length(MunPolygon),3);
     case 'No, manually'
         for i1 = 1:length(MunPolygon)
-            MunColors(i1,:) = uisetcolor(strcat("Select a color for municipality n. ",string(i1)));
+            MunClrs(i1,:) = uisetcolor(strcat("Select a color for municipality n. ",string(i1)));
         end
 end
 
 %% Plot of study area
-Filename1 = 'Municipalities';
-fig_mun = figure(1);
-ax_ind1 = axes(fig_mun);
-hold(ax_ind1,'on')
+CurrFln = 'Municipalities';
+CurrFig = figure(1);
+CurrAxs = axes(CurrFig);
+hold(CurrAxs,'on')
 
-set(gcf, 'Name',Filename1);
+set(CurrFig, 'Name',CurrFln);
 
-PolygonsPlot = cell(1, size(MunPolygon,2));
+PlysObjs = cell(1, size(MunPolygon,2));
 for i1 = 1:size(MunPolygon,2)
-    PolygonsPlot{i1} = plot(MunPolygon(i1), 'FaceColor',MunColors(i1,:), 'FaceAlpha',1);
+    PlysObjs{i1} = plot(MunPolygon(i1), 'FaceColor',MunClrs(i1,:), 'FaceAlpha',1);
 end
 
 plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5)
 
 fig_settings(fold0)
 
-if InfoDetectedExist
-    hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
-    uistack(hdetected,'top')
+if InfoDetExst
+    DetObj = arrayfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), InfoDet2Use{:,5}, InfoDet2Use{:,6});
+    uistack(DetObj,'top')
 end
 
-if exist('LegendPosition', 'var')
-    LegendObjects = PolygonsPlot;
-    LegendCaption = MunSel;
+if exist('LegPos', 'var')
+    LegObjs = PlysObjs;
+    LegCaps = MunSel;
 
-    if InfoDetectedExist
-        LegendObjects = [LegendObjects, {hdetected(1)}];
-        LegendCaption = [LegendCaption; {"Points Analyzed"}];
+    if InfoDetExst
+        LegObjs = [LegObjs, {DetObj(1)}];
+        LegCaps = [LegCaps; {"Points Analyzed"}];
     end
 
-    hleg1 = legend([LegendObjects{:}], LegendCaption, ...
-                   'FontName',SelectedFont, ...
-                   'FontSize',SelectedFontSize, ...
-                   'Location',LegendPosition, ...
+    hleg1 = legend([LegObjs{:}], LegCaps, ...
+                   'FontName',SlFont, ...
+                   'FontSize',SlFnSz, ...
+                   'Location',LegPos, ...
                    'NumColumns',2, ...
                    'Box','off');
     
@@ -88,7 +86,7 @@ if exist('LegendPosition', 'var')
     
     legend('AutoUpdate','off')
 
-    fig_rescaler(fig_mun, hleg1, LegendPosition)
+    fig_rescaler(CurrFig, hleg1, LegPos)
 end
 
 % [xMunTxt yMunTxt] = centroid(MunPolygon);
@@ -97,9 +95,7 @@ end
 %         'VerticalAlignment','middle', 'FontName',SelectedFont, 'FontSize',SelectedFontSize/1.2)
 % end
 
-set(gca, 'visible','off')
+set(CurrAxs, 'visible','off')
 
 %% Export png
-cd(fold_fig)
-exportgraphics(fig_mun, strcat(Filename1,'.png'), 'Resolution',600);
-cd(fold0)
+exportgraphics(CurrFig, [fold_fig,sl,CurrFln,'.png'], 'Resolution',600);

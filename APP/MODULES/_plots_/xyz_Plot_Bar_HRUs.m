@@ -1,25 +1,16 @@
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
-                                 'Indeterminate','on');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
 %% Loading data
-load([fold_var,sl,'HRUs.mat'           ], 'CombinationsAll','HRUsAll','InfoLegLandUse','InfoLegSlope','InfoLegSoil')
+sl = filesep;
+
+load([fold_var,sl,'HRUs.mat'           ], 'CombAll','HRUsAll','InfoLegLandUse','InfoLegSlope','InfoLegSoil')
 load([fold_var,sl,'GridCoordinates.mat'], 'xLongAll','yLatAll')
 load([fold_var,sl,'DatasetStudy.mat'   ], 'StablePolygons','UnstablePolygons')
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelFont = Font;
-    SelFtSz = FontSize;
-    if exist('LegendPosition', 'var')
-        LgndPos = LegendPosition;
-    end
-else
-    SelFont = 'Times New Roman';
-    SelFtSz = 8;
-    LgndPos = 'Best';
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 %% Calculating indices of points inside polygons
 if length(UnstablePolygons) > 1; UnstablePolygons = union(UnstablePolygons); end
@@ -44,8 +35,8 @@ RelFrequenciesHRUs    = cellfun(@(x) x/sum(x)*100    , HRUsCount, 'UniformOutput
 ConsistencyFactorHRUs = cellfun(@(x) sum(x)/length(x), HRUsCount, 'UniformOutput',false); % The more is higher, the more points are not casual (more points are in the same class, instead 1 means that there is a num of classes equal to num of points)
 
 %% Extraction of Combinations
-CombsOfUnstabPoints = cellfun(@(x,y) x(y), CombinationsAll, IndOfUnstabPoints, 'UniformOutput',false);
-CombsOfStabPoints   = cellfun(@(x,y) x(y), CombinationsAll, IndOfStabPoints,   'UniformOutput',false);
+CombsOfUnstabPoints = cellfun(@(x,y) x(y), CombAll, IndOfUnstabPoints, 'UniformOutput',false);
+CombsOfStabPoints   = cellfun(@(x,y) x(y), CombAll, IndOfStabPoints,   'UniformOutput',false);
 
 CombsOfUnstabPointsCat = cat(1, CombsOfUnstabPoints{:});
 CombsOfStabPointsCat   = cat(1, CombsOfStabPoints{:});
@@ -93,7 +84,7 @@ PlotArea = {'Unstable area', 'Stable area'};
 for i1 = 1:length(PlotArea)
     filename = [InfoType,' statistics (',PlotArea{i1},')'];
     curr_fig = figure(i1);
-    ax_curr  = axes(curr_fig, 'FontName',SelFont, 'FontSize',SelFtSz);
+    ax_curr  = axes(curr_fig, 'FontName',SlFont, 'FontSize',SlFnSz);
     set(curr_fig, 'visible','on')
     set(curr_fig, 'Name',filename);
     
@@ -107,7 +98,7 @@ for i1 = 1:length(PlotArea)
     yBarPos = BarPlot(1).YEndPoints;
     BarLbls = strcat(num2str(round(ClassesFreqs{i1}', 1)), '%');
     text(xBarPos, yBarPos, BarLbls, 'HorizontalAlignment','center', 'VerticalAlignment','bottom', ...
-                                    'FontName',SelFont, 'FontSize',0.9*SelFtSz)
+                                    'FontName',SlFont, 'FontSize',0.9*SlFnSz)
     
     if strcmp(HideLows, 'Yes')
         xLabText = ['Name of ',InfoType,' (only classes with freq >= ', num2str(FreqThr), '%)'];
@@ -115,8 +106,8 @@ for i1 = 1:length(PlotArea)
         xLabText = ['Name of ',InfoType];
     end
 
-    xlabel(xLabText          , 'FontName',SelFont, 'FontSize',1.2*SelFtSz)
-    ylabel('Num of cells [-]', 'FontName',SelFont, 'FontSize',1.2*SelFtSz)
+    xlabel(xLabText          , 'FontName',SlFont, 'FontSize',1.2*SlFnSz)
+    ylabel('Num of cells [-]', 'FontName',SlFont, 'FontSize',1.2*SlFnSz)
 
     ylim([0, 1.2*max(ClassesCount{i1})])
 
@@ -124,8 +115,8 @@ for i1 = 1:length(PlotArea)
     
     pbaspect([3.5, 1, 1])
     
-    title(    ['Bar plot of ',InfoType,' in ',PlotArea{i1}]    , 'FontName',SelFont, 'FontSize',1.5*SelFtSz )
-    subtitle( ['Consistency Index: ',num2str(ConsistToUse{i1})], 'FontName',SelFont, 'FontSize',SelFtSz     )
+    title(    ['Bar plot of ',InfoType,' in ',PlotArea{i1}]    , 'FontName',SlFont, 'FontSize',1.5*SlFnSz )
+    subtitle( ['Consistency Index: ',num2str(ConsistToUse{i1})], 'FontName',SlFont, 'FontSize',SlFnSz     )
 
     exportgraphics(curr_fig, [fold_fig,filesep,filename,'.png'], 'Resolution',600);
 end
@@ -145,10 +136,6 @@ TblLandUseCnt = uitable(FigTblLandUse, 'Data',TabLandUse, 'Units','normalized', 
 TblSlopeCnt   = uitable(FigTblSlope  , 'Data',TabSlope  , 'Units','normalized', 'Position',[0.01 0.01 0.98 0.98]);
 TblSoilCnt    = uitable(FigTblSoil   , 'Data',TabSoil   , 'Units','normalized', 'Position',[0.01 0.01 0.98 0.98]);
 
-cd(fold_fig)
-writetable(TabLandUse, 'LegendLandUse.txt')
-writetable(TabSlope  , 'LegendSlope.txt')
-writetable(TabSoil   , 'LegendSoil.txt')
-cd(fold0)
-
-close(ProgressBar)
+writetable([fold_fig,sl,TabLandUse], 'LegendLandUse.txt')
+writetable([fold_fig,sl,TabSlope  ], 'LegendSlope.txt')
+writetable([fold_fig,sl,TabSoil   ], 'LegendSoil.txt')

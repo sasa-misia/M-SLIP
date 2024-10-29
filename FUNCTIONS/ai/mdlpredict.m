@@ -29,7 +29,8 @@ function PredictionProbabilities = mdlpredict(Model, Dataset, varargin)
 %   regression and true for classification.
 
 %% Settings initialization
-ScndOut = contains(class(Model), 'class', 'IgnoreCase',true); % Default
+MdlClss = strsplit(class(Model), '.'); MdlClss = MdlClss{end};
+ScndOut = contains(MdlClss, 'class', 'IgnoreCase',true); % Default
 if not(ScndOut) && any(strcmpi(fieldnames(Model), 'modelparameters'))
     ScndOut = strcmpi(Model.ModelParameters.Type, {'classification'});
 end
@@ -74,7 +75,7 @@ if ScndOut && any(CurrPreds < 0, 'all') % If there is ScndOut it means that it i
     warning('Scores were supposed to be odds, thus converted into probabilities!')
 end
 
-OutOfRng = any(CurrPreds < 0) | any(CurrPreds > 1);
+OutOfRng = any(CurrPreds < 0, 'all') | any(CurrPreds > 1, 'all');
 if OutOfRng && CutVals
     CurrPreds = min(max(CurrPreds, 0), 1);
     warning(['mdlpredict| Some values of the prediction ', ...

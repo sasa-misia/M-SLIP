@@ -7,24 +7,31 @@ drawnow
 sl = filesep;
 
 load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon')
-load([fold_var,sl,'GridCoordinates.mat'],    'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
-load([fold_var,sl,'GeneralRainfall.mat'],    'Gauges','RecDatesEndCommon','GeneralData')
+load([fold_var,sl,'GridCoordinates.mat'   ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'GeneralRainfall.mat'   ], 'Gauges','RecDatesEndCommon','GeneralData','GenDataProps')
+
+GnData = GeneralData{1};
+if not(isscalar(GenDataProps))
+    IdRain = listdlg2('Select property with cumulative rainfall:', GenDataProps, 'OutType','NumInd');
+    GnData = GeneralData{IdRain};
+end
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelectedFont     = Font;
-    SelectedFontSize = FontSize;
+    SlFont = Font;
+    SlFnSz = FontSize;
+    if exist('LegendPosition', 'var'); LegPos = LegendPosition; end
 else
-    SelectedFont     = 'Times New Roman';
-    SelectedFontSize = 8;
-    LegendPosition   = 'Best';
+    SlFont = 'Calibri';
+    SlFnSz = 8;
+    LegPos = 'Best';
 end
 
-InfoDetectedExist = false;
+InfoDetExst = false;
 if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
     load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
-    InfoDetectedExist = true;
+    InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
+    InfoDetExst = true;
 end
 
 %% For scatter dimension
@@ -47,8 +54,8 @@ switch RainFallType
         if RainFallType == 1
             load([fold_var,sl,'RainInterpolated.mat'], 'RainInterpolated','IndexInterpolation')
 
-            EventsInterpolated = RecDatesEndCommon(IndexInterpolation);
-            IndPlot = checkbox2(string(EventsInterpolated), 'Title',{'Select event analysed to plot:'}, 'OutType','NumInd');
+            EvsIntp = RecDatesEndCommon(IndexInterpolation);
+            IndPlot = checkbox2(string(EvsIntp), 'Title',{'Select datetime to plot:'}, 'OutType','NumInd');
 
         elseif RainFallType == 0
             load([fold_var,sl,'RainInterpolated.mat'], 'SelectedHoursRun')
@@ -61,15 +68,15 @@ switch RainFallType
                 IndexForecastInterpolated{i1} = unique([SelectedHoursRun{IndexForecastRun,1}]);
             end
     
-            RunInterpolated = string(ForecastData(ForecastRunUnique));
-            ChoiceRunTime = listdlg2({'Select the run time of the forcast model :'}, RunInterpolated, 'OutType','NumInd');
-            RunSel  = datetime(RunInterpolated(ChoiceRunTime), 'Format','dd/MM/yyyy HH');
+            RunInt = string(ForecastData(ForecastRunUnique));
+            ChoiceRunTime = listdlg2({'Select the run time of the forcast model :'}, RunInt, 'OutType','NumInd');
+            RunSel  = datetime(RunInt(ChoiceRunTime), 'Format','dd/MM/yyyy HH');
             RunSel  = cellfun(@(x) x==RunSel, ForecastData(:,1));
             RunSel1 = find(RunSel);
     
-            EventsInterpolated = [ForecastData{RunSel,2}(IndexForecastInterpolated{(ForecastRunUnique==RunSel1)})];
+            EvsIntp = [ForecastData{RunSel,2}(IndexForecastInterpolated{(ForecastRunUnique==RunSel1)})];
         
-            IndPlot = checkbox2(string(EventsInterpolated), 'Title',{'Select interpolated rainfall:'}, 'OutType','NumInd');
+            IndPlot = checkbox2(string(EvsIntp), 'Title',{'Select interpolated rainfall:'}, 'OutType','NumInd');
         end
 
         FigToPlot = numel(IndPlot);
@@ -85,17 +92,17 @@ for iFig = 1:FigToPlot
             %% Both for RainFallType 0 and 1
             ProgressBar.Message = 'Loading rainfalls...';
             if RainFallType == 1
-                RainSelected = RainInterpolated(IndPlot(iFig),:);
-                DataInStationSelected = GeneralData(:,(IndPlot(iFig)+IndexInterpolation(1)-1));
-                RainfallEvent = replace( [char(EventsInterpolated(IndPlot(iFig))),' Rec'], {':', '/', '\'}, '-' );
+                RainSel = RainInterpolated(IndPlot(iFig),:);
+                DatStSl = GnData((IndPlot(iFig) + IndexInterpolation(1) - 1), :);
+                RainEvt = replace( [char(EvsIntp(IndPlot(iFig))),' Rec'], {':', '/', '\'}, '-' );
     
                 % clear('RainInterpolated')
             
             elseif RainFallType == 0
                 load([fold_var_rain_for,sl,'RainForecastInterpolated',num2str(RunSel1),'.mat'], 'RainForecastInterpolated');
             
-                RainSelected  = RainForecastInterpolated(IndPlot(iFig),:);
-                RainfallEvent = replace( [char(EventsInterpolated(IndPlot(iFig))),' For'], {':', '/', '\'}, '-' );
+                RainSel = RainForecastInterpolated(IndPlot(iFig),:);
+                RainEvt = replace( [char(EvsIntp(IndPlot(iFig))),' For'], {':', '/', '\'}, '-' );
             end
     
             ProgressBar.Message = 'Data extraction...';
@@ -111,32 +118,32 @@ for iFig = 1:FigToPlot
                           [018, 010, 143]
                           [019, 041, 075] };
             
-            [xLongStudyArea, yLatStudyArea, RainStudyArea] = deal(cell(size(xLongAll)));
+            [xLonStudy, yLatStudy, RainStudy] = deal(cell(size(xLongAll)));
             RainRanges = cell(size(ColorRain,1), length(xLongAll));
             for i1 = 1:size(RainRanges,2)
-                xLongStudyArea{i1} = xLongAll{i1}(IndexDTMPointsInsideStudyArea{i1});
-                yLatStudyArea{i1}  = yLatAll{i1}(IndexDTMPointsInsideStudyArea{i1});
-                % RainStudyArea{i1} = RainSelected{i1}(IndexDTMPointsInsideStudyArea{i1});
+                xLonStudy{i1} = xLongAll{i1}(IndexDTMPointsInsideStudyArea{i1});
+                yLatStudy{i1} = yLatAll{i1}(IndexDTMPointsInsideStudyArea{i1});
+                % RainStudy{i1} = RainSelected{i1}(IndexDTMPointsInsideStudyArea{i1});
                 
-                RainRanges{1  ,i1} = find(RainSelected{i1}<=RainRangeVal(1));
-                RainRanges{end,i1} = find(RainSelected{i1}>=RainRangeVal(6));
+                RainRanges{1  ,i1} = find(RainSel{i1}<=RainRangeVal(1));
+                RainRanges{end,i1} = find(RainSel{i1}>=RainRangeVal(6));
                 for i2 = 2:(size(RainRanges,1) - 1)
-                    RainRanges{i2, i1} = find(RainSelected{i1}>RainRangeVal(i2-1) & RainSelected{i1}<=RainRangeVal(i2));
+                    RainRanges{i2, i1} = find(RainSel{i1}>RainRangeVal(i2-1) & RainSel{i1}<=RainRangeVal(i2));
                 end
             end
             
             ProgressBar.Message = 'Plotting...';
     
-            filename1 = ['Rain ',RainfallEvent];
-            f1  = figure(1);
-            ax1 = axes(f1);
+            CurrFln1 = ['Rain ',RainEvt];
+            CurrFig1 = figure(1);
+            CurrAxs1 = axes(CurrFig1);
     
-            set(f1, 'Name',filename1, 'Visible','off')
-            set(ax1, 'Visible','off')
-            hold(ax1,'on')
+            set(CurrFig1, 'Name',CurrFln1, 'Visible','off')
+            set(CurrAxs1, 'Visible','off')
+            hold(CurrAxs1,'on')
             
             for i2 = 1:size(xLongAll,2)
-                hPlotRain = cellfun(@(x,y) scatter(xLongStudyArea{i2}(x), yLatStudyArea{i2}(x), PixelSize, 'o', ...
+                hPlotRain = cellfun(@(x,y) scatter(xLonStudy{i2}(x), yLatStudy{i2}(x), PixelSize, 'o', ...
                                                             'MarkerFaceColor',y./255, 'MarkerEdgeColor','none'), ...
                                                 RainRanges(:,i2), ColorRain, 'UniformOutput',false);
             end
@@ -145,86 +152,83 @@ for iFig = 1:FigToPlot
     
             fig_settings(fold0)
     
-            if InfoDetectedExist
-                hdetected = cellfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), ...
-                                        InfoDetectedSoilSlipsToUse(:,5), InfoDetectedSoilSlipsToUse(:,6));
+            if InfoDetExst
+                hdetected = arrayfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), InfoDet2Use{:,5}, InfoDet2Use{:,6});
                 uistack(hdetected,'top')
             end
             
-            if exist('LegendPosition', 'var')
-                LegendObjects = hPlotRain;
-                LegendCaption = {'< 1', '1 - 1.5', '1.5 - 2', '2 - 2.5', '2.5 - 3', '3 - 4', '> 4'};
+            if exist('LegPos', 'var')
+                LegObjs = hPlotRain;
+                LegCaps = {'< 1', '1 - 1.5', '1.5 - 2', '2 - 2.5', '2.5 - 3', '3 - 4', '> 4'};
     
-                if InfoDetectedExist
-                    LegendObjects = [LegendObjects; {hdetected(1)}];
-                    LegendCaption = [LegendCaption, {"Points Analyzed"}];
+                if InfoDetExst
+                    LegObjs = [LegObjs; {hdetected(1)}];
+                    LegCaps = [LegCaps, {"Points Analyzed"}];
                 end
         
-                hleg = legend([LegendObjects{:}], ...
-                              LegendCaption, ...
-                              'NumColumns',2, ...
-                              'FontName',SelectedFont, ...
-                              'Location',LegendPosition, ...
-                              'FontSize',SelectedFontSize, ...
-                              'Box','off');
+                hleg = legend([LegObjs{:}], LegCaps, 'NumColumns',2, ...
+                                                     'FontName',SlFont, ...
+                                                     'Location',LegPos, ...
+                                                     'FontSize',SlFnSz, ...
+                                                     'Box','off');
         
                 hleg.ItemTokenSize(1) = 10;
                 
                 legend('AutoUpdate','off');
                 
-                title(hleg, 'Rain [mm]', 'FontName',SelectedFont, ...
-                            'FontSize',SelectedFontSize*1.2, 'FontWeight','bold')
+                title(hleg, 'Rain [mm]', 'FontName',SlFont, ...
+                            'FontSize',SlFnSz*1.2, 'FontWeight','bold')
     
-                fig_rescaler(f1, hleg, LegendPosition)
+                fig_rescaler(CurrFig1, hleg, LegPos)
             end
     
-            exportgraphics(f1, [fold_fig,sl,filename1,'.png'], 'Resolution',600);
+            exportgraphics(CurrFig1, [fold_fig,sl,CurrFln1,'.png'], 'Resolution',600);
     
-            if ShowPlots; set(f1, 'visible','on'); else; close(f1); end
+            if ShowPlots; set(CurrFig1, 'visible','on'); else; close(CurrFig1); end
     
             % ---- Plot of Rain Gauges positions ----
             if RainFallType == 1
-                filename2 = 'LocationRainGauges';
-                f2  = figure(2);
-                ax2 = axes(f2);
+                CurrFln2 = ['RainGauges ',RainEvt];
+                CurrFig2 = figure(2);
+                CurrAxs2 = axes(CurrFig2);
                 
-                set(f2, 'Name',filename2, 'Visible','off');
-                set(ax2, 'Visible','off')
-                hold(ax2,'on')
+                set(CurrFig2, 'Name',CurrFln2, 'Visible','off');
+                set(CurrAxs2, 'Visible','off')
+                hold(CurrAxs2,'on')
                 
                 scatter(Gauges{2}(:,1), Gauges{2}(:,2), '*k')
     
                 plot(StudyAreaPolygon, 'LineWidth',1, 'FaceColor',[255 64 64]./255, ...
                                        'EdgeColor',[179 40 33]./255, 'FaceAlpha',0.3);
                 
-                for i1 = 1:size(DataInStationSelected,1)
+                for i1 = 1:size(DatStSl, 2)
                     text(Gauges{2}(i1,1)+.01, Gauges{2}(i1,2), ...
-                            [char(Gauges{1}(i1)),' (',num2str(DataInStationSelected(i1)),' mm)'], ...
-                                                'FontName',SelectedFont, 'FontSize',SelectedFontSize)
+                            [char(Gauges{1}(i1)),' (',num2str(DatStSl(:, i1)),' mm)'], ...
+                                                 'FontName',SlFont, 'FontSize',SlFnSz)
                 end
                 
                 fig_settings(fold0)
         
-                exportgraphics(f2, [fold_fig,sl,filename2,'.png'], 'Resolution',600);
+                exportgraphics(CurrFig2, [fold_fig,sl,CurrFln2,'.png'], 'Resolution',600);
     
-                if ShowPlots; set(f2, 'visible','on'); else; close(f2); end
+                if ShowPlots; set(CurrFig2, 'visible','on'); else; close(CurrFig2); end
             end
     
         case 2
             %% For RainFallType 2
             ProgressBar.Message = 'Plotting...';
     
-            SelRecStation = char(listdlg2({'Select the recording station :'}, Gauges{1}));
-            IndSelRecStat = find( arrayfun(@(x) strcmp(x,SelRecStation), Gauges{1}) );
+            SelRecSta = char(listdlg2({'Select the recording station :'}, Gauges{1}));
+            IndRecSta = find( arrayfun(@(x) strcmp(x,SelRecSta), Gauges{1}) );
         
-            filename1 = ['RecordedRainfall',SelRecStation];
-            f1 = figure(1);
+            CurrFln1 = ['RecordedRainfall',SelRecSta];
+            CurrFig1 = figure(1);
     
-            set(f1, 'Name',filename1, 'Visible','off')
+            set(CurrFig1, 'Name',CurrFln1, 'Visible','off')
     
             yyaxis left
-            bar(RecDatesEndCommon, GeneralData(IndSelRecStat,:), 'FaceColor',[0 127 255]./255);
-            ylabel('{\it h_w} [mm]', 'FontName',SelectedFont)
+            bar(RecDatesEndCommon, GnData(:, IndRecSta), 'FaceColor',[0 127 255]./255);
+            ylabel('{\it h_w} [mm]', 'FontName',SlFont)
         
             set(gca, ...
                 'XLim'              , [min(RecDatesEndCommon), max(RecDatesEndCommon)], ...
@@ -239,14 +243,14 @@ for iFig = 1:FigToPlot
                 'XColor'            , [0, 0, 0], ...
                 'YColor'            , [0, 127, 255]./255, ...
                 'XTick'             , RecDatesEndCommon(1):days(5):RecDatesEndCommon(end), ...
-                'FontSize'          , SelectedFontSize, ...
-                'FontName'          , SelectedFont, ...
+                'FontSize'          , SlFnSz, ...
+                'FontName'          , SlFont, ...
                 'YTick'             , 0:1:9, ...
                 'LineWidth'         , .5)
         
             yyaxis right
-            plot(RecDatesEndCommon, cumsum(GeneralData(IndSelRecStat,:)), 'k')
-            ylabel('Cumulative [mm]', 'FontName',SelectedFont)
+            plot(RecDatesEndCommon, cumsum(GnData(:, IndRecSta)), 'k')
+            ylabel('Cumulative [mm]', 'FontName',SlFont)
         
             daspect auto
             
@@ -264,12 +268,12 @@ for iFig = 1:FigToPlot
                 'YColor'            , [0, 0, 0]./255, ...
                 'XTick'             , RecDatesEndCommon(1):days(5):RecDatesEndCommon(end), ...
                 'FontSize'          , 10, ...
-                'FontName'          , SelectedFont, ...
+                'FontName'          , SlFont, ...
                 'YTick'             , 0:20:200, ...
                 'LineWidth'         , .5)
         
-            exportgraphics(f1, [fold_fig,sl,filename1,'.png'], 'Resolution',600);
+            exportgraphics(CurrFig1, [fold_fig,sl,CurrFln1,'.png'], 'Resolution',600);
     
-            if ShowPlots; set(f1, 'visible','on'); else; close(f1); end
+            if ShowPlots; set(CurrFig1, 'visible','on'); else; close(CurrFig1); end
     end
 end

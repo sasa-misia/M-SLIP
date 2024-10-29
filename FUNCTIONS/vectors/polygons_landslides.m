@@ -84,7 +84,7 @@ if strcmp(StableMode, "alloutside")
     load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon')
 end
 
-if length(FilesDetectedSoilSlip) == 1
+if isscalar(FilesDetectedSoilSlip)
     InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{1};
     IndInfoToUse = 1;
 elseif exist('IndInfoToUse', 'var')

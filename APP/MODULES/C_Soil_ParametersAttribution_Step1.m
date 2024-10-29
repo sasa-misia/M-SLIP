@@ -1,117 +1,61 @@
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Initializing', 'Indeterminate','on');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
-%% File loading
-cd(fold_var)
-load('StudyAreaVariables.mat');
-cd(fold_raw_lit);
-
-ShapeInfo_Lithology = shapeinfo(FileName_Lithology);
-
-if ShapeInfo_Lithology.NumFeatures == 0
-    error('Shapefile is empty')
-end
-
-EB = 1000*360/2/pi/earthRadius; % ExtraBounding Lat/Lon increment for a respective 100 m length, necessary due to conversion errors
-[BoundingBoxX, BoundingBoxY] = projfwd(ShapeInfo_Lithology.CoordinateReferenceSystem, ...
-                                       [MinExtremes(2)-EB, MaxExtremes(2)+EB], ...
-                                       [MinExtremes(1)-EB, MaxExtremes(1)+EB]);
-ReadShape_Lithology = shaperead(FileName_Lithology, ...
-                                'BoundingBox',[BoundingBoxX(1) BoundingBoxY(1)
-                                               BoundingBoxX(2) BoundingBoxY(2)]);
-
-if size(ReadShape_Lithology, 1) < 1
-    error('Shapefile is not empty but have no element in bounding box!')
-end
-
-%% Choice between Top Soil or Sub Soil
+%% Options
 Options = {'Top Soil', 'Sub Soil'};
 TypeOfSoil = uiconfirm(Fig, 'What type of information contains your file?', ...
                             'Soil info type', 'Options',Options);
 if strcmp(TypeOfSoil,'Top Soil'); TopSoil = true; else; TopSoil = false; end
 
-%% Extract litho name abbreviations
-LithoAll = extractfield(ReadShape_Lithology,LitFieldName);
-LithoAllUnique = unique(LithoAll);
+%% File loading
+sl = filesep;
 
-IndexLitho = cell(1,length(LithoAllUnique));
-for i1 = 1:length(LithoAllUnique)
-    IndexLitho{i1} = find(strcmp(LithoAll,LithoAllUnique(i1)));
-end
+load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon');
 
-% Poligon creation
-ProgressBar.Indeterminate = 'off';
-LithoPolygon = repmat(polyshape, 1, length(IndexLitho));
-for i1 = 1:length(IndexLitho)
-    [LithoVertexLat, LithoVertexLon] = projinv(ShapeInfo_Lithology.CoordinateReferenceSystem, ...
-                                               [ReadShape_Lithology(IndexLitho{i1}).X], ...
-                                               [ReadShape_Lithology(IndexLitho{i1}).Y]);
-    LithoPolygon(i1) = polyshape([LithoVertexLon',LithoVertexLat'],'Simplify',false);
-
-    Steps = length(IndexLitho);
-    ProgressBar.Value = i1/Steps;
-    ProgressBar.Message = strcat("Polygon n. ", string(i1)," of ", string(Steps));
-    drawnow
-end
-ProgressBar.Indeterminate = 'on';
-
-% Find intersection among Litho polygon and the study area
-LithoPolygonsStudyArea = intersect(LithoPolygon, StudyAreaPolygon);
-
-% Removal of Litho excluded from the study area
-EmptyLithoInStudyArea = cellfun(@isempty,{LithoPolygonsStudyArea.Vertices});
-
-LithoPolygonsStudyArea(EmptyLithoInStudyArea) = [];
-LithoAllUnique(EmptyLithoInStudyArea) = [];
+%% Core
+lithoShapePath = strcat(fold_raw_lit,sl,FileName_Lithology);
+[LithoPolygonsStudyArea, LithoAllUnique] = ...
+                polyshapes_from_shapefile(lithoShapePath, LitFieldName, ...
+                                          polyBound=StudyAreaPolygon, pointsLim=500000, ...
+                                          progDialog=ProgressBar);
 
 %% Plot for check
-ProgressBar.Indeterminate = true;
-ProgressBar.Message = strcat("Plotting for check");
-drawnow
+ProgressBar.Message = 'Plotting for check';
 
-f1 = figure(1);
-plot(LithoPolygonsStudyArea')
-title('Litho Polygon Check')
-xlim([MinExtremes(1) MaxExtremes(1)])
-ylim([MinExtremes(2) MaxExtremes(2)])
-daspect([1 1 1])
+CheckFig = figure(1);
+CheckAxs = axes(CheckFig);
+hold(CheckAxs,'on')
+
+plot(LithoPolygonsStudyArea', 'Parent',CheckAxs)
+
 legend(LithoAllUnique, 'Location','SouthEast', 'AutoUpdate','off')
-hold on
-plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1)
+
+plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1, 'Parent',CheckAxs)
+
+title('Litho Polygon Check')
+fig_settings(fold0, 'AxisTick');
 
 %% Writing of an excel that User has to compile before Step2
-ProgressBar.Message = strcat("Excel Creation (User Control folder)");
-drawnow
+ProgressBar.Message = 'Excel Creation (User Control folder)';
 
-cd(fold_user)
 FileName_LithoAssociation = 'LuDSCAssociation.xlsx';
-DataToWrite1 = cell(length(LithoAllUnique)+1, 4); % Plus 1 because of header line
-DataToWrite1(1, :) = {LitFieldName, 'US Associated', 'LU Abbrev (For Map)', 'RGB LU (for Map)'};
-DataToWrite1(2:end, 1) = cellstr(LithoAllUnique');
-
-DataToWrite2 = {'US', 'c''(kPa)', 'phi (°)', 'kt (h^-1)', 'A (kPa)', 'n', 'Color'};
-
-WriteFile = checkduplicate(Fig, DataToWrite1, fold_user, FileName_LithoAssociation);
-if WriteFile
-    writecell(DataToWrite1, FileName_LithoAssociation, 'Sheet','Association');
-    writecell(DataToWrite2, FileName_LithoAssociation, 'Sheet','DSCParameters');
-end
-
-% Creatings string names of variables in a cell array to save at the end
-Variables = {'LithoPolygonsStudyArea', 'LithoAllUnique', 'FileName_LithoAssociation'};
-Variables_Answer = {'AnswerAttributionSoilParameter', 'FileName_Lithology', 'LitFieldName'};
-
-close(ProgressBar) % ProgressBar instead of Fig if on the app version
+write_user_excel([fold_user,sl,FileName_LithoAssociation], LithoAllUnique, LitFieldName, Fig, 'litho')
 
 %% Saving of polygons included in the study area
-cd(fold_var)
-save('LithoPolygonsStudyArea.mat', Variables{:});
-save('UserSoil_Answers.mat', Variables_Answer{:});
+ProgressBar.Message = 'Saving...';
+
+Variables = {'LithoPolygonsStudyArea', 'LithoAllUnique', 'FileName_LithoAssociation'};
+VarsAnswr = {'AnswerAttributionSoilParameter', 'FileName_Lithology', 'LitFieldName'};
+
+save([fold_var,sl,'LithoPolygonsStudyArea.mat'], Variables{:});
+save([fold_var,sl,'UserSoil_Answers.mat'      ], VarsAnswr{:});
 if TopSoil
     TopSoilPolygonsStudyArea = LithoPolygonsStudyArea;
     TopSoilAllUnique = LithoAllUnique;
     VariablesTopSoil = {'TopSoilPolygonsStudyArea', 'TopSoilAllUnique'};
-    save('TopSoilPolygonsStudyArea.mat', VariablesTopSoil{:});
+    save([fold_var,sl,'TopSoilPolygonsStudyArea.mat'], VariablesTopSoil{:});
 end
-cd(fold0)
+
+close(ProgressBar) % ProgressBar instead of Fig if on the app version

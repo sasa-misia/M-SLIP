@@ -7,18 +7,20 @@ drawnow
 %% Loading Files
 sl = filesep;
 
-load([fold_var,sl,'StudyAreaVariables.mat'],    'PolWindow','StudyAreaPolygon')
+load([fold_var,sl,'StudyAreaVariables.mat'   ], 'PolWindow','StudyAreaPolygon')
 load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','InfoPointsNearDetectedSoilSlips','IndDefInfoDet')
-InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndDefInfoDet};
-InfoPointsNearDetectedSoilSlipsToUse = InfoPointsNearDetectedSoilSlips{IndDefInfoDet};
+InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
+IfNrDet2Use = InfoPointsNearDetectedSoilSlips{IndDefInfoDet};
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelectedFont = Font;
-    SelectedFontSize = FontSize;
+    SlFont = Font;
+    SlFnSz = FontSize;
+    if exist('LegendPosition', 'var'); LegPos = LegendPosition; end
 else
-    SelectedFont = 'Times New Roman';
-    SelectedFontSize = 8;
+    SlFont = 'Calibri';
+    SlFnSz = 8;
+    LegPos = 'southoutside';
 end
 
 %% Raster CTR Selection
@@ -323,7 +325,7 @@ GrayScaleCTRTot  = cat(1,GrayScaleCTRStudy{:});
 fold_fig_det = strcat(fold_fig,sl,'Detected points plots');
 if ~exist(fold_fig_det,'dir'); mkdir(fold_fig_det); end
 
-Classes = cellfun(@(x) table2cell(x(:,1)), InfoPointsNearDetectedSoilSlipsToUse(:,7), 'UniformOutput',false);
+Classes = cellfun(@(x) table2cell(x(:,1)), IfNrDet2Use(:,7), 'UniformOutput',false);
 Classes = unique(string(cat(1, Classes{:})));
 
 IndClassesNS = strcmp(Classes, 'Land Use not specified'); % Not classified, then they will be removed
@@ -389,11 +391,11 @@ for i1 = 1:length(PolWindow)
         end
 
     else
-        strcat("Municipality: ", string(InfoDetectedSoilSlipsToUse{i1,1}), " does not have CTR")
+        strcat("Municipality: ", string(InfoDet2Use{i1,1}), " does not have CTR")
     end
 
-    PointsNearLong = cell2mat(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,3));
-    PointsNearLat  = cell2mat(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,4));
+    PointsNearLong = cell2mat(IfNrDet2Use{i1,4}(:,3));
+    PointsNearLat  = cell2mat(IfNrDet2Use{i1,4}(:,4));
 
     IndexPointsInPolWin = find(inpoly([PointsNearLong, PointsNearLat], ppWin, eeWin)==1);
 
@@ -407,10 +409,10 @@ for i1 = 1:length(PolWindow)
         hold(ax_ind1,'on')
 
         Filename1 = ['Classes for point n. ',num2str(i1)];
-        title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
-              'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind1)
-        subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
-                 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind1)
+        title(strcat( "Comune: ", string(InfoDet2Use{i1,1})), ...
+              'FontName',SlFont, 'FontSize',SlFnSz*1.4, 'Parent',ax_ind1)
+        subtitle(strcat( "ID: ", string(strrep(InfoDet2Use{i1,2}, '_', ' ')) ), ...
+                 'FontName',SlFont, 'FontSize',SlFnSz*1.2, 'Parent',ax_ind1)
         set(fig_class, 'Name',Filename1);
     
         % Plot CTR
@@ -428,7 +430,7 @@ for i1 = 1:length(PolWindow)
         end
     
         % Plot Classes (LU)
-        PointClassNearDSS = string(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,17)); % This is LU
+        PointClassNearDSS = string(IfNrDet2Use{i1,4}(:,17)); % This is LU
         PointClassNearDSS = PointClassNearDSS(IndexPointsInPolWin);
         
         IndClasses = arrayfun(@(x) strcmp(x, PointClassNearDSS), Classes, 'UniformOutput',false);
@@ -447,7 +449,7 @@ for i1 = 1:length(PolWindow)
         % Plot Contour, detected point & extra settings
         PlotContour = plot(PolWindow(i1), 'FaceColor','none', 'LineWidth',1, 'LineStyle','--', 'Parent',ax_ind1);
     
-        PlotDetected = scatter(InfoDetectedSoilSlipsToUse{i1,5}, InfoDetectedSoilSlipsToUse{i1,6}, PixelSize, ...
+        PlotDetected = scatter(InfoDet2Use{i1,5}, InfoDet2Use{i1,6}, PixelSize, ...
                                'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
                                'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind1);
     
@@ -456,21 +458,21 @@ for i1 = 1:length(PolWindow)
     
         fig_settings(fold0, 'ScaleBar', 'ScaleBarBox', 'SetExtremes',ExtremesPlot);
 
-        if exist('LegendPosition', 'var')
+        if exist('LegPos', 'var')
             LegendObjects = [PlotClass; {PlotDetected}];
             LegendCaption = [ClassesLocal; {'Ponte'}];
     
             hleg1 = legend([LegendObjects{:}], LegendCaption, ...
-                           'FontName',SelectedFont, ...
-                           'FontSize',SelectedFontSize, ...
-                           'Location',LegendPosition, ...
+                           'FontName',SlFont, ...
+                           'FontSize',SlFnSz, ...
+                           'Location',LegPos, ...
                            'NumColumns',1);
             
             hleg1.ItemTokenSize(1) = 3;
             
             legend('AutoUpdate','off')
 
-            fig_rescaler(fig_class, hleg1, LegendPosition) % Before was fig_class. Please fix sizes!
+            fig_rescaler(fig_class, hleg1, LegPos) % Before was fig_class. Please fix sizes!
         end
     
         if ShowPlots
@@ -493,10 +495,10 @@ for i1 = 1:length(PolWindow)
         hold(ax_ind2,'on')
     
         Filename2 = ['Morphology of point n. ',num2str(i1)];
-        title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
-              'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind2)
-        subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
-                 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind2)
+        title(strcat( "Comune: ", string(InfoDet2Use{i1,1})), ...
+              'FontName',SlFont, 'FontSize',SlFnSz*1.4, 'Parent',ax_ind2)
+        subtitle(strcat( "ID: ", string(strrep(InfoDet2Use{i1,2}, '_', ' ')) ), ...
+                 'FontName',SlFont, 'FontSize',SlFnSz*1.2, 'Parent',ax_ind2)
         set(fig_morph, 'Name',Filename2);
     
         if ~isempty(IndexCTRInPolWin)
@@ -512,7 +514,7 @@ for i1 = 1:length(PolWindow)
             end
         end
     
-        PointsNearAlt  = cell2mat(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,5));
+        PointsNearAlt  = cell2mat(IfNrDet2Use{i1,4}(:,5));
         PointsNearAlt  = PointsNearAlt(IndexPointsInPolWin);
     
         PlotMorph = fastscatter2(PointsNearLong, PointsNearLat, PointsNearAlt, 'FaceAlpha',TTrans, 'Parent',ax_ind2);
@@ -527,11 +529,11 @@ for i1 = 1:length(PolWindow)
         ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
         ColBarPos(3:4) = ColBarPos(3:4)*0.4;
         set(ColBar, 'Position',ColBarPos)
-        title(ColBar, 'Elevazione [m]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2)
+        title(ColBar, 'Elevazione [m]', 'FontName',SlFont, 'FontSize',SlFnSz*1.2)
     
         PlotContour = plot(PolWindow(i1), 'FaceColor','none', 'LineWidth',1, 'LineStyle','--', 'Parent',ax_ind2);
     
-        PlotDetected = scatter(InfoDetectedSoilSlipsToUse{i1,5}, InfoDetectedSoilSlipsToUse{i1,6}, PixelSize, ...
+        PlotDetected = scatter(InfoDet2Use{i1,5}, InfoDet2Use{i1,6}, PixelSize, ...
                                'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
                                'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind2);
     
@@ -557,10 +559,10 @@ for i1 = 1:length(PolWindow)
         hold(ax_ind3,'on')
     
         Filename3 = ['Slope of point n. ',num2str(i1)];
-        title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
-              'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind3)
-        subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
-                 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind3)
+        title(strcat( "Comune: ", string(InfoDet2Use{i1,1})), ...
+              'FontName',SlFont, 'FontSize',SlFnSz*1.4, 'Parent',ax_ind3)
+        subtitle(strcat( "ID: ", string(strrep(InfoDet2Use{i1,2}, '_', ' ')) ), ...
+                 'FontName',SlFont, 'FontSize',SlFnSz*1.2, 'Parent',ax_ind3)
         set(fig_slope, 'Name',Filename3);
     
         if ~isempty(IndexCTRInPolWin)
@@ -576,7 +578,7 @@ for i1 = 1:length(PolWindow)
             end
         end
     
-        PointsNearSlope  = cell2mat(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,6));
+        PointsNearSlope  = cell2mat(IfNrDet2Use{i1,4}(:,6));
         PointsNearSlope  = PointsNearSlope(IndexPointsInPolWin);
     
         PlotSlope = fastscatter2(PointsNearLong, PointsNearLat, PointsNearSlope, 'FaceAlpha',TTrans, 'Parent',ax_ind3);
@@ -592,11 +594,11 @@ for i1 = 1:length(PolWindow)
         ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
         ColBarPos(3:4) = ColBarPos(3:4)*0.4;
         set(ColBar, 'Position',ColBarPos)
-        title(ColBar, 'Inclinazione Pendio [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2)
+        title(ColBar, 'Inclinazione Pendio [°]', 'FontName',SlFont, 'FontSize',SlFnSz*1.2)
     
         PlotContour = plot(PolWindow(i1), 'FaceColor','none', 'LineWidth',1, 'LineStyle','--', 'Parent',ax_ind3);
     
-        PlotDetected = scatter(InfoDetectedSoilSlipsToUse{i1,5}, InfoDetectedSoilSlipsToUse{i1,6}, PixelSize, ...
+        PlotDetected = scatter(InfoDet2Use{i1,5}, InfoDet2Use{i1,6}, PixelSize, ...
                                'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
                                'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind3);
     
@@ -622,10 +624,10 @@ for i1 = 1:length(PolWindow)
         hold(ax_ind4,'on')
     
         Filename4 = ['Aspect of point n. ',num2str(i1)];
-        title(strcat( "Comune: ", string(InfoDetectedSoilSlipsToUse{i1,1})), ...
-              'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.4, 'Parent',ax_ind4)
-        subtitle(strcat( "ID: ", string(strrep(InfoDetectedSoilSlipsToUse{i1,2}, '_', ' ')) ), ...
-                 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2, 'Parent',ax_ind4)
+        title(strcat( "Comune: ", string(InfoDet2Use{i1,1})), ...
+              'FontName',SlFont, 'FontSize',SlFnSz*1.4, 'Parent',ax_ind4)
+        subtitle(strcat( "ID: ", string(strrep(InfoDet2Use{i1,2}, '_', ' ')) ), ...
+                 'FontName',SlFont, 'FontSize',SlFnSz*1.2, 'Parent',ax_ind4)
         set(fig_aspect, 'Name',Filename4);
     
         if ~isempty(IndexCTRInPolWin)
@@ -641,7 +643,7 @@ for i1 = 1:length(PolWindow)
             end
         end
     
-        PointsNearAspect  = cell2mat(InfoPointsNearDetectedSoilSlipsToUse{i1,4}(:,7));
+        PointsNearAspect  = cell2mat(IfNrDet2Use{i1,4}(:,7));
         PointsNearAspect  = PointsNearAspect(IndexPointsInPolWin);
     
         PlotAspect = fastscatter2(PointsNearLong, PointsNearLat, PointsNearAspect, 'FaceAlpha',TTrans, 'Parent',ax_ind4);
@@ -661,11 +663,11 @@ for i1 = 1:length(PolWindow)
         ColBarPos(2) = ColBarPos(2)-0.5*ColBarPos(2);
         ColBarPos(3:4) = ColBarPos(3:4)*0.4;
         set(ColBar, 'Position',ColBarPos)
-        title(ColBar, 'Angoli di esposizione [°]', 'FontName',SelectedFont, 'FontSize',SelectedFontSize*1.2)
+        title(ColBar, 'Angoli di esposizione [°]', 'FontName',SlFont, 'FontSize',SlFnSz*1.2)
     
         PlotContour = plot(PolWindow(i1), 'FaceColor','none', 'LineWidth',1, 'LineStyle','--', 'Parent',ax_ind4);
     
-        PlotDetected = scatter(InfoDetectedSoilSlipsToUse{i1,5}, InfoDetectedSoilSlipsToUse{i1,6}, PixelSize, ...
+        PlotDetected = scatter(InfoDet2Use{i1,5}, InfoDet2Use{i1,6}, PixelSize, ...
                                'Marker','d', 'MarkerFaceColor','r', 'MarkerEdgeColor','k', ...
                                'MarkerFaceAlpha',1, 'LineWidth',1, 'Parent',ax_ind4);
     

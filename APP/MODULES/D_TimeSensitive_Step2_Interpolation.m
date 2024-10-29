@@ -6,8 +6,8 @@ drawnow
 %% Import data
 sl = filesep;
 
-load([fold_var,sl,'GridCoordinates.mat'],      'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
-load([fold_var,sl,'RainInterpolated.mat'],     'IndexInterpolation')
+load([fold_var,sl,'GridCoordinates.mat'     ], 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
+load([fold_var,sl,'RainInterpolated.mat'    ], 'IndexInterpolation')
 load([fold_var,sl,'UserTimeSens_Answers.mat'], 'AnswerTypeRec','AnswerTypeFor')
 
 StatusPrevAnalysis = 0;
@@ -29,7 +29,7 @@ if AnswerTypeFor == 1
     load([fold_var,sl,'RainInterpolated.mat'], 'SelectedHoursRun')
 end
 
-[xLongSta, yLatSta] = deal(Gauges{2}(:,1), Gauges{2}(:,2));
+[xLonSta, yLatSta] = deal(Gauges{2}(:,1), Gauges{2}(:,2));
 xLongStudy = cellfun(@(x,y) x(y), xLongAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
 yLatStudy  = cellfun(@(x,y) x(y), yLatAll,  IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
 
@@ -54,7 +54,7 @@ if AnswerTypeRec == 1
         % Check for Cancel button press
         if ProgressBar.CancelRequested; break; end
     
-        CurrIntrp = scatteredInterpolant(xLongSta, yLatSta, GenCumRain(IndexInterpolation(i1),:)', 'natural');
+        CurrIntrp = scatteredInterpolant(xLonSta, yLatSta, GenCumRain(IndexInterpolation(i1),:)', 'natural');
         for i2 = 1:size(xLongAll,2)
             xLong = xLongAll{i2}(IndexDTMPointsInsideStudyArea{i2});
             yLat  = yLatAll{i2}(IndexDTMPointsInsideStudyArea{i2});

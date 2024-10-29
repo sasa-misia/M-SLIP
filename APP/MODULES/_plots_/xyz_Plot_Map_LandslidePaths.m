@@ -5,8 +5,8 @@ drawnow
 
 %% File loading
 sl = filesep;
-load([fold_var,sl,'StudyAreaVariables.mat'],   'StudyAreaPolygon')
-load([fold_var,sl,'GridCoordinates.mat'],      'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'StudyAreaVariables.mat'  ], 'StudyAreaPolygon')
+load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
 load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll')
 
 UseOrtho = false;
@@ -28,13 +28,13 @@ end
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelFnt   = Font;
-    SelFntSz = 2*FontSize;
-    LgndSize = LegendPosition;
+    SlFont = Font;
+    SlFnSz = 2*FontSize;
+    LegPos = LegendPosition;
 else
-    SelFnt   = 'Times New Roman';
-    SelFntSz = 12;
-    LgndSize = 'Best';
+    SlFont = 'Calibri';
+    SlFnSz = 12;
+    LegPos = 'Best';
 end
 
 fold_pth = uigetdir(fold_res_flow, 'Select path folder');
@@ -42,7 +42,7 @@ fold_pth = uigetdir(fold_res_flow, 'Select path folder');
 
 figure(Fig) % To bring forward the Fig
 
-load([fold_pth,sl,'LandslidesPaths.mat'],      'PathsHistory','PathsInfo')
+load([fold_pth,sl,'LandslidesPaths.mat'], 'PathsHistory','PathsInfo')
 
 fold_fig_pth = [fold_fig,sl,'Landslide Paths'];
 if not(exist(fold_fig_pth, 'dir'))
@@ -99,7 +99,7 @@ for i1 = 1:numel(SelLnds)
     StrtPnt  = [PthGCrds(1,:), PthElev(1)];
 
     GridSize = PathsInfo{1, 'GridSize'}{SelDEM};
-    if not(isequal(floor(GridSize(1)), floor(GridSize(2))))
+    if not(isequal(floor(round(GridSize(1), 1)), floor(round(GridSize(2), 1))))
         error('Sizes od DEM must be equal! Please, contact the support.')
     end
     SideSize = GridSize(1);
@@ -110,9 +110,9 @@ for i1 = 1:numel(SelLnds)
     yLatSelDEM = yLatAll{SelDEM};
     ElevSelDEM = ElevationAll{SelDEM};
     
-    RowMin = max(PthGrInd(1,1) - CllsArnd, 0);
+    RowMin = max(PthGrInd(1,1) - CllsArnd, 1);
     RowMax = min(PthGrInd(1,1) + CllsArnd, size(xLonSelDEM, 1));
-    ColMin = max(PthGrInd(1,2) - CllsArnd, 0);
+    ColMin = max(PthGrInd(1,2) - CllsArnd, 1);
     ColMax = min(PthGrInd(1,2) + CllsArnd, size(yLatSelDEM, 2));
     
     xGrid = xLonSelDEM(RowMin:RowMax, ColMin:ColMax);
@@ -171,10 +171,10 @@ for i1 = 1:numel(SelLnds)
     CBrPos(3:4) = CBrPos(3:4).*[0.3, 0.5];
     set(ColBar, 'Position',CBrPos)
 
-    title('Elevation data with preferential route', 'FontName',SelFnt, 'FontSize',SelFntSz)
-    xlabel('Longitude (°)', 'FontName',SelFnt, 'FontSize',.8*SelFntSz)
-    ylabel('Latitude (°)',  'FontName',SelFnt, 'FontSize',.8*SelFntSz)
-    zlabel('Elevation (m)', 'FontName',SelFnt, 'FontSize',.8*SelFntSz)
+    title('Elevation data with preferential route', 'FontName',SlFont, 'FontSize',SlFnSz)
+    xlabel('Longitude (°)', 'FontName',SlFont, 'FontSize',.8*SlFnSz)
+    ylabel('Latitude (°)',  'FontName',SlFont, 'FontSize',.8*SlFnSz)
+    zlabel('Elevation (m)', 'FontName',SlFont, 'FontSize',.8*SlFnSz)
     
     % 3D Path Video
     ProgressBar.Message = 'Creating frames of the video...';
@@ -203,43 +203,45 @@ for i1 = 1:numel(SelLnds)
     end
 
     %% Satellite Fig
-    ProgressBar.Message = 'Creating satellite fig...';
-    FlnmFigSat = ['Landslide satellite path ',num2str(SelLnds(i1)),' DEM ',num2str(SelDEM)];
-    CurrFigSat = figure(numel(SelLnds)+i1);
-
-    if ShowPlots; Vis = 'on'; else; Vis = 'off'; end
-    set(CurrFigSat, 'Name',FlnmFigSat, 'Visible',Vis)
-
-    CurrAxSat = axes(CurrFigSat);
-    set(CurrAxSat, 'Visible','off')
-    hold(CurrAxSat,'on')
-
-    if NewOrth
-        [ZOrtho, xLongOrtho, yLatOrtho] = readortophoto([fold_raw_sat,sl,'UrlMap.txt'], ...
-                                                        [min(min(xGrid)), max(max(xGrid))], ...
-                                                        [min(min(yGrid)), max(max(yGrid))]);
-    end
-
-    Extremes = [min(min(xGrid)), max(max(xGrid)), max(max(xGrid)), min(min(xGrid)); ...
-                min(min(yGrid)), min(min(yGrid)), max(max(yGrid)), max(max(yGrid)) ];
-    PolyMask = polyshape(Extremes(1,:), Extremes(2,:));
-    SatImage = fastscattergrid(ZOrtho, xLongOrtho, yLatOrtho, 'Mask',PolyMask, 'Parent',CurrAxSat);
-
-    xlim([min(min(xGrid)), max(max(xGrid))])
-    ylim([min(min(yGrid)), max(max(yGrid))])
-
-    scatter(StrtPnt(1), StrtPnt(2), 6*DetPixelSize, 'hexagram','Filled', 'MarkerFaceColor','k', 'MarkerEdgeColor','k')
-
-    line(PthGCrds(:,1), PthGCrds(:,2), PthElev(:), 'color','r', 'LineWidth',2, 'Parent',CurrAxSat) % 'Marker','o'
-
-    fig_settings(fold0, 'SetExtremes',Extremes', 'CompassRose', 'ScaleBar')
-
-    % Saving 3D Path
-    ProgressBar.Message = 'Saving satellite fig...';
-    exportgraphics(CurrFigSat, [fold_fig_pth,sl,FlnmFigSat,'.png'], 'Resolution',600);
-
-    if not(ShowPlots)
-        close(CurrFigSat)
+    if UseOrtho
+        ProgressBar.Message = 'Creating satellite fig...';
+        FlnmFigSat = ['Landslide satellite path ',num2str(SelLnds(i1)),' DEM ',num2str(SelDEM)];
+        CurrFigSat = figure(numel(SelLnds)+i1);
+    
+        if ShowPlots; Vis = 'on'; else; Vis = 'off'; end
+        set(CurrFigSat, 'Name',FlnmFigSat, 'Visible',Vis)
+    
+        CurrAxSat = axes(CurrFigSat);
+        set(CurrAxSat, 'Visible','off')
+        hold(CurrAxSat,'on')
+    
+        if NewOrth
+            [ZOrtho, xLongOrtho, yLatOrtho] = readortophoto([fold_raw_sat,sl,'UrlMap.txt'], ...
+                                                            [min(min(xGrid)), max(max(xGrid))], ...
+                                                            [min(min(yGrid)), max(max(yGrid))]);
+        end
+    
+        Extremes = [min(min(xGrid)), max(max(xGrid)), max(max(xGrid)), min(min(xGrid)); ...
+                    min(min(yGrid)), min(min(yGrid)), max(max(yGrid)), max(max(yGrid)) ];
+        PolyMask = polyshape(Extremes(1,:), Extremes(2,:));
+        SatImage = fastscattergrid(ZOrtho, xLongOrtho, yLatOrtho, 'Mask',PolyMask, 'Parent',CurrAxSat);
+    
+        xlim([min(min(xGrid)), max(max(xGrid))])
+        ylim([min(min(yGrid)), max(max(yGrid))])
+    
+        scatter(StrtPnt(1), StrtPnt(2), 6*DetPixelSize, 'hexagram','Filled', 'MarkerFaceColor','k', 'MarkerEdgeColor','k')
+    
+        line(PthGCrds(:,1), PthGCrds(:,2), PthElev(:), 'color','r', 'LineWidth',2, 'Parent',CurrAxSat) % 'Marker','o'
+    
+        fig_settings(fold0, 'SetExtremes',Extremes', 'CompassRose', 'ScaleBar')
+    
+        % Saving 3D Path
+        ProgressBar.Message = 'Saving satellite fig...';
+        exportgraphics(CurrFigSat, [fold_fig_pth,sl,FlnmFigSat,'.png'], 'Resolution',600);
+    
+        if not(ShowPlots)
+            close(CurrFigSat)
+        end
     end
 
     %% Path evolution Fig
@@ -256,9 +258,9 @@ for i1 = 1:numel(SelLnds)
     CurrAxPth{1} = subplot(2, 2, 1);
     hold(CurrAxPth{1},'on')
     
-    title('Longitude Path', 'FontName',SelFnt, 'FontSize',SelFntSz)
-    xlabel('Longitude [°]', 'FontName',SelFnt, 'FontSize',.7*SelFntSz)
-    zlabel('Elevation [m]', 'FontName',SelFnt, 'FontSize',.7*SelFntSz)
+    title('Longitude Path', 'FontName',SlFont, 'FontSize',SlFnSz)
+    xlabel('Longitude [°]', 'FontName',SlFont, 'FontSize',.7*SlFnSz)
+    zlabel('Elevation [m]', 'FontName',SlFont, 'FontSize',.7*SlFnSz)
 
     view(0, 0)
     line(PthGCrds(:,1), PthGCrds(:,2), PthElev(:), 'color','r', 'LineWidth',2, 'Parent',CurrAxPth{1}) % 'Marker','o'
@@ -271,9 +273,9 @@ for i1 = 1:numel(SelLnds)
     CurrAxPth{2} = subplot(2, 2, 2);
     hold(CurrAxPth{2},'on')
 
-    title('Latitude Path',  'FontName',SelFnt, 'FontSize',SelFntSz)
-    ylabel('Latitude [°]',  'FontName',SelFnt, 'FontSize',.7*SelFntSz)
-    zlabel('Elevation [m]', 'FontName',SelFnt, 'FontSize',.7*SelFntSz)
+    title('Latitude Path',  'FontName',SlFont, 'FontSize',SlFnSz)
+    ylabel('Latitude [°]',  'FontName',SlFont, 'FontSize',.7*SlFnSz)
+    zlabel('Elevation [m]', 'FontName',SlFont, 'FontSize',.7*SlFnSz)
 
     view(90,0)
     line(PthGCrds(:,1), PthGCrds(:,2), PthElev(:), 'color','r', 'LineWidth',2, 'Parent',CurrAxPth{2}) % 'Marker','o'
@@ -290,10 +292,10 @@ for i1 = 1:numel(SelLnds)
     FinVol  = round(PthVols(end,2)*100, 4, 'significant');
     SubTtl  = ['Average speed: ',num2str(AvSpeed),' m/s; Ratio final volume: ',num2str(FinVol),' %'];
 
-    title('Rectified path',  'FontName',SelFnt, 'FontSize',SelFntSz)
-    subtitle(SubTtl,         'FontName',SelFnt, 'FontSize',.6*SelFntSz)
-    xlabel('Pr. length [m]', 'FontName',SelFnt, 'FontSize',.7*SelFntSz)
-    ylabel('Elevation [m]',  'FontName',SelFnt, 'FontSize',.7*SelFntSz)
+    title('Rectified path',  'FontName',SlFont, 'FontSize',SlFnSz)
+    subtitle(SubTtl,         'FontName',SlFont, 'FontSize',.6*SlFnSz)
+    xlabel('Pr. length [m]', 'FontName',SlFont, 'FontSize',.7*SlFnSz)
+    ylabel('Elevation [m]',  'FontName',SlFont, 'FontSize',.7*SlFnSz)
 
     line(PthPrLen, PthElev, 'color','r', 'LineWidth',2, 'Parent',CurrAxPth{3}) % 'Marker','o'
 
@@ -321,10 +323,10 @@ for i1 = 1:numel(SelLnds)
     % imshow('Border','tight') % The axes will fill up the entire figure as much as possible without changing aspect ratio.
     CurrFigVol.WindowState = 'maximized'; % Maximize the figure to your whole screen.
 
-    title('Rectified path' , 'FontName',SelFnt, 'FontSize',SelFntSz)
-    subtitle(SubTtl        , 'FontName',SelFnt, 'FontSize',.6*SelFntSz)
-    xlabel('Pr. length [m]', 'FontName',SelFnt, 'FontSize',.7*SelFntSz)
-    ylabel('Elevation [m]' , 'FontName',SelFnt, 'FontSize',.7*SelFntSz)
+    title('Rectified path' , 'FontName',SlFont, 'FontSize',SlFnSz)
+    subtitle(SubTtl        , 'FontName',SlFont, 'FontSize',.6*SlFnSz)
+    xlabel('Pr. length [m]', 'FontName',SlFont, 'FontSize',.7*SlFnSz)
+    ylabel('Elevation [m]' , 'FontName',SlFont, 'FontSize',.7*SlFnSz)
 
     pbaspect([3, 1, 1])
     daspect([1, 1, 1])
