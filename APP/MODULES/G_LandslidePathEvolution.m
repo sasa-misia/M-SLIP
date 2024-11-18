@@ -20,10 +20,10 @@ if OrthophotoAnswer
     load([fold_var,sl,'Orthophoto.mat'], 'ZOrtho','xLongOrtho','yLatOrtho')
 end
 
-InstDepth = 1.2;
+InstDp = 1.2;
 if exist([fold_var,sl,'UserTimeSens_Answers.mat'], 'file')
     load([fold_var,sl,'UserTimeSens_Answers.mat'], 'H')
-    InstDepth = H;
+    InstDp = H;
 end
 
 %% Options
@@ -63,13 +63,15 @@ else
     error('No info file recognized in your folder!')
 end
 
-SngGrdAns = uiconfirm(Fig, 'Do you want to merge all DEMs?', ...
-                           'DEM Merge', 'Options',{'Yes', 'No, mantain separate'}, 'DefaultOption',2);
-if strcmp(SngGrdAns,'Yes'); SngGrid = true; else; SngGrid = false; end
+GenOpts = listdlg2({'Merge all DEMs?', 'Path algorithm', ...
+                    'Triggering landslide body', 'Replace phi and cohesion'}, ...
+                   {{'Yes', 'No, separated'}, {'Gradient descent', 'Step by step'}, ...
+                    {'Instability points', 'Detected points'}, {'Yes', 'Just where needed'}}, 'DefInp',[2, 2, 2, 2]);
 
-Options = {'Gradient descent', 'Step by step'};
-PathAlg = uiconfirm(Fig, 'What type of algorithm do you want to use in path definition?', ...
-                         'Path algorithm', 'Options',Options, 'DefaultOption',2);
+if strcmp(GenOpts{1},'Yes'); MrgGrid = true; else; MrgGrid = false; end
+PathAlg = GenOpts{2};
+StrtPnt = GenOpts{3};
+if strcmp(GenOpts{4},'Yes'); RepSoil = true; else; RepSoil = false; end
 
 TolAns  = inputdlg2({'Gradient tolerance:', 'Max steps:'}, 'DefInp',{'1e-3', '500'});
 GradTol = str2double(TolAns{1});
@@ -79,25 +81,24 @@ if strcmp(PathAlg,'Gradient descent')
     StepSz = str2double(inputdlg2({'Step size for gradient descent:'}, 'DefInp',{'1'}));
 end
 
-Options = {'Instability points', 'Detected points'};
-StrtPnt = uiconfirm(Fig, 'What points do you want to use to define landslide bodies?', ...
-                         'Lands bodies', 'Options',Options, 'DefaultOption',2);
-
 if not(strcmp(StrtPnt,'Detected points'))
     CritFS = str2double(inputdlg2({'Critical FS (below unstable points):'}, 'DefInp',{'1.5'}));
 end
 
-EvolAns    = inputdlg2({'Gamma soil (wet):', 'A Skempton coefficient:', ...
-                        'B Skempton coefficient:', 'Depth of instability:'}, ...
-                                        'DefInp',{'20', '0.5', '0.8', num2str(InstDepth)});
-GammaSoil  = str2double(EvolAns{1});
-GammaWater = 10;
-SkemptonA  = str2double(EvolAns{2});
-SkemptonB  = str2double(EvolAns{3});
-InstDepth  = str2double(EvolAns{4});
+EvlAns = inputdlg2({'Gamma soil (wet):', 'A Skempton coefficient:', ...
+                    'B Skempton coefficient:', 'Depth of instability:', ...
+                    'Replacing soil friction:', 'Replacing soil cohesion:'}, ...
+                                    'DefInp',{'20', '0.5', '0.8', num2str(InstDp), '18', '10'});
+gSoil  = str2double(EvlAns{1});
+gWater = 10;
+SkempA = str2double(EvlAns{2});
+SkempB = str2double(EvlAns{3});
+InstDp = str2double(EvlAns{4});
+RepPhi = str2double(EvlAns{5});
+RepChs = str2double(EvlAns{6});
 
 %% Creation of PathsInfo
-PathsInfo = table({InstAnTp}, {fold_an}, EventFS, SngGrid, {PathAlg}, ...
+PathsInfo = table({InstAnTp}, {fold_an}, EventFS, MrgGrid, {PathAlg}, ...
                   GradTol, StepTol, {StrtPnt}, 'VariableNames',{'InstabilityAnalysisType', ...
                                                                 'OriginalAnalysisFolder', ...
                                                                 'EventAnalyzed', ...
@@ -130,10 +131,9 @@ DetLandsGeo = InfoDet2Use{:, 5:6};
 PathsInfo.PlanarProjCRS = ProjCRS;
 
 %% Optional merging of DEMs
-if SngGrid
-    error('Not yet implemented, please contact the support!')
+if MrgGrid
+    error('Not yet implemented, please contact the support!') % Use fast_merge_dems and modify the lines below (IndexDTMPointsInsideStudyArea would not work)
 end
-% TO IMPLEMENT! (A function should have been already written!)
 
 %% Loop over all DEM cells
 [DBScanValues, GrdSize] = deal(cell(1, length(xLongAll)));
@@ -203,7 +203,7 @@ for i1 = 1:length(xLongAll)
     MinPnts = str2double(dbScInp{2});
     ClstVal = dbscan(UnstCoordsRaw, MaxRad, MinPnts); % Coordinates, max dist each core point, min n. of point for each core point
 
-    if numel(unique(ClstVal)) && (unique(ClstVal) == -1)
+    if isscalar(unique(ClstVal)) && (unique(ClstVal) == -1)
         error('With your radius and min number of points there are no clusters!')
     end
     
@@ -463,27 +463,28 @@ for i1 = 1:length(xLongAll)
         end
 
         % Elevation, phi, and cohesion of paths
-        [PthElvt, PthPhi, PthCohe] = deal(zeros(size(PthHstPln, 1), 1));
+        [PthElvt, PthPhi, PthChs] = deal(zeros(size(PthHstPln, 1), 1));
         for i3 = 1:size(PthElvt, 1)
             PthElvt(i3) = ElevationAll{i1}(GrdIndHst(i3,1), GrdIndHst(i3,2));
             PthPhi(i3)  = PhiAll{i1}(GrdIndHst(i3,1), GrdIndHst(i3,2));
-            PthCohe(i3) = CohesionAll{i1}(GrdIndHst(i3,1), GrdIndHst(i3,2)) + ...
+            PthChs(i3)  = CohesionAll{i1}(GrdIndHst(i3,1), GrdIndHst(i3,2)) + ...
                           RootCohesionAll{i1}(GrdIndHst(i3,1), GrdIndHst(i3,2));
         end
 
-        % Replacing of missing phi values
-        Ind2Rep = (PthPhi < 0) | (PthPhi > 100) | (isnan(PthPhi));
-        if any(Ind2Rep)
-            warning(['Some values of phi and cohesion are undefined or out ' ...
-                     'of common ranges! Insert replacing value in next prompt!'])
+        % Replacing soil values
+        if RepSoil
+            PthPhi(:) = RepPhi;
+            PthChs(:) = RepChs;
 
-            RepAns  = inputdlg2({'New soil friction (just where needed):', ...
-                                 'New soil cohesion (just where needed):'}, 'DefInp',{'9.5', '20'});
-            RepPhi  = str2double(RepAns{1});
-            RepCohe = str2double(RepAns{2});
-
-            PthPhi(Ind2Rep)  = RepPhi;
-            PthCohe(Ind2Rep) = RepCohe;
+        else
+            Ind2Rep = (PthPhi < 0) | (PthPhi > 100) | (isnan(PthPhi));
+            if any(Ind2Rep)
+                warning(['Some values of phi and cohesion are undefined ' ...
+                         'or out of common ranges! Path n. ',num2str(i2)])
+    
+                PthPhi(Ind2Rep) = RepPhi;
+                PthChs(Ind2Rep) = RepChs;
+            end
         end
 
         % 1D length, slope, and acceleration of steps
@@ -530,17 +531,17 @@ for i1 = 1:length(xLongAll)
         % Writing bottom/top FS and volume
         StrtArea = LandsBodies{'BodyArea',i2}{:};
         PthVol   = deal(zeros(size(PthHstPln, 1), 2));
-        PthVol(1, :) = [InstDepth*StrtArea, 1];
-        [ErodDpt, CrrBdyH] = deal(InstDepth);
-        [CoheTop, CoheBot] = deal(PthCohe);
+        PthVol(1, :) = [InstDp*StrtArea, 1];
+        [ErodDpt, CrrBdyH] = deal(InstDp);
+        [CoheTop, CoheBot] = deal(PthChs);
         [PthDltH, PthTopFS, PthBotFS] = deal(zeros(size(PthStpAc, 1), 1));
         for i3 = 1:size(PthDltH, 1)
             [PhiBot, PhiTop] = deal(mean([PthPhi(i3), PthPhi(i3+1)])*2/3);
-            PthTopFS(i3) = CoheTop(i3) / (GammaSoil*CrrBdyH*sind(PthStpSl(i3))*cosd(PthStpSl(i3))) + ...
-                           ( 1 - SkemptonB*(1 + SkemptonA*tand(PthStpSl(i3))) )*tand(PhiTop) / tand(PthStpSl(i3));
-            PthBotFS(i3) = CoheBot(i3) / (GammaSoil*(CrrBdyH+ErodDpt)*sind(PthStpSl(i3))*cosd(PthStpSl(i3))) + ...
-                           tand(PhiBot)*( CrrBdyH + ErodDpt - SkemptonB*CrrBdyH*(1 + SkemptonA* ...
-                                          tand(PthStpSl(i3))) + ErodDpt*GammaWater/GammaSoil    ) / ...
+            PthTopFS(i3) = CoheTop(i3) / (gSoil*CrrBdyH*sind(PthStpSl(i3))*cosd(PthStpSl(i3))) + ...
+                           ( 1 - SkempB*(1 + SkempA*tand(PthStpSl(i3))) )*tand(PhiTop) / tand(PthStpSl(i3));
+            PthBotFS(i3) = CoheBot(i3) / (gSoil*(CrrBdyH+ErodDpt)*sind(PthStpSl(i3))*cosd(PthStpSl(i3))) + ...
+                           tand(PhiBot)*( CrrBdyH + ErodDpt - SkempB*CrrBdyH*(1 + SkempA* ...
+                                          tand(PthStpSl(i3))) + ErodDpt*gWater/gSoil    ) / ...
                            ((CrrBdyH + ErodDpt)*tand(PthStpSl(i3)));
 
             if (PthTopFS(i3) < 1) && (PthBotFS(i3) >= 1)
@@ -554,31 +555,31 @@ for i1 = 1:length(xLongAll)
             CrrBdyH = CrrBdyH + 0.1*PthDltH(i3); % Remember that not the entire depth removed remain vertical but spreads over the plane... You should adjust it, now it is just 10%!
 
             PthVol(i3+1, :) = [CrrBdyH*StrtArea, ...
-                               CrrBdyH*StrtArea / (InstDepth*StrtArea)];
+                               CrrBdyH*StrtArea / (InstDp*StrtArea)];
         end
     
         % Writing table
-        PathHist{'PthHistGeo',    i2} = {PthHstGeo};
-        PathHist{'PthHistPln',    i2} = {PthHstPln};
-        PathHist{'GridIndHist',   i2} = {GrdIndHst};
-        PathHist{'StAIndHist',    i2} = {StAIndHst};
-        PathHist{'PthProgLn',     i2} = {PthPrLn};
-        PathHist{'PthElvation',   i2} = {PthElvt};
-        PathHist{'PthPhi',        i2} = {PthPhi};
-        PathHist{'PthCohesion',   i2} = {PthCohe};
-        PathHist{'PthStp1DLen',   i2} = {PthStpML};
-        PathHist{'PthStpSlope',   i2} = {PthStpSl};
-        PathHist{'PthStpAccel',   i2} = {PthStpAc};
-        PathHist{'PthStpTime',    i2} = {PthStpTm};
-        PathHist{'PthHistSpeed',  i2} = {PthStpSp};
+        PathHist{'PthHistGeo'   , i2} = {PthHstGeo};
+        PathHist{'PthHistPln'   , i2} = {PthHstPln};
+        PathHist{'GridIndHist'  , i2} = {GrdIndHst};
+        PathHist{'StAIndHist'   , i2} = {StAIndHst};
+        PathHist{'PthProgLn'    , i2} = {PthPrLn};
+        PathHist{'PthElvation'  , i2} = {PthElvt};
+        PathHist{'PthPhi'       , i2} = {PthPhi};
+        PathHist{'PthCohesion'  , i2} = {PthChs};
+        PathHist{'PthStp1DLen'  , i2} = {PthStpML};
+        PathHist{'PthStpSlope'  , i2} = {PthStpSl};
+        PathHist{'PthStpAccel'  , i2} = {PthStpAc};
+        PathHist{'PthStpTime'   , i2} = {PthStpTm};
+        PathHist{'PthHistSpeed' , i2} = {PthStpSp};
         PathHist{'PthStpAvSpeed', i2} = {PthStpAS};
-        PathHist{'PthMeanSpeed',  i2} = {PthMnSp};
-        PathHist{'PthMaxSpeed',   i2} = {PthMxSp};
-        PathHist{'PthStartFS',    i2} = {StartFS};
-        PathHist{'PthBottomFS',   i2} = {PthBotFS};
-        PathHist{'PthTopFS',      i2} = {PthTopFS};
+        PathHist{'PthMeanSpeed' , i2} = {PthMnSp};
+        PathHist{'PthMaxSpeed'  , i2} = {PthMxSp};
+        PathHist{'PthStartFS'   , i2} = {StartFS};
+        PathHist{'PthBottomFS'  , i2} = {PthBotFS};
+        PathHist{'PthTopFS'     , i2} = {PthTopFS};
         PathHist{'PthErodedDpth', i2} = {PthDltH};
-        PathHist{'PthVolume',     i2} = {PthVol};
+        PathHist{'PthVolume'    , i2} = {PthVol};
     end
 
     PathsHistory{:, PathsHistCol(i1)} = {LandsBodies; LandsStrtPnt; PathHist};
@@ -586,7 +587,7 @@ end
 
 %% Update of PathsInfo
 PathsInfo.DBScanParameters = DBScanValues;
-PathsInfo.InstabilityDepth = InstDepth;
+PathsInfo.InstabilityDepth = InstDp;
 PathsInfo.GridSize         = GrdSize;
 
 %% Saving...

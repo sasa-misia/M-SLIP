@@ -33,11 +33,7 @@ switch FlowMtd
         dyMean   = mean([dy{:}]);
         CellsAreaMean = mean([CellsArea{:}]);
 
-        xPlanMin = min(cellfun(@(x) min(x, [], 'all'), xPlanAll));
-        xPlanMax = max(cellfun(@(x) max(x, [], 'all'), xPlanAll));
-        yPlanMin = min(cellfun(@(x) min(x, [], 'all'), yPlanAll));
-        yPlanMax = max(cellfun(@(x) max(x, [], 'all'), yPlanAll));
-        [xPlanMerged, yPlanMerged] = meshgrid(xPlanMin:dxMean:xPlanMax, yPlanMax:-dyMean:yPlanMin);
+        [xPlanMerged, yPlanMerged] = fast_merge_dems(xPlanAll, yPlanAll, newRes=[dxMean, dyMean]);
 
         xPlanAllCat = cellfun(@(x) x(:), xPlanAll, 'UniformOutput',false);
         xPlanAllCat = cat(1, xPlanAllCat{:});

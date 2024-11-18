@@ -51,7 +51,7 @@ fold_raw_land_uses  = strcat(fold_raw, sl, 'Land Uses');
 fold_raw_dtm        = strcat(fold_raw, sl, 'DTM');
 fold_raw_veg        = strcat(fold_raw, sl, 'Vegetation');
 fold_raw_temp       = strcat(fold_raw, sl, 'Temperature');
-fold_raw_temp_for   = strcat(fold_raw, sl, 'Temperature Forecast');
+fold_raw_temp_for   = strcat(fold_raw, sl, 'Temp Forecast');
 
 fold_var            = strcat(fold0   , sl, 'Variables');
 

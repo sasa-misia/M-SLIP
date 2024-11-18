@@ -4,113 +4,94 @@ ProgressBar = uiprogressdlg(Fig, 'Title','Processing shapefile of study area', .
                                  'Indeterminate','on');
 drawnow
 
-%% Reading shapefile
-cd(fold_raw_mun);
-ReadShapeStudyArea = shaperead(FileName_StudyArea);
-ShapeInfoStudyArea = shapeinfo(FileName_StudyArea);
+%% Initialization
+sl = filesep;
 
-if isempty(ShapeInfoStudyArea.CoordinateReferenceSystem)
-    EPSG = str2double(inputdlg2({'Set Shapefile EPSG (Sicily -> 32633, Emilia Romagna -> 25832)'}, 'DefInp', {'32633'}));
-    ShapeInfoStudyArea.CoordinateReferenceSystem = projcrs(EPSG);
-end
-
-if ~isempty(MunFieldName)
-    AllMunInShape = extractfield(ReadShapeStudyArea,MunFieldName);
-    IndexMun = zeros(length(MunSel),1);
-    for i1 = 1:size(MunSel,1)
-        IndMun = find(strcmp(AllMunInShape,MunSel(i1)));
-        IndexMun(i1) = IndMun;
-    end
-else
-    IndexMun = 1;
-end
-    
-%% Poligon creation and evaluation of Study area extent
-MunPolygon = repmat(polyshape, 1, length(IndexMun)); % Polyshape initialization
-ProgressBar.Indeterminate = 'off';
-for i1 = 1:length(IndexMun)
-    ProgressBar.Message = strcat("Creation of Municipality polygon n. ",num2str(i1)," of ", num2str(length(IndexMun)));
-    ProgressBar.Value = i1/length(IndexMun);
-
-    [StudyAreaVertexLat, StudyAreaVertexLon] = projinv(ShapeInfoStudyArea.CoordinateReferenceSystem, ...
-                                                       ReadShapeStudyArea(IndexMun(i1)).X, ...
-                                                       ReadShapeStudyArea(IndexMun(i1)).Y);
-    MunVertex = [StudyAreaVertexLon; StudyAreaVertexLat]';
-    MunPolygon(i1) = polyshape(MunVertex, 'Simplify',false);
-end
-
-%% Union of Polygons
-ProgressBar.Indeterminate = 'on';
-ProgressBar.Message = 'Union of polygons...';
-
-StudyAreaPolygon = union(MunPolygon);
-StudyAreaPolygonClean = StudyAreaPolygon;
 StudyAreaPolygonExcluded = polyshape();
 
-if SpecificWindow
-    ProgressBar.Message = 'Creation of specific window...';
+if strcmp(FileName_StudyArea, 'None of these') && not(SpecificWindow)
+    error(['If there is no shapefile (None of these), ', ...
+           'then you must select the Win checkbox!'])
+end
 
+%% Options
+if SpecificWindow
     ChoiceWindow = 'SingleWindow';
-    cd(fold_var)
-    if exist('InfoDetectedSoilSlips.mat', 'file')
-        load('InfoDetectedSoilSlips.mat', 'InfoDetectedSoilSlips','IndDefInfoDet')
+    if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
+        load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
         Options = {'SingleWindow', 'MultiWindows'};
         ChoiceWindow = uiconfirm(Fig, ['Would you like to create a single window or ' ...
                                        'multiple windows based on detected soil slip'], ...
                                        'Window type', 'Options',Options);
     end
+end
+    
+%% StudyAreaPolygon and MunPolygon creation
+if not(strcmp(FileName_StudyArea, 'None')) % Only if a shapefile is present!
+    stArShapePath = [fold_raw_mun,sl,char(FileName_StudyArea)];
+    [MunPolygon, MunSel] = ...
+                    polyshapes_from_shapefile(stArShapePath, MunFieldName, selFilter=MunSel, ...
+                                              pointsLim=500000, progDialog=ProgressBar);
+end
+
+if SpecificWindow % Only if SpecificWindow checkbox is active
+    ProgressBar.Message = 'Creation of specific window...';
 
     switch ChoiceWindow
         case 'SingleWindow'
-            CoordinatesWindow = inputdlg2({'Lon min [°]:', 'Lon max [°]:', ...
-                                           'Lat min [°]:', 'Lat max [°]:'}); 
-            CoordinatesWindow = cat(1,cellfun(@eval,CoordinatesWindow));
-            PolWindow = polyshape( [CoordinatesWindow(1), CoordinatesWindow(2), ...
-                                    CoordinatesWindow(2), CoordinatesWindow(1)], ...
-                                   [CoordinatesWindow(3), CoordinatesWindow(3), ...
-                                    CoordinatesWindow(4), CoordinatesWindow(4)] );
-            StudyAreaPolygon = intersect(StudyAreaPolygon, PolWindow); % Maybe not necessary if you want the entire rectangle. You can write: StudyAreaPolygon = PolWindow;
+            CoordsWin = inputdlg2({'Lon min [°]:', 'Lon max [°]:', ...
+                                       'Lat min [°]:', 'Lat max [°]:'}); 
+            CoordsWin = cat(1, cellfun(@eval,CoordsWin));
+            PolWindow = polyshape( [CoordsWin(1), CoordsWin(2), ...
+                                        CoordsWin(2), CoordsWin(1)], ...
+                                   [CoordsWin(3), CoordsWin(3), ...
+                                        CoordsWin(4), CoordsWin(4)] );
 
         case 'MultiWindows'
-            xLongDet = [InfoDetectedSoilSlips{IndDefInfoDet}{:,5}];
-            yLatDet  = [InfoDetectedSoilSlips{IndDefInfoDet}{:,6}];
-            WindSide = str2double(inputdlg2('Side of each window [m]', 'DefInp',{'1200'}));
-            dLatHalf = rad2deg(WindSide/2/earthRadius); % /2 to have half of the size from the centre
-            PolWind  = repmat(polyshape, 1, length(xLongDet));
-            for i1 = 1:length(xLongDet)
-                dLongHalf   = rad2deg(acos( (cos(WindSide/2/earthRadius)-sind(yLatDet(i1))^2)/cosd(yLatDet(i1))^2 )); % /2 to have half of the size from the centre
-                PolWind(i1) = polyshape( [ xLongDet(i1)-dLongHalf, xLongDet(i1)+dLongHalf, ...
-                                           xLongDet(i1)+dLongHalf, xLongDet(i1)-dLongHalf ], ...
-                                         [ yLatDet(i1)-dLatHalf  ,  yLatDet(i1)-dLatHalf , ...
-                                           yLatDet(i1)+dLatHalf  ,  yLatDet(i1)+dLatHalf  ] );
+            xLonDet = [InfoDetectedSoilSlips{IndDefInfoDet}{:,5}];
+            yLatDet = [InfoDetectedSoilSlips{IndDefInfoDet}{:,6}];
+            WndSide = str2double(inputdlg2('Side of each window [m]', 'DefInp',{'1200'}));
+            dLatHlf = rad2deg(WndSide/2/earthRadius); % /2 to have half of the size from the centre
+
+            PolWindow = repmat(polyshape, 1, length(xLonDet));
+            for i1 = 1:length(xLonDet)
+                dLonHlf = rad2deg(acos( (cos(WndSide/2/earthRadius)-sind(yLatDet(i1))^2)/cosd(yLatDet(i1))^2 )); % /2 to have half of the size from the centre
+                PolWindow(i1) = polyshape( [xLonDet(i1)-dLonHlf, xLonDet(i1)+dLonHlf, ...
+                                                xLonDet(i1)+dLonHlf, xLonDet(i1)-dLonHlf], ...
+                                           [yLatDet(i1)-dLatHlf, yLatDet(i1)-dLatHlf, ...
+                                                yLatDet(i1)+dLatHlf, yLatDet(i1)+dLatHlf] );
             end
-            StudyAreaPolygon = union(PolWind);
-            PolWindow = PolWind;
     end
 
-    StudyAreaPolygonClean = StudyAreaPolygon;
-
-    for i1 = 1:length(MunPolygon)
-        MunPolygon(i1) = intersect(StudyAreaPolygon, MunPolygon(i1));
+    if exist('MunPolygon', 'var')
+        for i1 = 1:length(MunPolygon)
+            MunPolygon(i1) = intersect(union(PolWindow), MunPolygon(i1));
+        end
+    else
+        MunSel = cellstr(strcat("Poly ",string(1:numel(PolWindow))));
+        MunPolygon = PolWindow;
     end
-
 end
+
+%% Union of Polygons
+ProgressBar.Message = 'Union of polygons...';
+
+StudyAreaPolygon = union(MunPolygon);
+StudyAreaPolygonClean = StudyAreaPolygon;
 
 %% Limit of study area
 MaxExtremes = max(StudyAreaPolygon.Vertices);
 MinExtremes = min(StudyAreaPolygon.Vertices);
 
-%% Creatings string names of variables in a cell array to save at the end
-VariablesStudyArea = {'MunPolygon', 'StudyAreaPolygon', 'StudyAreaPolygonClean', ...
-                      'StudyAreaPolygonExcluded', 'MaxExtremes', 'MinExtremes'};
-if SpecificWindow; VariablesStudyArea = [VariablesStudyArea, {'PolWindow'}]; end
-VariablesUserA = {'FileName_StudyArea', 'MunFieldName', 'MunSel', 'SpecificWindow'};
-
+%% Saving..
 ProgressBar.Message = 'Finising...';
 
-%% Saving..
-cd(fold_var)
-save('StudyAreaVariables.mat', VariablesStudyArea{:});
-save('UserStudyArea_Answers.mat', VariablesUserA{:});
+VarsStudyArea = {'MunPolygon', 'StudyAreaPolygon', 'StudyAreaPolygonClean', ...
+                      'StudyAreaPolygonExcluded', 'MaxExtremes', 'MinExtremes'};
+if SpecificWindow; VarsStudyArea = [VarsStudyArea, {'PolWindow'}]; end
+VarsUserStudy = {'FileName_StudyArea', 'MunFieldName', 'MunSel', 'SpecificWindow'};
+
+save([fold_var,sl,'StudyAreaVariables.mat'   ], VarsStudyArea{:});
+save([fold_var,sl,'UserStudyArea_Answers.mat'], VarsUserStudy{:});
 
 close(ProgressBar) % Fig instead of ProgressBar if in Standalone version

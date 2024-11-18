@@ -9,22 +9,11 @@ sl = filesep;
 load([fold_var,sl,'UserStudyArea_Answers.mat'], 'MunSel')
 load([fold_var,sl,'StudyAreaVariables.mat'   ], 'MunPolygon','StudyAreaPolygon')
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SlFont = Font;
-    SlFnSz = FontSize;
-    if exist('LegendPosition', 'var'); LegPos = LegendPosition; end
-else
-    SlFont = 'Calibri';
-    SlFnSz = 8;
-    LegPos = 'best';
-end
+[SlFont, SlFnSz, LegPos  ] = load_plot_settings(fold_var);
+[InfoDetExst, InfoDet2Use] = load_info_detected(fold_var);
 
-InfoDetExst = false;
-if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
-    load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
-    InfoDetExst = true;
+if isscalar(MunSel) && strcmp(MunSel, 'None')
+    MunSel = inputdlg2({'Name of area:'}, 'DefInp',{'Study Area'});
 end
 
 %% For scatter dimension
@@ -72,7 +61,7 @@ if exist('LegPos', 'var')
 
     if InfoDetExst
         LegObjs = [LegObjs, {DetObj(1)}];
-        LegCaps = [LegCaps; {"Points Analyzed"}];
+        LegCaps = [LegCaps; {'Points Analyzed'}];
     end
 
     hleg1 = legend([LegObjs{:}], LegCaps, ...
@@ -88,12 +77,6 @@ if exist('LegPos', 'var')
 
     fig_rescaler(CurrFig, hleg1, LegPos)
 end
-
-% [xMunTxt yMunTxt] = centroid(MunPolygon);
-% for i1 = 1:length(xMunTxt)
-%     text(xMunTxt(i1),yMunTxt(i1), MunSel{i1}, 'HorizontalAlignment','center', ...
-%         'VerticalAlignment','middle', 'FontName',SelectedFont, 'FontSize',SelectedFontSize/1.2)
-% end
 
 set(CurrAxs, 'visible','off')
 

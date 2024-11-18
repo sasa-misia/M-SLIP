@@ -5,9 +5,9 @@ drawnow
 
 %% Options
 Options = {'Top Soil', 'Sub Soil'};
-TypeOfSoil = uiconfirm(Fig, 'What type of information contains your file?', ...
+SoilAns = uiconfirm(Fig, 'What type of information contains your file?', ...
                             'Soil info type', 'Options',Options);
-if strcmp(TypeOfSoil,'Top Soil'); TopSoil = true; else; TopSoil = false; end
+if strcmp(SoilAns,'Top Soil'); TopSoil = true; else; TopSoil = false; end
 
 %% File loading
 sl = filesep;

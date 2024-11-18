@@ -9,7 +9,7 @@ load([fold_var,sl,'StudyAreaVariables.mat'  ], 'StudyAreaPolygon')
 load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
 load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll')
 
-UseOrtho = false;
+UseOrth = false;
 if exist([fold_var,sl,'Orthophoto.mat'], 'file')
     load([fold_var,sl,'Orthophoto.mat'], 'ZOrtho','xLongOrtho','yLatOrtho')
 
@@ -23,22 +23,12 @@ if exist([fold_var,sl,'Orthophoto.mat'], 'file')
         yLatOrtho  = yLatOrtho{1};
     end
 
-    UseOrtho = true;
+    UseOrth = true;
 end
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SlFont = Font;
-    SlFnSz = 2*FontSize;
-    LegPos = LegendPosition;
-else
-    SlFont = 'Calibri';
-    SlFnSz = 12;
-    LegPos = 'Best';
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 fold_pth = uigetdir(fold_res_flow, 'Select path folder');
-[~, FoldnamePaths] = fileparts(fold_res_flow);
 
 figure(Fig) % To bring forward the Fig
 
@@ -56,46 +46,44 @@ Depth = PathsInfo{1, 'InstabilityDepth'};
 
 %% Options
 ProgressBar.Message = 'Options...';
-ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
-                           'Show Plots', 'Options',{'Yes','No'}, 'DefaultOption',2);
-if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
+
+GnrlOpt = checkbox2({'Show plots', 'Manual view', 'Grid lines', ...
+                    'New ortophoto (or diff res)'}, 'OutType','LogInd', 'DefInp',[1, 0, 0, 0]);
+
+ShowPlt = GnrlOpt(1);
+SelView = GnrlOpt(2);
+SelGrid = GnrlOpt(3);
+NewOrth = GnrlOpt(4);
+
+if SelGrid; GrdView = 'k'; else; GrdView = 'none'; end
+if NewOrth; UseOrth = true; end
 
 SelDEM = 1;
 if size(PathsHistory, 2) > 1
-    DEMNames = PathsHistory.Properties.VariableNames;
-    SelDEM   = listdlg2({'DEM you want to use:'}, DEMNames, 'OutType','NumInd');
+    DEMNms = PathsHistory.Properties.VariableNames;
+    SelDEM = listdlg2({'DEM you want to use:'}, DEMNms, 'OutType','NumInd');
 end
 
-SelLnds = 1;
+SelLnd = 1;
 if size(PathsHistory{1,SelDEM}{:}, 2) > 1
-    LndNames = PathsHistory{1,SelDEM}{:}.Properties.VariableNames;
-    SelLnds  = checkbox2(LndNames, 'Title',{'Landslides you want to plot:'}, 'OutType','NumInd');
+    LndNms = PathsHistory{1,SelDEM}{:}.Properties.VariableNames;
+    SelLnd = checkbox2(LndNms, 'Title',{'Landslides you want to plot:'}, 'OutType','NumInd');
 end
-
-SelView = uiconfirm(Fig, 'Do you want to manually select the view for each landslide?', ...
-                         'Select view', 'Options',{'Yes','No'}, 'DefaultOption',2);
-if strcmp(SelView,'Yes'); SelView = true; else; SelView = false; end
-
-GrdView = uiconfirm(Fig, 'Do you want to see grid lines?', ...
-                         'Grid lines', 'Options',{'Yes','No'}, 'DefaultOption',2);
-if strcmp(GrdView,'Yes'); GrdView = 'k'; else; GrdView = 'none'; end
-
-NewOrth = uiconfirm(Fig, 'Do you want to use a new (or different resolution) orthophoto?', ...
-                         'New orthophoto', 'Options',{'Yes','No'}, 'DefaultOption',2);
-if strcmp(NewOrth,'Yes'); NewOrth = true; UseOrtho = true; else; NewOrth = false; end
 
 %% Path video
-for i1 = 1:numel(SelLnds)
+for i1 = 1:numel(SelLnd)
     %% Path extraction
-    StepsNum = size(PathsHistory{'LandsPath',SelDEM}{:}{'PthHistSpeed',SelLnds(i1)}{:}, 1);
-    PthGCrds = PathsHistory{'LandsPath',SelDEM}{:}{'PthHistGeo',SelLnds(i1)}{:}(1:StepsNum, :);
-    PthGrInd = PathsHistory{'LandsPath',SelDEM}{:}{'GridIndHist',SelLnds(i1)}{:}(1:StepsNum, :);
-    PthElev  = PathsHistory{'LandsPath',SelDEM}{:}{'PthElvation',SelLnds(i1)}{:}(1:StepsNum, :);
-    PthPrLen = PathsHistory{'LandsPath',SelDEM}{:}{'PthProgLn',SelLnds(i1)}{:}(1:StepsNum, :);
-    PthMnSpd = PathsHistory{'LandsPath',SelDEM}{:}{'PthMeanSpeed',SelLnds(i1)}{:};
-    PthVols  = PathsHistory{'LandsPath',SelDEM}{:}{'PthVolume',SelLnds(i1)}{:}(1:StepsNum, :);
-    PthErDpt = PathsHistory{'LandsPath',SelDEM}{:}{'PthErodedDpth',SelLnds(i1)}{:}(1:StepsNum, :);
-    PthStpSl = PathsHistory{'LandsPath',SelDEM}{:}{'PthStpSlope',SelLnds(i1)}{:}(1:StepsNum, :);
+    StpNum = size(PathsHistory{'LandsPath',SelDEM}{:}{'PthHistSpeed',SelLnd(i1)}{:}, 1);
+
+    PthGCrds = PathsHistory{'LandsPath',SelDEM}{:}{'PthHistGeo'   ,SelLnd(i1)}{:}(1:StpNum, :);
+    PthGrInd = PathsHistory{'LandsPath',SelDEM}{:}{'GridIndHist'  ,SelLnd(i1)}{:}(1:StpNum, :);
+    PthElev  = PathsHistory{'LandsPath',SelDEM}{:}{'PthElvation'  ,SelLnd(i1)}{:}(1:StpNum, :);
+    PthPrLen = PathsHistory{'LandsPath',SelDEM}{:}{'PthProgLn'    ,SelLnd(i1)}{:}(1:StpNum, :);
+    PthMnSpd = PathsHistory{'LandsPath',SelDEM}{:}{'PthMeanSpeed' ,SelLnd(i1)}{:};
+    PthVols  = PathsHistory{'LandsPath',SelDEM}{:}{'PthVolume'    ,SelLnd(i1)}{:}(1:StpNum, :);
+    PthErDpt = PathsHistory{'LandsPath',SelDEM}{:}{'PthErodedDpth',SelLnd(i1)}{:}(1:(StpNum-1), :);
+    PthStpSl = PathsHistory{'LandsPath',SelDEM}{:}{'PthStpSlope'  ,SelLnd(i1)}{:}(1:(StpNum-1), :);
+
     StrtPnt  = [PthGCrds(1,:), PthElev(1)];
 
     GridSize = PathsInfo{1, 'GridSize'}{SelDEM};
@@ -121,10 +109,10 @@ for i1 = 1:numel(SelLnds)
 
     %% 3D Path Fig
     ProgressBar.Message = 'Creating 3D path fig and video...';
-    FlnmFig = ['Landslide path ',num2str(SelLnds(i1)),' DEM ',num2str(SelDEM)];
+    FlnmFig = ['Landslide path ',num2str(SelLnd(i1)),' DEM ',num2str(SelDEM)];
     CurrFig = figure(i1);
 
-    if ShowPlots; Vis = 'on'; else; Vis = 'off'; end
+    if ShowPlt; Vis = 'on'; else; Vis = 'off'; end
     set(CurrFig, 'Name',FlnmFig, 'Visible',Vis)
     
     imshow('Border','tight') % The axes will fill up the entire figure as much as possible without changing aspect ratio.
@@ -178,7 +166,7 @@ for i1 = 1:numel(SelLnds)
     
     % 3D Path Video
     ProgressBar.Message = 'Creating frames of the video...';
-    CurrVid = VideoWriter([fold_fig_pth,sl,'Path_',num2str(SelLnds(i1)),'_DEM_',num2str(SelDEM),'_Anim'], 'MPEG-4');
+    CurrVid = VideoWriter([fold_fig_pth,sl,'Path_',num2str(SelLnd(i1)),'_DEM_',num2str(SelDEM),'_Anim'], 'MPEG-4');
 
     CurrVid.FrameRate = 6;
     CurrVid.Quality   = 100;
@@ -198,17 +186,17 @@ for i1 = 1:numel(SelLnds)
     ProgressBar.Message = 'Saving 3D path fig...';
     exportgraphics(CurrFig, [fold_fig_pth,sl,FlnmFig,'.png'], 'Resolution',600);
 
-    if not(ShowPlots)
+    if not(ShowPlt)
         close(CurrFig)
     end
 
     %% Satellite Fig
-    if UseOrtho
+    if UseOrth
         ProgressBar.Message = 'Creating satellite fig...';
-        FlnmFigSat = ['Landslide satellite path ',num2str(SelLnds(i1)),' DEM ',num2str(SelDEM)];
-        CurrFigSat = figure(numel(SelLnds)+i1);
+        FlnmFigSat = ['Landslide satellite path ',num2str(SelLnd(i1)),' DEM ',num2str(SelDEM)];
+        CurrFigSat = figure(numel(SelLnd)+i1);
     
-        if ShowPlots; Vis = 'on'; else; Vis = 'off'; end
+        if ShowPlt; Vis = 'on'; else; Vis = 'off'; end
         set(CurrFigSat, 'Name',FlnmFigSat, 'Visible',Vis)
     
         CurrAxSat = axes(CurrFigSat);
@@ -239,17 +227,17 @@ for i1 = 1:numel(SelLnds)
         ProgressBar.Message = 'Saving satellite fig...';
         exportgraphics(CurrFigSat, [fold_fig_pth,sl,FlnmFigSat,'.png'], 'Resolution',600);
     
-        if not(ShowPlots)
+        if not(ShowPlt)
             close(CurrFigSat)
         end
     end
 
     %% Path evolution Fig
     ProgressBar.Message = 'Creating path evolution fig...';
-    FlnmFigPth = ['Path evolution',num2str(SelLnds(i1)),' DEM ',num2str(SelDEM)];
-    CurrFigPth = figure(2*numel(SelLnds)+i1);
+    FlnmFigPth = ['Path evolution',num2str(SelLnd(i1)),' DEM ',num2str(SelDEM)];
+    CurrFigPth = figure(2*numel(SelLnd)+i1);
 
-    if ShowPlots; Vis = 'on'; else; Vis = 'off'; end
+    if ShowPlt; Vis = 'on'; else; Vis = 'off'; end
     set(CurrFigPth, 'Name',FlnmFigPth, 'Visible',Vis)
 
     CurrAxPth = cell(1, 3);
@@ -306,18 +294,18 @@ for i1 = 1:numel(SelLnds)
     ProgressBar.Message = 'Saving rectified path fig...';
     exportgraphics(CurrFigPth, [fold_fig_pth,sl,FlnmFigPth,'.png'], 'Resolution',600);
 
-    if not(ShowPlots)
+    if not(ShowPlt)
         close(CurrFigPth)
     end
 
     %% Path volume video
     ProgressBar.Message = 'Creating frames of the video...';
-    FlnmFigVol = ['Volume Evolution Path_',num2str(SelLnds(i1)),'_DEM_',num2str(SelDEM),'_Anim'];
-    CurrFigVol = figure(3*numel(SelLnds)+i1);
+    FlnmFigVol = ['Volume Evolution Path_',num2str(SelLnd(i1)),'_DEM_',num2str(SelDEM),'_Anim'];
+    CurrFigVol = figure(3*numel(SelLnd)+i1);
     CurrAxVol  = axes(CurrFigVol);
     hold(CurrAxVol,'on')
 
-    if ShowPlots; Vis = 'on'; else; Vis = 'off'; end
+    if ShowPlt; Vis = 'on'; else; Vis = 'off'; end
     set(CurrFigVol, 'Name',FlnmFigVol, 'Visible',Vis)
     
     % imshow('Border','tight') % The axes will fill up the entire figure as much as possible without changing aspect ratio.
@@ -331,8 +319,8 @@ for i1 = 1:numel(SelLnds)
     pbaspect([3, 1, 1])
     daspect([1, 1, 1])
 
-    line(PthPrLen, PthElev         , 'color','k', 'LineWidth',2  , 'Parent',CurrAxVol)
-    line(PthPrLen, PthElev-PthErDpt, 'color','r', 'LineWidth',1.2, 'Parent',CurrAxVol)
+    line(PthPrLen, PthElev              , 'color','k', 'LineWidth',2  , 'Parent',CurrAxVol)
+    line(PthPrLen, PthElev-[0; PthErDpt], 'color','r', 'LineWidth',1.2, 'Parent',CurrAxVol)
 
     xlim([0           , max(PthPrLen)])
     ylim([min(PthElev), max(PthElev) ])

@@ -1,43 +1,37 @@
 if not(exist('Fig', 'var')); Fig = uifigure; end
-ProgressBar = uiprogressdlg(Fig, 'Title','Removal of excluded areas', ...
-                                 'Message','Reading file', 'Cancelable','on', ...
-                                 'Indeterminate','on');
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
-%% Removal of excluded areas
-cd(fold_var)
-load('LandUsesVariables');
-load('StudyAreaVariables');
+%% Loading variables
+sl = filesep;
 
-VariablesStudyArea = {'StudyAreaPolygonClean', 'StudyAreaPolygonExcluded'};
+load([fold_var,sl,'LandUsesVariables' ], 'AllLandUnique','LandUsePolygonsStudyArea');
+load([fold_var,sl,'StudyAreaVariables'], 'StudyAreaPolygon');
 
+%% Removing excluded areas
 ProgressBar.Indeterminate = 'off';
-if any(LandUseToRemoveSel ~= "None of these")
-    IndexLandUsesToRemove = zeros(1,length(LandUseToRemoveSel));
-    for i1 = 1:length(LandUseToRemoveSel)
-        ProgressBar.Message = strcat("Removal of polygon n. ",num2str(i1)," of ", num2str(length(LandUseToRemoveSel)));
-        ProgressBar.Value = i1/length(LandUseToRemoveSel);
+IndexLandUsesToRemove = zeros(1,length(LndUse2RemSel));
+for i1 = 1:length(LndUse2RemSel)
+    ProgressBar.Message = ['Removing polygon n. ',num2str(i1),' of ',num2str(numel(LndUse2RemSel))];
+    ProgressBar.Value = i1/numel(LndUse2RemSel);
 
-        IndexLandUsesToRemove(i1) = find(strcmp(AllLandUnique,LandUseToRemoveSel{i1}));
-    end
-    LandToRemovePolygon = union([LandUsePolygonsStudyArea(IndexLandUsesToRemove)]);
-    StudyAreaPolygonClean = subtract(StudyAreaPolygon, LandToRemovePolygon);
-    StudyAreaPolygonExcluded = LandToRemovePolygon;
-else
-    error("You haven't selected any land use so reload " + ...
-          "UserA_StudyArea and select no when prompted")
+    IndexLandUsesToRemove(i1) = find(strcmp(AllLandUnique, LndUse2RemSel{i1}));
 end
-
-VariablesLandUse = {'AllLandUnique', 'LandUsePolygonsStudyArea', ...
-                    'LandToRemovePolygon', 'IndexLandUsesToRemove'};
-
 ProgressBar.Indeterminate = 'on';
+
+LandToRemovePolygon      = union([LandUsePolygonsStudyArea(IndexLandUsesToRemove)]);
+StudyAreaPolygonClean    = subtract(StudyAreaPolygon, LandToRemovePolygon);
+StudyAreaPolygonExcluded = LandToRemovePolygon;
+
+%% Saving...
 ProgressBar.Message = 'Finising...';
 
-%% Saving..
-cd(fold_var)
-save('StudyAreaVariables.mat', VariablesStudyArea{:}, '-append');
-save('LandUsesVariables.mat', VariablesLandUse{:}, '-append')
-cd(fold0)
+VarsStdyAr = {'StudyAreaPolygonClean', 'StudyAreaPolygonExcluded'};
+VarsLndUse = {'AllLandUnique', 'LandUsePolygonsStudyArea', ...
+                    'LandToRemovePolygon', 'IndexLandUsesToRemove'};
+
+save([fold_var,sl,'StudyAreaVariables.mat'], VarsStdyAr{:}, '-append');
+save([fold_var,sl,'LandUsesVariables.mat' ], VarsLndUse{:}, '-append')
 
 close(ProgressBar) % Fig instead of ProgressBar if in Standalone version
