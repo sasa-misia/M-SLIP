@@ -1,6 +1,6 @@
 function PolyOut = projinvpoly(PolyIn, ProjCRS)
 
-% This is a function to convert polygons in planar coordinates to lat lon
+% This is a function to convert polygons from planar coordinates to lat lon
 %
 % Syntax
 %

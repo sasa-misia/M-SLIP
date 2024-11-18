@@ -64,8 +64,8 @@ end
 % definition of buffBnd matrix
 switch coordType
     case 'plan'
-        buffBnd = repmat(bufferSizes, size(coordType, 1), 1);
-        if size(buffBnd, 2) == 1; buffBnd = repmat(buffBnd, 1, size(coordType, 2)); end
+        buffBnd = repmat(bufferSizes, size(pointCoords, 1), 1);
+        if size(buffBnd, 2) == 1; buffBnd = repmat(buffBnd, 1, size(pointCoords, 2)); end
 
     case 'geo'
         [xBuffBnd, yBuffBnd] = meters2lonlat( bufferSizes(1), pointCoords(:,2) );
@@ -73,7 +73,7 @@ switch coordType
             [~, yBuffBnd] = meters2lonlat( bufferSizes(2), pointCoords(:,2) );
         end
 
-        buffBnd = [xBuffBnd, yBuffBnd]; % Overwrire of planar buffers, to geographic!
+        buffBnd = [xBuffBnd, yBuffBnd]; % overwrite of planar buffers, to geographic!
 
     otherwise
         error('coordType not recognized! It must be "plan" or "geo"')

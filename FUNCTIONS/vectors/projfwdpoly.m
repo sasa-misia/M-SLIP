@@ -1,6 +1,6 @@
 function PolyOut = projfwdpoly(PolyIn, ProjCRS)
 
-% This is a function to convert polygons in geographic coordinates to planar
+% This is a function to convert polygons from geographic coordinates to planar
 %
 % Syntax
 %

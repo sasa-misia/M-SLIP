@@ -89,6 +89,12 @@ if not(islogical(DefInps)) || (numel(DefInps) ~= numel(Values))
            'does not have the same size of Values variable!'])
 end
 
+%% Forced alternative
+if numel(Values) > 500 % Otherwise checkbox2 is too slow
+    OutVals = listdlg2({'Choice 1'}, Values, 'OutType',OutType, 'Extendable',true);
+    return
+end
+
 %% Initialization
 MenuColor = '#F7BA94';
 FigSettgs = uifigure('Name','Checkbox Window', 'WindowStyle','modal', ...
