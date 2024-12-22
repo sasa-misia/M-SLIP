@@ -1,4 +1,4 @@
-function FeatureImportance = feature_permutation(ModelToUse, DatasetToUse, ExpOutsToUse, varargin)
+function featImportance = feature_permutation(model2Use, dataset2Use, expOuts2Use, Options)
 
 % Function to evaluate the importance of features with ML models (not only)
 % with Feature Permutation technique.
@@ -37,11 +37,11 @@ function FeatureImportance = feature_permutation(ModelToUse, DatasetToUse, ExpOu
 %   intervals. By default the number of interval, i.e., the number of cycles, 
 %   based on which the uniform value changes, it is a number X (based on 
 %   RandIters) of times.
-%   If no value is set, then 'Shuffle' will be take as default.
+%   If no value is set, then 'AllRange' will be take as default.
 %   
 %   - 'RandIters', scalar number : is the number X of times based on which
 %   you repeat the 'Shuffle' operaton, or the number of intervals to use
-%   for the 'AllRange' operation. If no value is set, then 10 will be take
+%   for the 'AllRange' operation. If no value is set, then 5 will be take
 %   as default!
 %   
 %   - 'RangeVals', numeric array : is the array of size 1x2 or 2x1 containing 
@@ -56,132 +56,103 @@ function FeatureImportance = feature_permutation(ModelToUse, DatasetToUse, ExpOu
 %   high enough, it will be not very impactful. If No value is set, then 17
 %   will be take as default!
 
+%% Arguments
+arguments
+    model2Use (1,1)
+    dataset2Use (:,:)
+    expOuts2Use (:,1) double
+    Options.PermType (1,:) char = 'allrange'
+    Options.RandIters (1,1) double = 5
+    Options.RangeVals (1,2) double = [0, 1]
+    Options.RandSeed (1,1) double = 17;
+end
+
+permType  = lower(Options.PermType);
+randIters = Options.RandIters;
+rangeVals = Options.RangeVals;
+randSeed  = Options.RandSeed;
+
 %% Input Check
-if not(isnumeric(DatasetToUse) || istable(DatasetToUse))
+if not(isnumeric(dataset2Use) || istable(dataset2Use))
     error('DatasetToUse (2nd input) must be numeric matrix or table!')
 end
 
-if isnumeric(DatasetToUse)
+if isnumeric(dataset2Use)
     warning(['DatasetToUse (2nd input) is numeric. Please keep attention ', ...
              'to the order of the columns, because they must be in the same', ...
              'order used while the model was training!'])
 end
 
-if not(isnumeric(ExpOutsToUse))
-    error('ExpOutsToUse (3rd input) must be a numeric array!')
-end
-
-if numel(unique(ExpOutsToUse))-1 ~= max(ExpOutsToUse) % If there is a void in classes it will not work!
+if numel(unique(expOuts2Use))-1 ~= max(expOuts2Use) % If there is a void in classes it will not work!
     error(['Expected outputs must be an array containing ', ...
            'classes, not a regression! Please contact the support.'])
 end
 
-%% Settings
-PermType  = 'shuffle'; % Default
-RandIters = 10;        % Default
-RangeVals = [0, 1];    % Default
-RandSeed  = 17;        % Default
-
-if ~isempty(varargin)
-    StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
-
-    vararginCp = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
-    vararginCp(StringPart) = cellfun(@(x) lower(string(x)), varargin(StringPart),  'Uniform',false);
-
-    InputPermType  = find(cellfun(@(x) all(strcmpi(x, "permtype" )), vararginCp));
-    InputRandIters = find(cellfun(@(x) all(strcmpi(x, "randiters")), vararginCp));
-    InputRangeVals = find(cellfun(@(x) all(strcmpi(x, "rangevals")), vararginCp));
-    InputRandSeed  = find(cellfun(@(x) all(strcmpi(x, "randseed" )), vararginCp));
-
-    if InputPermType ; PermType  = vararginCp{InputPermType+1}; end
-    if InputRandIters; RandIters = varargin{InputRandIters+1 }; end
-    if InputRangeVals; RangeVals = varargin{InputRangeVals+1 }; end
-    if InputRandSeed ; RandSeed  = varargin{InputRandSeed+1  }; end
-
-    varargin([ InputPermType , InputPermType+1 , ...
-               InputRandIters, InputRandIters+1, ...
-               InputRangeVals, InputRangeVals+1, ... 
-               InputRandSeed , InputRandSeed+1  ]) = [];
-    if not(isempty(varargin))
-        error(['Some optional inputs were not recognized: ', ...
-               char(join(string(varargin), ', ')),'. Please check it!'])
-    end
-end
-
-if not(strcmp(PermType, 'shuffle') || strcmp(PermType, 'allrange'))
+if not(strcmp(permType, 'shuffle') || strcmp(permType, 'allrange'))
     error('PermType not recognized! It must be "Shuffle" or "AllRange"!')
 end
 
-if not(isscalar(RandIters))
-    error('RandIters must be a scalar value!')
-end
-
-if not(isnumeric(RangeVals))
-    error('RangeVals must be a numeric array!')
-end
-
-if not(isequal(size(RangeVals), [1, 2]) || isequal(size(RangeVals), [2, 1]))
-    error('RangeVals must be a 1x2 or 2x1 in sizes!')
-end
-
-if not(isnumeric(RandSeed) && isscalar(RandSeed))
-    error('RandSeed must be a numeric scalar!')
+if any(rangeVals > 1) || any(rangeVals < 0) || (rangeVals(2) < rangeVals(1))
+    error(['RangeVals must be in the range [0, 1] and the ', ...
+           'second element must be greater than the first!'])
 end
 
 %% Core
-ExpOutsSg = double(ExpOutsToUse >= 1); % It is to have a single column also in case of multi output!
-RngOfVals = linspace(RangeVals(1), RangeVals(2), RandIters);
-CurrFeats = DatasetToUse.Properties.VariableNames;
-CurrPreds = mdlpredict(ModelToUse, DatasetToUse, 'SingleCol',true);
-CurrLoss  = crossentropy2(CurrPreds, ExpOutsSg); % 'crossentropy' is appropriate only for neural network models.
-CurrMSE   = mse(ExpOutsSg, CurrPreds);
-CurrRMSE  = rmse(CurrPreds, ExpOutsSg);
+expOutsSg = double(expOuts2Use >= 1); % It is to have a single column also in case of multi output!
+rngOfVals = linspace(rangeVals(1), rangeVals(2), randIters);
+currFeats = dataset2Use.Properties.VariableNames;
+currPreds = mdlpredict(model2Use, dataset2Use, 'SingleCol',true);
+currLoss  = crossentropy2(currPreds, expOutsSg); % 'crossentropy' is appropriate only for neural network models.
+currMSE   = mse(expOutsSg, currPreds);
+currRMSE  = rmse(currPreds, expOutsSg);
 
-rng(RandSeed) % To control the randomization process
-[IndRand,  RngVals] = deal(zeros(size(DatasetToUse, 1), RandIters));
-[PermLoss, PermMSE, PermRMSE] = deal(zeros(RandIters, length(CurrFeats)));
-for i1 = 1:RandIters
-    switch PermType
+rng(randSeed) % To control the randomization process
+[indRand,  rngVals] = deal(zeros(size(dataset2Use, 1), randIters));
+[permLoss, permMSE, permRMSE] = deal(zeros(randIters, length(currFeats)));
+for i1 = 1:randIters
+    switch permType
         case 'shuffle'
-            IndRand(:,i1) = randperm(size(DatasetToUse, 1));
+            indRand(:,i1) = randperm(size(dataset2Use, 1));
 
         case 'allrange'
-            RngVals(:,i1) = repmat(RngOfVals(i1), size(DatasetToUse, 1), 1);
+            rngVals(:,i1) = repmat(rngOfVals(i1), size(dataset2Use, 1), 1);
     end
     
-    for i2 = 1:length(CurrFeats)
-        DatasetPerm = DatasetToUse;
-        switch PermType
+    for i2 = 1:length(currFeats)
+        datasetPerm = dataset2Use;
+        switch permType
             case 'shuffle'
-                DatasetPerm{:,CurrFeats{i2}} = DatasetPerm{IndRand(:,i1),CurrFeats{i2}};
+                datasetPerm{:,currFeats{i2}} = datasetPerm{indRand(:,i1),currFeats{i2}};
 
             case 'allrange'
-                DatasetPerm{:,CurrFeats{i2}} = RngVals(:,i1);
+                minValFtTmp = min(dataset2Use{:, currFeats{i2}});
+                maxValFtTmp = max(dataset2Use{:, currFeats{i2}});
+                datasetPerm{:,currFeats{i2}} = rngVals(:,i1) .* (maxValFtTmp - minValFtTmp) + minValFtTmp;
         end
 
-        PermPreds = mdlpredict(ModelToUse, DatasetPerm, 'SingleCol',true);
+        permPreds = mdlpredict(model2Use, datasetPerm, 'SingleCol',true);
 
-        PermLoss(i1,i2) = crossentropy2(PermPreds, ExpOutsSg); % 'crossentropy' is appropriate only for neural network models.
-        PermMSE(i1,i2)  = mse(ExpOutsSg, PermPreds);
-        PermRMSE(i1,i2) = rmse(PermPreds, ExpOutsSg);
+        permLoss(i1,i2) = crossentropy2(permPreds, expOutsSg); % 'crossentropy' is appropriate only for neural network models.
+        permMSE(i1,i2)  = mse(expOutsSg, permPreds);
+        permRMSE(i1,i2) = rmse(permPreds, expOutsSg);
     end
 end
 
-MeanPermLoss = max(PermLoss, [], 1); % You can also average values: mean(PermLoss,1);
-MeanPermMSE  = max(PermMSE,  [], 1); % You can also average values: mean(PermMSE,1);
-MeanPermRMSE = max(PermRMSE, [], 1); % You can also average values: mean(PermRMSE,1);
+meanPermLoss = max(permLoss, [], 1); % You can also average values: mean(PermLoss,1);
+meanPermMSE  = max(permMSE,  [], 1); % You can also average values: mean(PermMSE,1);
+meanPermRMSE = max(permRMSE, [], 1); % You can also average values: mean(PermRMSE,1);
 
-FeatImpDiffLoss = MeanPermLoss-CurrLoss;
-FeatImpDiffMSE  = MeanPermMSE-CurrMSE;
-FeatImpDiffRMSE = MeanPermRMSE-CurrRMSE;
+featImpDiffLoss = meanPermLoss-currLoss;
+featImpDiffMSE  = meanPermMSE-currMSE;
+featImpDiffRMSE = meanPermRMSE-currRMSE;
 
-FeatImpPercLoss = max(FeatImpDiffLoss,0)/sum(max(FeatImpDiffLoss,0)); % The importance can not be negative, thus if a value is negative (better when random) it will be capped to 0 with max(value,0)
-FeatImpPercMSE  = max(FeatImpDiffMSE,0)/sum(max(FeatImpDiffMSE,0));   % The importance can not be negative, thus if a value is negative (better when random) it will be capped to 0 with max(value,0)
-FeatImpPercRMSE = max(FeatImpDiffRMSE,0)/sum(max(FeatImpDiffRMSE,0));   % The importance can not be negative, thus if a value is negative (better when random) it will be capped to 0 with max(value,0)
+featImpPercLoss = max(featImpDiffLoss,0)/sum(max(featImpDiffLoss,0)); % The importance can not be negative, thus if a value is negative (better when random) it will be capped to 0 with max(value,0)
+featImpPercMSE  = max(featImpDiffMSE,0)/sum(max(featImpDiffMSE,0));   % The importance can not be negative, thus if a value is negative (better when random) it will be capped to 0 with max(value,0)
+featImpPercRMSE = max(featImpDiffRMSE,0)/sum(max(featImpDiffRMSE,0));   % The importance can not be negative, thus if a value is negative (better when random) it will be capped to 0 with max(value,0)
 
-FeatureImportance = array2table([FeatImpDiffLoss; FeatImpDiffMSE; FeatImpDiffRMSE; ...
-                                 FeatImpPercLoss; FeatImpPercMSE; FeatImpPercRMSE], ...
+featImportance = array2table([featImpDiffLoss; featImpDiffMSE; featImpDiffRMSE; ...
+                              featImpPercLoss; featImpPercMSE; featImpPercRMSE], ...
                                                 'RowNames',{'LossDifferences', 'MSEDifferences', 'RMSEDifferences', ...
-                                                            'PercentagesLoss', 'PercentagesMSE', 'PercentagesRMSE'}, 'VariableNames',CurrFeats);
+                                                            'PercentagesLoss', 'PercentagesMSE', 'PercentagesRMSE'}, 'VariableNames',currFeats);
 
 end

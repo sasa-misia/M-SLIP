@@ -11,14 +11,7 @@ fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
 load([fold_res_ml_curr,sl,'MLMdlA.mat'], 'MLMdl','MLPerf','ModelInfo')
 load([fold_var,sl,'DatasetMLA.mat'    ], 'DatasetInfo')
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize')
-    SelFont = Font;
-    SelFnSz = FontSize;
-else
-    SelFont = 'Calibri';
-    SelFnSz = 8;
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 ANNMode = ModelInfo.ANNsOptions.TrainMode;
 OutMode = DatasetInfo(end).Options.OutputType;
@@ -55,7 +48,7 @@ for i1 = 1:length(DatasetInfo)
     if numel(MunsLbls) > 8
         MunsLbls = [MunsLbls(1:7); {'...'}];
     end
-    MunList{i1} = strjoin(MunsLbls, '-');
+    MunList{i1} = char(strjoin(MunsLbls, '-'));
 end
 
 %% Options
@@ -103,7 +96,7 @@ switch Mdl2Plt
         error('Choice not recognized!')
 end
 
-if SnglPlt; SelFnSz = 4; end
+if SnglPlt; SlFnSz = 4; end
 
 EventsYear = year(DatasetInfo(IndDset2Tk).Datasets.Total.Dates.Start);
 if SnglPlt
@@ -117,6 +110,7 @@ for IndCurr = IndMdl2Tk
     CurrMdl = MLMdl{'Model',IndCurr}{:};
 
     PredOutsRaw = mdlpredict(CurrMdl, DsetFtsTot);
+    PredOutsRaw(isnan(PredOutsRaw)) = 0;
 
     if RegrANN
         [PredOutsM, PredOutsS] = deal(rescale(PredOutsRaw));
@@ -125,9 +119,9 @@ for IndCurr = IndMdl2Tk
         PredOutsS = sum(PredOutsRaw, 2);
     end
     
-    fold_fig_curr = [fold_fig,sl,'Model A preds'];
-    if ~exist(fold_fig_curr, 'dir')
-        mkdir(fold_fig_curr)
+    CurrFln = [fold_fig,sl,'Model A preds'];
+    if ~exist(CurrFln, 'dir')
+        mkdir(CurrFln)
     end
     
     for i1 = 1:length(EventsYearUnique)
@@ -200,7 +194,7 @@ for IndCurr = IndMdl2Tk
             end
     
             ylim([0, UpYLim])
-            ylabel(yLabTxt, 'FontName',SelFont, 'FontSize',SelFnSz)
+            ylabel(yLabTxt, 'FontName',SlFont, 'FontSize',SlFnSz)
 
             if LndsMnt
                 yticks([0, UpYLim])
@@ -208,21 +202,21 @@ for IndCurr = IndMdl2Tk
             end
         
             xtickangle(CurrAxs{iAx}, 90)
-            xlabel(xLb, 'FontName',SelFont, 'FontSize',SelFnSz)
+            xlabel(xLb, 'FontName',SlFont, 'FontSize',SlFnSz)
             
             % pbaspect(CurrAxs{iAx}, AxsRat)
             box on
     
             xTick = get(CurrAxs{iAx},'XTickLabel');
-            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
             yTick = get(CurrAxs{iAx},'YTickLabel');
-            set(CurrAxs{iAx}, 'YTickLabel',yTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'YTickLabel',yTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
-            title('Real Landslides', 'FontName',SelFont, 'FontSize',1.5*SelFnSz)
+            title('Real Landslides', 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
 
             if LndsMnt
-                subtitle('gray scaled (darker means more landslides)', 'FontName',SelFont, 'FontSize',0.7*SelFnSz)
+                subtitle('gray scaled (darker means more landslides)', 'FontName',SlFont, 'FontSize',0.7*SlFnSz)
             else
             end
 
@@ -261,25 +255,25 @@ for IndCurr = IndMdl2Tk
             UpYLim = 100;
             
             ylim([0, UpYLim])
-            ylabel('Probability', 'FontName',SelFont, 'FontSize',SelFnSz)
+            ylabel('Probability', 'FontName',SlFont, 'FontSize',SlFnSz)
         
             xtickangle(CurrAxs{iAx}, 90)
-            xlabel(xLb, 'FontName',SelFont, 'FontSize',SelFnSz)
+            xlabel(xLb, 'FontName',SlFont, 'FontSize',SlFnSz)
             
             % pbaspect(CurrAxs{iAx}, AxsRat)
             box on
     
             xTick = get(CurrAxs{iAx},'XTickLabel');
-            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
             yTick = get(CurrAxs{iAx},'YTickLabel');
-            set(CurrAxs{iAx}, 'YTickLabel',yTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'YTick',str2double(yTick), 'YTickLabel',yTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
-            title('Predictions', 'FontName',SelFont, 'FontSize',1.5*SelFnSz)
+            title('Predictions', 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
             if SeptPlt
-                subtitle('gray = training/validation; red = test', 'FontName',SelFont, 'FontSize',0.7*SelFnSz)
+                subtitle('gray = training/validation; red = test', 'FontName',SlFont, 'FontSize',0.7*SlFnSz)
             else
-                subtitle('green -> real ; blue -> prediction', 'FontName',SelFont, 'FontSize',0.7*SelFnSz)
+                subtitle('green -> real ; blue -> prediction', 'FontName',SlFont, 'FontSize',0.7*SlFnSz)
             end
 
             iAx = iAx + 1;
@@ -310,21 +304,21 @@ for IndCurr = IndMdl2Tk
             yticklabels("")
             
             xtickangle(CurrAxs{iAx}, 90)
-            xlabel(xLb, 'FontName',SelFont, 'FontSize',SelFnSz)
+            xlabel(xLb, 'FontName',SlFont, 'FontSize',SlFnSz)
     
             xlim(CurrAxs{iAx}, [0, size(EvType,2)+1])
             ylim(CurrAxs{iAx}, [0, size(EvType,1)+1])
     
             xTick = get(CurrAxs{iAx},'XTickLabel');
-            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
             yTick = get(CurrAxs{iAx},'YTickLabel');
-            set(CurrAxs{iAx}, 'YTickLabel',yTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'YTickLabel',yTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
     
             set(CurrAxs{iAx}, 'TickLength',[0 .1])
     
-            title('Type of event', 'FontName',SelFont, 'FontSize',1.5*SelFnSz)
-            subtitle('green -> train ; red -> test ; blu -> excluded', 'FontName',SelFont, 'FontSize',0.7*SelFnSz)
+            title('Type of event', 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
+            subtitle('green -> train ; red -> test ; blu -> excluded', 'FontName',SlFont, 'FontSize',0.7*SlFnSz)
 
             iAx = iAx + 1;
         end
@@ -339,21 +333,21 @@ for IndCurr = IndMdl2Tk
             BarPlotDur = bar(CurrAxs{iAx}, StartDatesToPlot, DurToPlot, 'FaceColor','flat', 'BarWidth',1, 'CData',[1, 0.8, 0.9], 'EdgeColor','k');
     
             ylim([0.98*min(DurToPlot), 1.02*max(DurToPlot)])
-            ylabel('Duration [h]', 'FontName',SelFont, 'FontSize',SelFnSz)
+            ylabel('Duration [h]', 'FontName',SlFont, 'FontSize',SlFnSz)
         
             xtickangle(CurrAxs{iAx}, 90)
-            xlabel(xLb, 'FontName',SelFont, 'FontSize',SelFnSz)
+            xlabel(xLb, 'FontName',SlFont, 'FontSize',SlFnSz)
             
             % pbaspect(CurrAxs{iAx}, AxsRat)
             box on
     
             xTick = get(CurrAxs{iAx},'XTickLabel');
-            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
             yTick = get(CurrAxs{iAx},'YTickLabel');
-            set(CurrAxs{iAx}, 'YTickLabel',yTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'YTick',str2double(yTick), 'YTickLabel',yTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
-            title('Duration', 'FontName',SelFont, 'FontSize',1.5*SelFnSz)
+            title('Duration', 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
     
             iAx = iAx + 1;
         end
@@ -368,21 +362,21 @@ for IndCurr = IndMdl2Tk
             BarPlotNDVI = bar(CurrAxs{iAx}, StartDatesToPlot, NDVIToPlot, 'FaceColor','flat', 'BarWidth',1, 'CData',[0, 0.5, 0.5], 'EdgeColor','k');
     
             ylim([0.98*min(NDVIToPlot), 1.02*max(NDVIToPlot)])
-            ylabel('NDVI values [-]', 'FontName',SelFont, 'FontSize',SelFnSz)
+            ylabel('NDVI values [-]', 'FontName',SlFont, 'FontSize',SlFnSz)
         
             xtickangle(CurrAxs{iAx}, 90)
-            xlabel(xLb, 'FontName',SelFont, 'FontSize',SelFnSz)
+            xlabel(xLb, 'FontName',SlFont, 'FontSize',SlFnSz)
             
             % pbaspect(CurrAxs{iAx}, AxsRat)
             box on
     
             xTick = get(CurrAxs{iAx},'XTickLabel');
-            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
             yTick = get(CurrAxs{iAx},'YTickLabel');
-            set(CurrAxs{iAx}, 'YTickLabel',yTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'YTick',str2double(yTick), 'YTickLabel',yTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
-            title('NDVI', 'FontName',SelFont, 'FontSize',1.5*SelFnSz)
+            title('NDVI', 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
     
             iAx = iAx + 1;
         end
@@ -397,21 +391,21 @@ for IndCurr = IndMdl2Tk
             BarPlotRain = bar(CurrAxs{iAx}, StartDatesToPlot, RainToPlot, 'FaceColor','flat', 'BarWidth',1, 'CData',[102, 178, 255]./255, 'EdgeColor','k');
     
             ylim([0.98*min(RainToPlot), 1.02*max(RainToPlot)])
-            ylabel('Rainfall [mm]', 'FontName',SelFont, 'FontSize',SelFnSz)
+            ylabel('Rainfall [mm]', 'FontName',SlFont, 'FontSize',SlFnSz)
         
             xtickangle(CurrAxs{iAx}, 90)
-            xlabel(xLb, 'FontName',SelFont, 'FontSize',SelFnSz)
+            xlabel(xLb, 'FontName',SlFont, 'FontSize',SlFnSz)
             
             % pbaspect(CurrAxs{iAx}, AxsRat)
             box on
     
             xTick = get(CurrAxs{iAx},'XTickLabel');
-            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
             yTick = get(CurrAxs{iAx},'YTickLabel');
-            set(CurrAxs{iAx}, 'YTickLabel',yTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'YTick',str2double(yTick), 'YTickLabel',yTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
-            title('Rainfall', 'FontName',SelFont, 'FontSize',1.5*SelFnSz)
+            title('Rainfall', 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
     
             iAx = iAx + 1;
         end
@@ -426,21 +420,21 @@ for IndCurr = IndMdl2Tk
             BarPlotTemp = bar(CurrAxs{iAx}, StartDatesToPlot, TempToPlot, 'FaceColor','flat', 'BarWidth',1, 'CData',[255, 178, 102]./255, 'EdgeColor','k');
     
             ylim([0.98*min(TempToPlot), 1.02*max(TempToPlot)])
-            ylabel('Temperature [°c]', 'FontName',SelFont, 'FontSize',SelFnSz)
+            ylabel('Temperature [°c]', 'FontName',SlFont, 'FontSize',SlFnSz)
         
             xtickangle(CurrAxs{iAx}, 90)
-            xlabel(xLb, 'FontName',SelFont, 'FontSize',SelFnSz)
+            xlabel(xLb, 'FontName',SlFont, 'FontSize',SlFnSz)
             
             % pbaspect(CurrAxs{iAx}, AxsRat)
             box on
     
             xTick = get(CurrAxs{iAx},'XTickLabel');
-            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'XTickLabel',xTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
             yTick = get(CurrAxs{iAx},'YTickLabel');
-            set(CurrAxs{iAx}, 'YTickLabel',yTick, 'FontName',SelFont,'fontsize',0.8*SelFnSz)
+            set(CurrAxs{iAx}, 'YTick',str2double(yTick), 'YTickLabel',yTick, 'FontName',SlFont,'fontsize',0.8*SlFnSz)
         
-            title('Temperature', 'FontName',SelFont, 'FontSize',1.5*SelFnSz)
+            title('Temperature', 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
     
             iAx = iAx + 1;
         end
@@ -456,7 +450,7 @@ for IndCurr = IndMdl2Tk
             pause
         end
     
-        exportgraphics(CurrFig, [fold_fig_curr,sl,CurrNme,'.png'], 'Resolution',600);
+        exportgraphics(CurrFig, [CurrFln,sl,CurrNme,'.png'], 'Resolution',600);
         close(CurrFig)
     end
 end

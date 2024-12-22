@@ -29,18 +29,8 @@ end
 
 %% Loading files
 sl = filesep;
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelFnt = Font;
-    SelFSz = FontSize;
-    if exist('LegendPosition', 'var')
-        LegPos = LegendPosition;
-    end
-else
-    SelFnt = 'Calibri';
-    SelFSz = 10;
-    LegPos = 'best';
-end
+
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 %% Creation of folder where saving plots
 fold_fig_hist = [fold_fig,sl,'PPR vs NPR'];
@@ -75,7 +65,7 @@ for i1 = 1:numel(Flds2Rd)
         CurrAxs{i2} = subplot(numel(Thresholds), 1, i2, 'Parent',CurrFig);
         hold(CurrAxs{i2}, 'on')
 
-        subtitle(['Threshold: ',num2str(Thresholds(i2)),'%'], 'FontName',SelFnt, 'FontSize',SelFSz)
+        subtitle(['Threshold: ',num2str(Thresholds(i2)),'%'], 'FontName',SlFont, 'FontSize',SlFnSz)
 
         % Landslide line
         PPRTrgt = plot(1:Dys2Plt, [zeros(1, Dys2Plt-1), 100], 'Marker','none', 'LineWidth',3, 'Color','#5e1914');
@@ -109,12 +99,12 @@ for i1 = 1:numel(Flds2Rd)
         NPRMnL = plot(1:Dys2Plt, NPRAvg{i2, i1}, 'Marker','none', 'LineWidth',1.5, 'Color','#6f9f00');
 
         % Axis
-        xlabel('Time [day]', 'FontName',SelFnt, 'FontSize',.7*SelFSz)
+        xlabel('Time [day]', 'FontName',SlFont, 'FontSize',.7*SlFnSz)
 
         yyaxis(CurrAxs{i2}, 'left');
-        ylabel('{\it NPR} (%)', 'FontName',SelFnt, 'FontSize',.7*SelFSz, 'Color','#276221')
-        set(CurrAxs{i2}, 'FontName',SelFnt, ...
-                         'FontSize',.8*SelFSz, ...
+        ylabel('{\it NPR} (%)', 'FontName',SlFont, 'FontSize',.7*SlFnSz, 'Color','#276221')
+        set(CurrAxs{i2}, 'FontName',SlFont, ...
+                         'FontSize',.8*SlFnSz, ...
                          'XTick',Dys2Sh, ...
                          'YTick',0:20:100, ... 
                          'XTicklabels',DysLbl, ... % 'XTickLabelRotation',90, ...
@@ -125,9 +115,9 @@ for i1 = 1:numel(Flds2Rd)
                          'YColor','#276221')
 
         yyaxis(CurrAxs{i2}, 'right');
-        ylabel('{\it PPR} (%)', 'FontName',SelFnt, 'FontSize',.7*SelFSz, 'Color','#5e1914')
-        set(CurrAxs{i2}, 'FontName',SelFnt, ...
-                         'FontSize',.8*SelFSz, ...
+        ylabel('{\it PPR} (%)', 'FontName',SlFont, 'FontSize',.7*SlFnSz, 'Color','#5e1914')
+        set(CurrAxs{i2}, 'FontName',SlFont, ...
+                         'FontSize',.8*SlFnSz, ...
                          'XTick',Dys2Sh, ...
                          'YTick',0:20:100, ... 
                          'XTicklabels',DysLbl, ... % 'XTickLabelRotation',90, ...
@@ -139,7 +129,7 @@ for i1 = 1:numel(Flds2Rd)
 
     end
 
-    title(CurrAxs{1}, ['PPR vs NPR | ',MdlNmRp,' | ',SelANN{:}], 'FontName',SelFnt, 'FontSize',SelFSz)
+    title(CurrAxs{1}, ['PPR vs NPR | ',MdlNmRp,' | ',SelANN{:}], 'FontName',SlFont, 'FontSize',SlFnSz)
 
     % Export
     ProgressBar.Message = 'Export...';
@@ -165,8 +155,8 @@ if CompPlt
     CurrAxs = subplot(1, 1, 1, 'Parent',CurrFgC);
     hold(CurrAxs, 'on')
     
-    subtitle(['Threshold: ',num2str(Thresholds(IndThr)),'%'], 'FontName',SelFnt, 'FontSize',SelFSz)
-    title(CurrAxs, 'PPR - NPR comparison', 'FontName',SelFnt, 'FontSize',SelFSz)
+    subtitle(['Threshold: ',num2str(Thresholds(IndThr)),'%'], 'FontName',SlFont, 'FontSize',SlFnSz)
+    title(CurrAxs, 'PPR - NPR comparison', 'FontName',SlFont, 'FontSize',SlFnSz)
 
     PPRTrgt = plot(1:Dys2Plt, [zeros(1, Dys2Plt-1), 100], 'Marker','none', 'LineWidth',3, ...
                                                           'Color','#5e1914', 'Parent',CurrAxs); % Landslide line
@@ -182,15 +172,15 @@ if CompPlt
     end
     
     LgndTtl = strrep([strcat(Flds2Rd, ' PPR'), strcat(Flds2Rd, ' NPR')], '_', '-');
-    legend([PPRMnC{:}, NPRMnC{:}], LgndTtl, 'Location',LegPos, 'FontName',SelFnt, 'FontSize',SelFSz*.7)
+    legend([PPRMnC{:}, NPRMnC{:}], LgndTtl, 'Location',LegPos, 'FontName',SlFont, 'FontSize',SlFnSz*.7)
     
     % Axis
-    xlabel('Time [day]', 'FontName',SelFnt, 'FontSize',.7*SelFSz)
+    xlabel('Time [day]', 'FontName',SlFont, 'FontSize',.7*SlFnSz)
     
     yyaxis(CurrAxs, 'left');
-    ylabel('{\it NPR} (%)', 'FontName',SelFnt, 'FontSize',.7*SelFSz, 'Color','#276221')
-    set(CurrAxs, 'FontName',SelFnt, ...
-                 'FontSize',.8*SelFSz, ...
+    ylabel('{\it NPR} (%)', 'FontName',SlFont, 'FontSize',.7*SlFnSz, 'Color','#276221')
+    set(CurrAxs, 'FontName',SlFont, ...
+                 'FontSize',.8*SlFnSz, ...
                  'XTick',Dys2Sh, ...
                  'YTick',0:20:100, ... 
                  'XTicklabels',DysLbl, ... % 'XTickLabelRotation',90, ...
@@ -201,9 +191,9 @@ if CompPlt
                  'YColor','#276221')
     
     yyaxis(CurrAxs, 'right');
-    ylabel('{\it PPR} (%)', 'FontName',SelFnt, 'FontSize',.7*SelFSz, 'Color','#5e1914')
-    set(CurrAxs, 'FontName',SelFnt, ...
-                 'FontSize',.8*SelFSz, ...
+    ylabel('{\it PPR} (%)', 'FontName',SlFont, 'FontSize',.7*SlFnSz, 'Color','#5e1914')
+    set(CurrAxs, 'FontName',SlFont, ...
+                 'FontSize',.8*SlFnSz, ...
                  'XTick',Dys2Sh, ...
                  'YTick',0:20:100, ... 
                  'XTicklabels',DysLbl, ... % 'XTickLabelRotation',90, ...

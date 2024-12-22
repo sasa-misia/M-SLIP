@@ -296,7 +296,6 @@ cd(fold_fig)
 exportgraphics(f3,strcat(filename3,'.png'),'Resolution',600);
 
 %%
-
 filename4='Bar_PercentageAreaAtRisk';
 f4=figure(4);
 set(f4 , ...

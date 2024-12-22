@@ -1,4 +1,4 @@
-function DatasetsExtracted = dataset_extraction(DatasetInfo, varargin)
+function DatasetsExtracted = dataset_extraction(datasetInfo, Options)
 
 % EXTRACT DATASET FROM DATASETINFO TABLE (M-SLIP Internal function)
 %   
@@ -24,22 +24,42 @@ function DatasetsExtracted = dataset_extraction(DatasetInfo, varargin)
 %   features as numeric (in case some categorical features exist). If no
 %   value is specified, then false will be assumed as default!
 
-%% Preliminary check
-if not(istable(DatasetInfo) || isstruct(DatasetInfo))
+%% Arguments
+arguments
+    datasetInfo (:,:)
+    Options.ReplaceValues (1,1) logical = false
+    Options.ValuesAssociation (:,2) double = [NaN, 0]
+    Options.FeatsNumeric (1,1) logical = false;
+end
+
+RepVals = Options.ReplaceValues;
+ValsAss = Options.ValuesAssociation;
+NmFeats = Options.FeatsNumeric;
+
+%% Check inputs
+if not(istable(datasetInfo) || isstruct(datasetInfo))
     error('Dataset with dates (1st argument) must be in a cell and must be congruent with other datasets!')
 end
 
-if istable(DatasetInfo)
-    DatasetInfo = table2struct(DatasetInfo);
+if isstruct(datasetInfo) % Before the check of table! (otherwise it is always struct...)
+    datasetInfo = datasetInfo';
 end
 
-FldsOf1st = fieldnames(DatasetInfo(1).Datasets);
-FtsNms1st = DatasetInfo(1).Datasets.Feats;
-DtsNms1st = fieldnames(DatasetInfo(1).Datasets.Total);
-for i1 = 1:length(DatasetInfo) % In case of Table could be wrong!!!
-    ChckEqFds = isequal(FldsOf1st, fieldnames(DatasetInfo(i1).Datasets));
-    ChckEqFts = isequal(FtsNms1st, DatasetInfo(i1).Datasets.Feats);
-    ChckEqDts = isequal(DtsNms1st, fieldnames(DatasetInfo(i1).Datasets.Total));
+if istable(datasetInfo)
+    datasetInfo = table2struct(datasetInfo);
+end
+
+if size(datasetInfo, 2) > 1
+    error('There is an error with sizes of DatasetInfo, please check it!')
+end
+
+FldsOf1st = fieldnames(datasetInfo(1).Datasets);
+FtsNms1st = datasetInfo(1).Datasets.Feats;
+DtsNms1st = fieldnames(datasetInfo(1).Datasets.Total);
+for i1 = 1:length(datasetInfo) % In case of Table could be wrong!!!
+    ChckEqFds = isequal(FldsOf1st, fieldnames(datasetInfo(i1).Datasets));
+    ChckEqFts = isequal(FtsNms1st, datasetInfo(i1).Datasets.Feats);
+    ChckEqDts = isequal(DtsNms1st, fieldnames(datasetInfo(i1).Datasets.Total));
     if not(ChckEqFds)
         error(['The fields of the dataset n. ',num2str(i1),' are different from the 1st!'])
     end
@@ -56,34 +76,6 @@ IdDstExtr = not(ismember(DtsNms1st, {'Features', 'Outputs'}));
 FtsNmExtr = DtsNms1st(IdDstExtr); % Extra features
 if not(isempty(FtsNmExtr))
     ExtraDset = true;
-end
-
-%% Settings
-RepVals = false;    % Default
-ValsAss = [NaN, 0]; % Default
-NmFeats = false;
-
-if ~isempty(varargin)
-    StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
-
-    vararginCp = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
-    vararginCp(StringPart) = cellfun(@(x) lower(string(x)), varargin(StringPart),  'Uniform',false);
-
-    InputRepVals = find(cellfun(@(x) all(strcmpi(x, "ReplaceValues"    )), vararginCp));
-    InputValsAss = find(cellfun(@(x) all(strcmpi(x, "ValuesAssociation")), vararginCp));
-    InputNmFeats = find(cellfun(@(x) all(strcmpi(x, "FeatsNumeric"     )), vararginCp));
-
-    if InputRepVals; RepVals = varargin{InputRepVals+1}; end
-    if InputValsAss; ValsAss = varargin{InputValsAss+1}; end
-    if InputNmFeats; NmFeats = varargin{InputNmFeats+1}; end
-
-    varargin([ InputRepVals, InputRepVals+1, ...
-               InputValsAss, InputValsAss+1, ...
-               InputNmFeats, InputNmFeats+1 ]) = [];
-    if not(isempty(varargin))
-        error(['Some optional inputs were not recognized: ', ...
-               char(join(string(varargin), ', ')),'. Please check it!'])
-    end
 end
 
 if not(islogical(RepVals) && isscalar(RepVals))
@@ -112,70 +104,70 @@ end
 %% Core
 %% Initialization
 [DsetFeatsTotTmp, DsetFeatsTrnTmp, DsetFeatsTstTmp, ...
-    ExpctOutsTotTmp, ExpctOutsTrnTmp, ExpctOutsTstTmp] = deal(cell(size(DatasetInfo,1), 1));
+    ExpctOutsTotTmp, ExpctOutsTrnTmp, ExpctOutsTstTmp] = deal(cell(size(datasetInfo,1), 1));
 if NormVal
     [DsetFeatsNvTrnTmp, DsetFeatsNvValTmp, ...
-        ExpctOutsNvTrnTmp, ExpctOutsNvValTmp] = deal(cell(size(DatasetInfo,1), 1));
+        ExpctOutsNvTrnTmp, ExpctOutsNvValTmp] = deal(cell(size(datasetInfo,1), 1));
 end
 if CrossVal
     [DsetFeatsCvTrnTmp, DsetFeatsCvValTmp, ...
-        ExpctOutsCvTrnTmp, ExpctOutsCvValTmp] = deal(cell(size(DatasetInfo,1), ...
-                                                          numel(DatasetInfo(1).Datasets.CvValid)));
+        ExpctOutsCvTrnTmp, ExpctOutsCvValTmp] = deal(cell(size(datasetInfo,1), ...
+                                                          numel(datasetInfo(1).Datasets.CvValid)));
 end
 
 if ExtraDset
-    [DsetExtraTotTmp, DsetExtraTrnTmp, DsetExtraTstTmp] = deal(cell(size(DatasetInfo,1), numel(FtsNmExtr)));
+    [DsetExtraTotTmp, DsetExtraTrnTmp, DsetExtraTstTmp] = deal(cell(size(datasetInfo,1), numel(FtsNmExtr)));
     if NormVal
-        [DsetExtraNvTrnTmp, DsetExtraNvValTmp] = deal(cell(size(DatasetInfo,1), numel(FtsNmExtr)));
+        [DsetExtraNvTrnTmp, DsetExtraNvValTmp] = deal(cell(size(datasetInfo,1), numel(FtsNmExtr)));
     end
     if CrossVal
         [DsetExtraCvTrnTmp, DsetExtraCvValTmp] = deal(cell(1, numel(FtsNmExtr)));
         for i1 = 1:numel(FtsNmExtr)
-            [DsetExtraCvTrnTmp{i1}, DsetExtraCvValTmp{i1}] = deal(cell(size(DatasetInfo,1), ...
-                                                                       numel(DatasetInfo(1).Datasets.CvValid)));
+            [DsetExtraCvTrnTmp{i1}, DsetExtraCvValTmp{i1}] = deal(cell(size(datasetInfo,1), ...
+                                                                       numel(datasetInfo(1).Datasets.CvValid)));
         end
     end
 end
 
 %% Extraction
-for i1 = 1:size(DatasetInfo,1)
-    DsetFeatsTotTmp{i1} = DatasetInfo(i1).Datasets.Total.Features;
-    DsetFeatsTrnTmp{i1} = DatasetInfo(i1).Datasets.Train.Features;
-    DsetFeatsTstTmp{i1} = DatasetInfo(i1).Datasets.Test.Features;
+for i1 = 1:size(datasetInfo,1)
+    DsetFeatsTotTmp{i1} = datasetInfo(i1).Datasets.Total.Features;
+    DsetFeatsTrnTmp{i1} = datasetInfo(i1).Datasets.Train.Features;
+    DsetFeatsTstTmp{i1} = datasetInfo(i1).Datasets.Test.Features;
     
-    ExpctOutsTotTmp{i1} = DatasetInfo(i1).Datasets.Total.Outputs;
-    ExpctOutsTrnTmp{i1} = DatasetInfo(i1).Datasets.Train.Outputs;
-    ExpctOutsTstTmp{i1} = DatasetInfo(i1).Datasets.Test.Outputs;
+    ExpctOutsTotTmp{i1} = datasetInfo(i1).Datasets.Total.Outputs;
+    ExpctOutsTrnTmp{i1} = datasetInfo(i1).Datasets.Train.Outputs;
+    ExpctOutsTstTmp{i1} = datasetInfo(i1).Datasets.Test.Outputs;
 
     if NormVal
-        DsetFeatsNvTrnTmp{i1} = DatasetInfo(i1).Datasets.NvTrain.Features;
-        DsetFeatsNvValTmp{i1} = DatasetInfo(i1).Datasets.NvValid.Features;
+        DsetFeatsNvTrnTmp{i1} = datasetInfo(i1).Datasets.NvTrain.Features;
+        DsetFeatsNvValTmp{i1} = datasetInfo(i1).Datasets.NvValid.Features;
 
-        ExpctOutsNvTrnTmp{i1} = DatasetInfo(i1).Datasets.NvTrain.Outputs;
-        ExpctOutsNvValTmp{i1} = DatasetInfo(i1).Datasets.NvValid.Outputs;
+        ExpctOutsNvTrnTmp{i1} = datasetInfo(i1).Datasets.NvTrain.Outputs;
+        ExpctOutsNvValTmp{i1} = datasetInfo(i1).Datasets.NvValid.Outputs;
     end
     
     if CrossVal
-        for i2 = 1:numel(DatasetInfo(1).Datasets.CvValid)
-            DsetFeatsCvValTmp{i1,i2} = DatasetInfo(i1).Datasets.CvValid(i2).Features;
-            ExpctOutsCvValTmp{i1,i2} = DatasetInfo(i1).Datasets.CvValid(i2).Outputs;
+        for i2 = 1:numel(datasetInfo(1).Datasets.CvValid)
+            DsetFeatsCvValTmp{i1,i2} = datasetInfo(i1).Datasets.CvValid(i2).Features;
+            ExpctOutsCvValTmp{i1,i2} = datasetInfo(i1).Datasets.CvValid(i2).Outputs;
         end
     end
 
     if ExtraDset % Extra part
         for i2 = 1:numel(FtsNmExtr)
-            DsetExtraTotTmp{i1,i2} = DatasetInfo(i1).Datasets.Total.(FtsNmExtr{i2});
-            DsetExtraTrnTmp{i1,i2} = DatasetInfo(i1).Datasets.Train.(FtsNmExtr{i2});
-            DsetExtraTstTmp{i1,i2} = DatasetInfo(i1).Datasets.Test.(FtsNmExtr{i2});
+            DsetExtraTotTmp{i1,i2} = datasetInfo(i1).Datasets.Total.(FtsNmExtr{i2});
+            DsetExtraTrnTmp{i1,i2} = datasetInfo(i1).Datasets.Train.(FtsNmExtr{i2});
+            DsetExtraTstTmp{i1,i2} = datasetInfo(i1).Datasets.Test.(FtsNmExtr{i2});
 
             if NormVal
-                DsetExtraNvTrnTmp{i1,i2} = DatasetInfo(i1).Datasets.NvTrain.(FtsNmExtr{i2});
-                DsetExtraNvValTmp{i1,i2} = DatasetInfo(i1).Datasets.NvValid.(FtsNmExtr{i2});
+                DsetExtraNvTrnTmp{i1,i2} = datasetInfo(i1).Datasets.NvTrain.(FtsNmExtr{i2});
+                DsetExtraNvValTmp{i1,i2} = datasetInfo(i1).Datasets.NvValid.(FtsNmExtr{i2});
             end
     
             if CrossVal
-                for i3 = 1:numel(DatasetInfo(1).Datasets.CvValid)
-                    DsetExtraCvValTmp{i2}{i1,i3} = DatasetInfo(i1).Datasets.CvValid(i3).(FtsNmExtr{i2});
+                for i3 = 1:numel(datasetInfo(1).Datasets.CvValid)
+                    DsetExtraCvValTmp{i2}{i1,i3} = datasetInfo(i1).Datasets.CvValid(i3).(FtsNmExtr{i2});
                 end
             end
         end
@@ -184,17 +176,17 @@ end
 
 % Creation of Cv train
 if CrossVal
-    for i1 = 1:size(DatasetInfo,1)
-        for i2 = 1:numel(DatasetInfo(1).Datasets.CvValid)
-            Ids2TkTmp = true(1, numel(DatasetInfo(1).Datasets.CvValid));
+    for i1 = 1:size(datasetInfo,1)
+        for i2 = 1:numel(datasetInfo(1).Datasets.CvValid)
+            Ids2TkTmp = true(1, numel(datasetInfo(1).Datasets.CvValid));
             Ids2TkTmp(i2) = false;
 
-            DsetFeatsCvTrnTmp{i1,i2} = cat(1, DatasetInfo(i1).Datasets.CvValid(Ids2TkTmp).Features);
-            ExpctOutsCvTrnTmp{i1,i2} = cat(1, DatasetInfo(i1).Datasets.CvValid(Ids2TkTmp).Outputs );
+            DsetFeatsCvTrnTmp{i1,i2} = cat(1, datasetInfo(i1).Datasets.CvValid(Ids2TkTmp).Features);
+            ExpctOutsCvTrnTmp{i1,i2} = cat(1, datasetInfo(i1).Datasets.CvValid(Ids2TkTmp).Outputs );
 
             if ExtraDset % Extra part
                 for i3 = 1:numel(FtsNmExtr)
-                    DsetExtraCvTrnTmp{i3}{i1,i2} = cat(1, DatasetInfo(i1).Datasets.CvValid(Ids2TkTmp).(FtsNmExtr{i3}));
+                    DsetExtraCvTrnTmp{i3}{i1,i2} = cat(1, datasetInfo(i1).Datasets.CvValid(Ids2TkTmp).(FtsNmExtr{i3}));
                 end
             end
         end

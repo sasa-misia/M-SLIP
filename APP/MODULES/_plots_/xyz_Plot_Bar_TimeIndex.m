@@ -43,25 +43,14 @@ for i1 = 1:numel(Flds2Rd)
     MdlsTI(:, i1) = {MdlNmR; mean(cell2mat(table2array(TimeIn)), 2); TimeEv; Thresholds};
 end
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelFnt = Font;
-    SelFSz = FontSize;
-    if exist('LegendPosition', 'var')
-        LegPos = LegendPosition;
-    end
-else
-    SelFnt = 'Calibri';
-    SelFSz = 8;
-    LegPos = 'best';
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 %% Filtering
 MinThrComm = max(cellfun(@min, MdlsTI(4, :)));
 MaxThrComm = min(cellfun(@max, MdlsTI(4, :)));
 IndThrComm = cellfun(@(x) find(x == MinThrComm) : find(x == MaxThrComm), MdlsTI(4, :), 'UniformOutput',false);
 
-ChckSzComm = numel(unique(cellfun(@numel, IndThrComm))) == 1;
+ChckSzComm = isscalar(unique(cellfun(@numel, IndThrComm)));
 if not(ChckSzComm)
     error('Your events have different thresholds between common min and max ones!')
 end
@@ -82,18 +71,18 @@ CmmNmsC = reordercats(CmmNmsC, CommNms);
 PltBrOb = bar(CmmNmsC, cat(1, CommTIs{:}), 'Parent',CurrAxs);
 
 ylim([0 100])
-ylabel('TI [%]', 'FontName',SelFnt, 'FontSize',SelFSz)
+ylabel('TI [%]', 'FontName',SlFont, 'FontSize',SlFnSz)
 
-xlabel('Model', 'FontName',SelFnt, 'FontSize',SelFSz)
+xlabel('Model', 'FontName',SlFont, 'FontSize',SlFnSz)
 
 LgndTxt = strcat({'TH = '}, num2str(CommThr'),{' %'});
-LgndObj = legend(LgndTxt{:}, 'FontName',SelFnt, ...
-                             'FontSize',SelFSz, ...
+LgndObj = legend(LgndTxt{:}, 'FontName',SlFont, ...
+                             'FontSize',SlFnSz, ...
                              'Location',LegPos, ...
                              'Box','off');
 LgndObj.ItemTokenSize(1) = 10;
 
-set(CurrAxs, 'YTick',0:20:100, 'FontName',SelFnt, 'FontSize',SelFSz);
+set(CurrAxs, 'YTick',0:20:100, 'FontName',SlFont, 'FontSize',SlFnSz);
 
 exportgraphics(CurrFig, [fold_fig,sl,CurrNme,'.png'], 'Resolution',400);
 

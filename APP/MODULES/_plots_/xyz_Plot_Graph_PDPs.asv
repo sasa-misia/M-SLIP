@@ -117,7 +117,7 @@ for i1 = 1:size(MLMdl,2)
     for i2 = 1:length(FeatsMdl)
 
         CurrFln = ['PDPs_Mdl_',num2str(i1),'-',DsetChce,'-',FeatsMdl{i2}];
-        CurrFig = figure('Visible','off', 'Name',CurrFln, 'Position', [280, 100, 500, 300]);
+        CurrFig = figure('Visible','off', 'Name',CurrFln, 'Position', [280, 100, 1040, 980]);
 
         GrdPlts = [1, 1];
 
@@ -136,20 +136,20 @@ for i1 = 1:size(MLMdl,2)
                                                     'LineWidth',1, 'Marker','.', 'Color','#A2142F', 'Parent',CurrAxs)
         end
 
-        xlabel('Feature value', 'FontName',SlFont, 'FontSize',SlFnSz)
-        ylabel('Avg prob.', 'FontName',SlFont, 'FontSize',SlFnSz)
-        title([FeatsMdl{i2},' PDP'], 'FontName',SlFont, 'FontSize',SlFnSz)
+        xlabel('', 'FontName',SlFont, 'FontSize',0.6*SlFnSz)
+        ylabel('Avg prob.', 'FontName',SlFont, 'FontSize',0.6*SlFnSz)
+        title([FeatsMdl{i2},' PDP'], 'FontName',SlFont, 'FontSize',0.6*SlFnSz)
 
         if RealCorr
-            yyaxis(CurrAxs, 'right')
-            set(CurrAxs, 'ycolor','#77AC30')
+            yyaxis(CurrAxs{i2}, 'right')
+            set(CurrAxs{i2}, 'ycolor','#77AC30')
 
             switch CorrType
                 case 'Points'
                     scatter(Dset2Use.(FeatsMdl{i2}), ExpO2Use, ...
                                                         MarkSz, 'MarkerEdgeColor','#77AC30', ...
                                                                     'MarkerFaceColor','#77AC30', ...
-                                                                    'Marker','o', 'Parent',CurrAxs)
+                                                                    'Marker','o', 'Parent',CurrAxs{i2})
 
                 case 'Line'
                     TempMatrx = [round(Dset2Use.(FeatsMdl{i2}), 2), ExpO2Use];
@@ -172,22 +172,22 @@ for i1 = 1:size(MLMdl,2)
                         yVals(IdxToRem) = [];
                     end
 
-                    plot(xVals, yVals, 'LineWidth',0.7, 'Marker','.', 'Color','#77AC30', 'Parent',CurrAxs)
+                    plot(xVals, yVals, 'LineWidth',0.7, 'Marker','.', 'Color','#77AC30', 'Parent',CurrAxs{i2})
 
-                    ylabel('Landslides', 'FontName',SlFont, 'FontSize',SlFnSz)
+                    ylabel('Landslides', 'FontName',SlFont, 'FontSize',0.6*SlFnSz)
 
                 otherwise
                     error('Real correlation type not recognized!')
             end
         end
 
-        CurrAxs.XAxis.FontSize = SlFnSz;
-        for i3 = 1:length(CurrAxs.YAxis)
-            CurrAxs.YAxis(i3).FontSize = SlFnSz;
+        CurrAxs{i2}.XAxis.FontSize = 0.6*SlFnSz;
+        for i3 = 1:length(CurrAxs{i2}.YAxis)
+            CurrAxs{i2}.YAxis(i3).FontSize = 0.6*SlFnSz;
         end
 
         if ShowPlt
-            set(CurrFig, 'Visible','on');
+            set(CurrFig, 'visible','on');
             pause
         end
     

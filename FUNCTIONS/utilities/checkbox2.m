@@ -90,8 +90,8 @@ if not(islogical(DefInps)) || (numel(DefInps) ~= numel(Values))
 end
 
 %% Forced alternative
-if numel(Values) > 500 % Otherwise checkbox2 is too slow
-    OutVals = listdlg2({'Choice 1'}, Values, 'OutType',OutType, 'Extendable',true);
+if numel(Values) > 1000 % Otherwise checkbox2 is too slow
+    OutVals = listdlg2(Title, Values, 'OutType',OutType, 'Extendable',true, 'Unique',true);
     return
 end
 

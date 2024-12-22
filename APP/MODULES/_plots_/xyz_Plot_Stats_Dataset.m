@@ -33,14 +33,7 @@ end
 
 DsetTbl = dataset_extraction(DatasetInfo);
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize')
-    SelFont = Font;
-    SelFnSz = FontSize;
-else
-    SelFont = 'Calibri';
-    SelFnSz = 6;
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 %% Options
 PlotOpts = listdlg2({'Plot type', 'Plot mode', 'Dataset', ...
@@ -145,7 +138,7 @@ for i1 = 1:numel(Clls2Plt)
             CurrAxs{i2} = nexttile([1, 1]);
             hold(CurrAxs{i2}, 'on')
     
-            set(CurrAxs{i2}, 'FontName',SelFont, 'FontSize',SelFnSz)
+            set(CurrAxs{i2}, 'FontName',SlFont, 'FontSize',SlFnSz)
     
             LabelsTemp = FtsLbls{'Label' , Clls2Plt{i1}{i2}};
             ValuesTemp = DsetPrt{DsetPart, Clls2Plt{i1}{i2}}{:};
@@ -179,15 +172,15 @@ for i1 = 1:numel(Clls2Plt)
                     xline(QuantsTemp{'Q1','Quantile'}, ...
                                 'Color','#800020', 'Label',QntLbls{1}, 'FontWeight','bold', ...
                                 'LabelVerticalAlignment','bottom', 'LabelHorizontalAlignment','center', ...
-                                'LineStyle','--', 'LineWidth',.6, 'FontName',SelFont, 'FontSize',SelFnSz);
+                                'LineStyle','--', 'LineWidth',.6, 'FontName',SlFont, 'FontSize',SlFnSz);
                     xline(QuantsTemp{'Q2','Quantile'}, ...
                                 'Color','#800020', 'Label',QntLbls{2}, 'FontWeight','bold', ...
                                 'LabelVerticalAlignment','middle', 'LabelHorizontalAlignment','center', ...
-                                'LineStyle','--', 'LineWidth',.6, 'FontName',SelFont, 'FontSize',SelFnSz);
+                                'LineStyle','--', 'LineWidth',.6, 'FontName',SlFont, 'FontSize',SlFnSz);
                     xline(QuantsTemp{'Q3','Quantile'}, ...
                                 'Color','#800020', 'Label',QntLbls{3}, 'FontWeight','bold', ...
                                 'LabelVerticalAlignment','top', 'LabelHorizontalAlignment','center', ...
-                                'LineStyle','--', 'LineWidth',.6, 'FontName',SelFont, 'FontSize',SelFnSz);
+                                'LineStyle','--', 'LineWidth',.6, 'FontName',SlFont, 'FontSize',SlFnSz);
                     xlabel(LabelsTemp{:})
                     ylabel('Cumulative frequency')
     
@@ -201,14 +194,14 @@ for i1 = 1:numel(Clls2Plt)
                     pbaspect([2,1,1])
             end
             
-            if ShowTtle; title(char(96+i2), 'FontName',SelFont, 'FontSize',1.5*SelFnSz); end
+            if ShowTtle; title(char(96+i2), 'FontName',SlFont, 'FontSize',1.5*SlFnSz); end
         end
 
     elseif strcmpi(PlotType, {'Ratio'})
         CurrAxs = nexttile([1, 1]);
         hold(CurrAxs, 'on')
 
-        set(CurrAxs, 'FontName',SelFont, 'FontSize',SelFnSz)
+        set(CurrAxs, 'FontName',SlFont, 'FontSize',SlFnSz)
 
         LabelsTemp = FtsLbls{'Label' , Clls2Plt{1}};
         ValPosTemp = StatsTbl{'MeanPos', Fts2Plt};

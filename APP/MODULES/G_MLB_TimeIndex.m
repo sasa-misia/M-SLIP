@@ -24,8 +24,8 @@ ProgressBar.Message  = 'Loop through the models per each series...';
 
 EvsNames = EventsInfo.Properties.VariableNames;
 DateTemp = [EventsInfo{'PredictionDate',:}{:}];
-IndStrts = [1, find(hours(diff(DateTemp)) > 24)+1];
-IndEnds  = [find(hours(diff(DateTemp)) > 24), numel(DateTemp)];
+IndStrts = [1, find(hours(abs(diff(DateTemp))) > 24)+1];
+IndEnds  = [find(hours(abs(diff(DateTemp))) > 24), numel(DateTemp)];
 
 MdlNames = PredPlyRt.ThrUsed.Properties.VariableNames;
 

@@ -88,6 +88,7 @@ switch ANNMode
                 end
             end
     
+            LyrSzs = LyrSzRaw;
             if StrFlt
                 if numel(LyrSzRaw) > 1000
                     StrHidd = str2double(inputdlg2('Min num of hidden layers:', 'DefInp',{'2'}));
@@ -230,7 +231,7 @@ MLMdlRaw = table('RowNames',MLRws);
 MLResRaw = table('RowNames',MLRsR);
 
 %% Dataset recreation
-DsetTbl = dataset_extraction(DatasetInfo);
+DsetTbl = dataset_extraction(DatasetInfo, ReplaceValues=true, ValuesAssociation=[NaN, 0]);
 
 DatasetEvsFeatsTot = DsetTbl{'Total', 'Feats'}{:};
 DatasetEvsFeatsTrn = DsetTbl{'Train', 'Feats'}{:};
@@ -840,7 +841,7 @@ switch ANNMode
         error('Train type not recognized!')
 end
 
-if sctrcmp(ANNMode, 'Logistic Regression')
+if strcmp(ANNMode, 'Logistic Regression')
     AcFnAbb = {'ND'};
 else
     AcFnAbb = cell(1, numel(LayAct));

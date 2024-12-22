@@ -206,6 +206,7 @@ for i1 = 1:numel(ExpctdOutsToUse)
             DtsetDatesToUse{i1} = [DtsetDatesToUse{i1}; repmat(DtsetDatesToUse{i1}(IndToRep,:), RepsNum, 1)];
             DtsetFeatsToUse{i1} = [DtsetFeatsToUse{i1}; repmat(DtsetFeatsToUse{i1}(IndToRep,:), RepsNum, 1)];
             ExpctdOutsToUse{i1} = [ExpctdOutsToUse{i1}; repmat(ExpctdOutsToUse{i1}(IndToRep,:), RepsNum, 1)];
+            SupplDtset{i1}      = [SupplDtset{i1}     ; repmat(SupplDtset{     i1}(IndToRep,:), RepsNum, 1)];
         end
         IndsClasses = (ExpctdOutsToUse{i1} == unique(ExpctdOutsToUse{i1})');
     end

@@ -18,6 +18,9 @@ function [OutVals, OutLbls] = listdlg2(Prompts, Values, varargin)
 %   you give the lable name of the entry. If no value is specified, then 'false' 
 %   will be take as default.
 %   
+%   - 'DefLabels', logical : is to specify the default names of the new
+%   labels. If 'PairLabels' is set to false it will have no effect.
+%   
 %   - 'SaveOut', logical : is to specify if you want to save the outputs in
 %   a file. If no value is specified, outputs will not be saved.
 %   
@@ -42,6 +45,10 @@ function [OutVals, OutLbls] = listdlg2(Prompts, Values, varargin)
 %   entry! It must have the same size of 'Prompts' and must contain a number 
 %   that not exceed the number of 'Values' for each prompt. If no value is 
 %   specified, then an array with ones values will be take as default.
+%   
+%   - 'Unique', logical : is to define if a unique match for each entry is
+%   desired. In other words, for each dropdown it is allowed only a single
+%   and unique value, not chosen in other dropdown lists.
 
 %% Input Check
 if not(iscell(Prompts)) && not(isstring(Prompts)) && not(ischar(Prompts))
@@ -53,8 +60,8 @@ if not(iscell(Values)) && not(isstring(Values)) && not(ischar(Values)) && not(is
            'directly a string array or a char array!'])
 end
 
-if not(iscell(Values)) ; Values  = {cellstr(Values)}; end
-if iscellstr(Values)   ; Values  = {Values}         ; end
+if not(iscell(Values)); Values  = {cellstr(Values)}; end
+if iscellstr(Values)  ; Values  = {Values}         ; end
 
 Prompts = cellstr(Prompts); % Independently from the original input, now is a cellstr!
 Values  = cellfun(@(x) cellstr(x), Values, 'UniformOutput',false);  % A repetition is necessary because if it was a cell originally, now is a cellstr (all values are chars now)!
@@ -90,6 +97,7 @@ SavePth = CurrPth;    % Default
 NameOut = 'LstOut';   % Default
 Extndbl = false;      % Default
 OutType = 'cellstr';  % Default
+UnqMtch = false;      % Default
 
 FntSize = 12;         % Default
 PosWind = [800, 300, ...
@@ -97,6 +105,7 @@ PosWind = [800, 300, ...
 CnfBtSz = [100, 22];  % Default
 PnlSize = [xPn, 80];  % Default
 DDBtSzs = [120, 22];  % Default
+DefLbls = repmat({'New label'}, 1, numel(Prompts)); % Default
 
 % Search for Suggested Inputs
 DefInps = ones(size(Prompts)); % Default
@@ -120,6 +129,8 @@ if ~isempty(varargin)
     InputExtndbl = find(cellfun(@(x) all(strcmpi(x, "extendable")), vararginCp));
     InputOutType = find(cellfun(@(x) all(strcmpi(x, "outtype"   )), vararginCp));
     InputDefInps = find(cellfun(@(x) all(strcmpi(x, "definp"    )), vararginCp));
+    InputUnqMtch = find(cellfun(@(x) all(strcmpi(x, "unique"    )), vararginCp));
+    InputDefLbls = find(cellfun(@(x) all(strcmpi(x, "deflabels" )), vararginCp));
 
     if InputRnmLbls; RnmLbls = varargin{InputRnmLbls+1  }; end
     if InputSaveOut; SaveOut = varargin{InputSaveOut+1  }; end
@@ -129,6 +140,8 @@ if ~isempty(varargin)
     if InputExtndbl; Extndbl = varargin{InputExtndbl+1  }; end
     if InputOutType; OutType = vararginCp{InputOutType+1}; end
     if InputDefInps; DefInps = varargin{InputDefInps+1  }; end
+    if InputUnqMtch; UnqMtch = varargin{InputUnqMtch+1  }; end
+    if InputDefLbls; DefLbls = varargin{InputDefLbls+1  }; end
 end
 
 if RnmLbls && not(any(InputPosWind))
@@ -145,6 +158,11 @@ end
 if not(isnumeric(DefInps)) || (numel(DefInps) ~= numel(Prompts))
     error(['DefInp variable is not a numeric array or it ' ...
            'does not have the same size of Prompts variable!'])
+end
+
+DefLbls = cellstr(DefLbls);
+if (numel(DefLbls) ~= numel(Prompts))
+    error('DefLbls variable does not have the same size of Prompts variable!')
 end
 
 for i1 = 1:numel(DefInps)
@@ -203,7 +221,7 @@ if RnmLbls
     PnlTAPs = [(xPn-DDBtSzs(1))/2, (PnlSize(2)-DDBtSzs(2))/2-0.2*PnlSize(2), DDBtSzs(1), DDBtSzs(2)];
     PnlTA   = cell(1, numel(Prompts));
     for i1 = 1:numel(Prompts)
-        PnlTA{i1} = uitextarea(Panels{i1}, 'Value','New label', 'Position',PnlTAPs);
+        PnlTA{i1} = uitextarea(Panels{i1}, 'Value',DefLbls{i1}, 'Position',PnlTAPs);
     end
 end
 
@@ -244,6 +262,10 @@ function confirm
         error('OutType not recognized!')
     end
 
+    if UnqMtch && (numel(unique(OutVals)) ~= numel(OutVals))
+        error('You must select a unique value for each dropdown!')
+    end
+
     if RnmLbls
         OutLbls = cellfun(@(x) x.Value{:}, PnlTA, 'UniformOutput',false);
     else
@@ -269,7 +291,12 @@ function add
         OldTALSz = PnlTALgnd{end}.Position;
     end
 
-    yPnNew = Panels{2}.Position(2) - Panels{1}.Position(2);
+    if isscalar(Panels)
+        yPnNew = Panels{1}.Position(4) + 30;
+    else
+        yPnNew = Panels{2}.Position(2) - Panels{1}.Position(2);
+    end
+
     if FigSettgs.Position(4) + yPnNew < 600
         FigSettgs.Position(4) = OldFigSz(4) + yPnNew;
         GenPanl.Position(4)   = OldGPnSz(4) + yPnNew;
@@ -286,6 +313,7 @@ function add
         end
     end
 
+    Values    = [Values, Values(end)];
     NewPnlPs  = [OldPnlSz(1), yPnNew*numel(Panels)+(yPnNew-OldPnlSz(4))/2, OldPnlSz(3), OldPnlSz(4)];
     Panels    = [Panels, {uipanel(GenPanl, 'Title','New Entry', 'FontSize',FntSize, ...
                                            'BackgroundColor',MenuColor, 'Position',NewPnlPs)}];

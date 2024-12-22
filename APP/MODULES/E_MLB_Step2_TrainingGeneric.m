@@ -19,7 +19,7 @@ if TimeSensEx
     EventDates = DatasetInfo.EventDate;
     TmSensMode = DatasetInfo{1,'TimeSensMode'};
     TmSnParams = DatasetInfo{1,'TSParameters'}{:};
-    Days4TmSns = DatasetInfo{1,'DaysForTS'};
+    Days4TmSns = DatasetInfo{1,'DaysForTS'}{:};
     if DatasetInfo{1,'MultipleDays'}
         DaysBeforeEventWhenStable = DatasetInfo{1,'DayBeforeEvent'};
     end
@@ -42,7 +42,7 @@ DsetTpe = char(listdlg2({'Dataset to consider?'}, {'1T', '2T', 'All', 'Manual'})
 DsetTbl = dataset_extr_filtr(DatasetInfo, fltrCase=DsetTpe);
 
 if numel(unique(DsetTbl{'Total','ExpOuts'}{:})) ~= 2
-    error('You must have just 2 output classes for this script!'); 
+    error('You must have just 2 output classes for this script!');
 end
 
 if not(isequal(unique(DsetTbl{'Total','ExpOuts'}{:})', [0,1]))
@@ -71,7 +71,7 @@ WgPObs = 1; % Default weigth of positive observations against negative (no lands
 
 MdlOps = {'KAN (L)', 'KAN (V)', 'Random Forest (L)', 'Bagging (L)', ...
           'AdaBoost (L)', 'Logit Boost (L)', 'Gentle Boost (L)', ...
-          'Total Boost (L)', 'Auto ML (L)'};
+          'Total Boost (L)', 'SVM (L)', 'Auto ML (L)'};
 MLMode = char(listdlg2('Type of train?', MdlOps));
 switch MLMode
     case {'KAN (L)', 'KAN (V)'}
@@ -110,6 +110,11 @@ switch MLMode
                                   'Type','classification', 'SplitCriterion',SpltCr, ...
                                   'AlgorithmForCategorical','Exact', 'NumVariablesToSample','all'); % 'MaxNumSplits',10
         end
+
+    case 'SVM (L)'
+        SVMPar = listdlg2({'Kernel function', 'Solver'}, {{'linear', 'gaussian', 'rbf', 'polynomial'}, {'ISDA', 'L1QP', 'SMO'}});
+        KrnSVM = SVMPar{1};
+        SlvSVM = SVMPar{2};
 
     case 'Auto ML (L)'
         MaxEvA = str2double(inputdlg2({'Maximum number of evaluations:'}, 'DefInp',{'25'}));
@@ -258,6 +263,9 @@ for i1 = 1:MdlsNumber
             Model = fitcensemble(DsetTrn, ExOtTrn, 'Method','TotalBoost', 'Learners',TrLrns, ...
                                                    'NumLearningCycles',ItrLim, 'ScoreTransform',ScrTrn, ...
                                                    'Weights',WgObTrn, 'MarginPrecision',LrngRt);
+
+        case 'SVM (L)'
+            Model = fitcsvm(DsetTrn, ExOtTrn, 'KernelFunction',KrnSVM, 'Solver',SlvSVM);
     
         case 'Auto ML (L)'
             Model = fitcensemble(DsetTrn, ExOtTrn, 'OptimizeHyperparameters','all', ...
@@ -324,7 +332,7 @@ MLPerf{'ROC','Test' }{:}.Properties.VariableNames = MLCls;
 if ChkPlt
     ProgressBar.Message = 'Check plot for predictions...';
 
-    check_plot_mdlb(MLMdl, MLPerf, DsetTbl, {UnstabPolygons, IndecnPolygons, StablePolygons}, false, 30, DatasetInfo{1,'MultipleDays'}, fold0)
+    check_plot_mdlb(MLMdl, MLPerf, DsetTbl, {UnstabPolygons, IndecnPolygons, StablePolygons}, false, 30, DatasetInfo{1,'MultipleDays'}, fold0);
 end
 
 %% Creation of CrossInfo structure
@@ -362,11 +370,14 @@ switch MLMode
     case 'Auto ML (L)'
         TrnType = 'AutoML';
 
+    case {'SVM (L)'}
+        TrnType = 'SVM';
+
     otherwise
         error('Train type not recognized!')
 end
 
-SuggFldNme = [DsetTpe,'_',num2str(Days4TmSns),'d_',TrnType];
+SuggFldNme = [DsetTpe,'_',char(join(string(Days4TmSns), '-')),'d_',TrnType];
 MLFoldName = [char(inputdlg2({'Folder name (Results->ML Models and Predictions):'}, 'DefInp',{SuggFldNme}))];
 
 fold_res_ml_curr = [fold_res_ml,sl,MLFoldName];

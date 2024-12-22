@@ -1,209 +1,123 @@
-cd(fold_var)
-load('GridCoordinates.mat')
-load('MorphologyParameters.mat');
-load('SoilParameters.mat');
-load('VegetationParameters.mat');
-load('StudyAreaVariables.mat');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
+drawnow
 
-if exist('LegendSettings.mat')
-    load('LegendSettings.mat')
-else
-    SelectedFont='Times New Roman';
-    SelectedFontSize=8;
-    SelectedLocation='Best';
+%% Loading data
+sl = filesep;
+
+load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'MorphologyParameters.mat'], 'SlopeAll')
+load([fold_var,sl,'SoilParameters.mat'      ], 'CohesionAll','PhiAll','nAll','AAll')
+load([fold_var,sl,'VegetationParameters.mat'], 'RootCohesionAll')
+load([fold_var,sl,'StudyAreaVariables.mat'  ], 'StudyAreaPolygon')
+
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
+
+%% Inputs
+InpVls = inputdlg2({'Indicate soil Gs [-]:', 'Indicate lambda λ [-]:', ...
+                    'Indicate alpha α [-]:', 'Sr0 [-]', 'Analysis depth [m]'}, ...
+                                'DefInp',{'2.7', '0.4', '3.4', '0.7', '1.2'});
+
+Gs     = str2double(InpVls{1});
+Lambda = str2double(InpVls{2});
+Alpha  = str2double(InpVls{3});
+Sr0    = str2double(InpVls{4});
+H      = str2double(InpVls{5});
+GammaW = 10;
+
+SusceptibilityInfo = table(Gs, Lambda, Alpha, Sr0, H, 'VariableNames',{'Gs', 'Lambda', 'Alpha', 'Sr0', 'H'});
+
+%% Extraction of parameters
+xLonStudy = cellfun(@(x,y) x(y), xLongAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+yLatStudy = cellfun(@(x,y) x(y), yLatAll         , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+SlopStudy = cellfun(@(x,y) x(y), SlopeAll        , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+CoheStudy = cellfun(@(x,y) x(y), CohesionAll     , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+PhiStudy  = cellfun(@(x,y) x(y), PhiAll          , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+nPorStudy = cellfun(@(x,y) x(y), nAll            , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+AparStudy = cellfun(@(x,y) x(y), AAll            , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+RChsStudy = cellfun(@(x,y) x(y), RootCohesionAll , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+
+%% Core
+GSoil = cellfun(@(x) Gs*(1-x)*GammaW + Sr0*x*GammaW, nPorStudy, 'UniformOutput',false);
+SusceptibilityFactor = cellfun(@(a,b,c,d,e,f) 1 - ( (((1-tand(a)./tand(b)).*c.*H.*cosd(b).*sind(b))-(d+e)) ...
+                                                     ./ (f*Sr0*(1-Sr0)^Lambda) ).^(1./Alpha),...
+                                        PhiStudy, SlopStudy, GSoil, CoheStudy, RChsStudy, AparStudy, 'UniformOutput',false);
+
+IndCmplx = cellfun(@(x) imag(x)~=0, SusceptibilityFactor, 'UniformOutput',false); % If imaginary part is different than 0, the number is complex and will be excluded!
+for i1 = 1:numel(SusceptibilityFactor)
+    SusceptibilityFactor{i1}(IndCmplx{i1}) = NaN;
+    SusceptibilityFactor{i1} = real(SusceptibilityFactor{i1}); % To convert in real!
 end
 
-%%
-Gs=2.7;
-Lambda=0.4;
-GammaW=10;
-Alpha=3.4;
+IndNaNs = cellfun(@(x) find(not(isnan(x))), SusceptibilityFactor, 'UniformOutput',false);
+AllNaNs = cellfun(@isempty, IndNaNs);
+if all(AllNaNs)
+    error('No susceptibility values inside your area! Please check the script...')
+end
 
-%%
-xLongStudy=cellfun(@(x,y) x(y),xLongAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
+%% Saving
+saveswitch([fold_var,sl,'Susceptibility.mat'], {'SusceptibilityFactor', 'SusceptibilityInfo'})
 
-yLatStudy=cellfun(@(x,y) x(y),yLatAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
+%% Plot (to move in a separate script)
+%% Preliminary operations
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon, 'Extremes',true); % 'RefArea',0.035
 
-Slope=cellfun(@(x,y) x(y),SlopeAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
+%% Definition of classes
+SuscRngs = [0, 0.3, 0.45, 0.75, 1];
+SuscHigh = cellfun(@(x) x>=SuscRngs(1) & x<SuscRngs(2) , SusceptibilityFactor, 'UniformOutput',false);
+SuscMdHg = cellfun(@(x) x>=SuscRngs(2) & x<SuscRngs(3) , SusceptibilityFactor, 'UniformOutput',false);
+SuscMidd = cellfun(@(x) x>=SuscRngs(3) & x<SuscRngs(4) , SusceptibilityFactor, 'UniformOutput',false);
+SuscLow  = cellfun(@(x) x>=SuscRngs(4) & x<=SuscRngs(5), SusceptibilityFactor, 'UniformOutput',false);
 
-Cohesion=cellfun(@(x,y) x(y),CohesionAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
+SuscHgCl = [128,   0,   0]./255;
+SuscMHCl = [255,   0,   0]./255;
+SuscMdCl = [255, 117,  20]./255;
+SuscLwCl = [229, 190,   1]./255;
 
-Phi=cellfun(@(x,y) x(y),PhiAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
+%% Plot
+CurrFln = ['Susceptibility (Sr0=',num2str(Sr0),')'];
+CurrFig = figure(1);
+CurrAxs = axes('Parent',CurrFig);
 
-n=cellfun(@(x,y) x(y),nAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
+set(CurrFig, 'Name',CurrFln, 'Visible','on')
+hold(CurrAxs,'on')
 
-A=cellfun(@(x,y) x(y),AAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
+plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1)
 
-RootCohesion=cellfun(@(x,y) x(y),RootCohesionAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
+ObjHigh = cellfun(@(x,y,z) scatter(x(z), y(z), PixelSize, 'Marker','o', ...
+                                                          'MarkerFaceColor',SuscHgCl, ...
+                                                          'MarkerEdgeColor','none'), ...
+                                xLonStudy, yLatStudy, SuscHigh, 'UniformOutput',false);
 
-%%
-choice=inputdlg({'Enter initial Sr:' ...
-                 'Thickness of the topsoil (m):'},'Set',1,...
-                {'','1.2'});
-Sr0=str2double(choice{1}); % New discretisation in meters
-H=str2double(choice{2}); % New discretisation in meters
+ObjMdHg = cellfun(@(x,y,z) scatter(x(z), y(z), PixelSize, 'Marker','o', ...
+                                                          'MarkerFaceColor',SuscMHCl, ...
+                                                          'MarkerEdgeColor','none'), ...
+                                xLonStudy, yLatStudy, SuscMdHg, 'UniformOutput',false);
 
-Gamma=cellfun(@(x) Gs*(1-x)*GammaW+Sr0*x*GammaW,n,'UniformOutput',false);
-DmCum=cellfun(@(a,b,c,d,e,f) 1-((((1-tand(a)./tand(b)).*c.*H.*cosd(b).*sind(b))-(d+e))./(f*Sr0*(1-Sr0)^Lambda)).^(1./Alpha),...
-                Phi,Slope,Gamma,Cohesion,RootCohesion,A,'UniformOutput',false);
+ObjMidd = cellfun(@(x,y,z) scatter(x(z), y(z), PixelSize, 'Marker','o', ...
+                                                          'MarkerFaceColor',SuscMdCl, ...
+                                                          'MarkerEdgeColor','none'), ...
+                                xLonStudy, yLatStudy, SuscMidd, 'UniformOutput',false);
 
-DmCumIndex=cellfun(@(x) imag(x)==0,DmCum,'UniformOutput',false);
+ObjLow  = cellfun(@(x,y,z) scatter(x(z), y(z), PixelSize, 'Marker','o', ...
+                                                          'MarkerFaceColor',SuscLwCl, ...
+                                                          'MarkerEdgeColor','none'), ...
+                                xLonStudy, yLatStudy, SuscLow , 'UniformOutput',false);
 
-DmCumReduced=cellfun(@(x,y) x(y),DmCum,DmCumIndex,'UniformOutput',false);
+ObjPlot = {ObjHigh, ObjMdHg, ObjMidd, ObjLow};
+LegObjs = cellfun(@(x) x(1), ObjsPlt);
 
-xLongStudyReduced=cellfun(@(x,y) x(y),xLongStudy,DmCumIndex,'UniformOutput',false);
+LegCaps = arrayfun(@(x,y) [num2str(x),' - ',num2str(y)], SuscRngs(1:end-1), SuscRngs(2:end), 'UniformOutput',false);
 
-yLatStudyReduced=cellfun(@(x,y) x(y),yLatStudy,DmCumIndex,'UniformOutput',false);
+fig_settings(fold0)
 
-mRange=[0 0.3 0.45 0.75 1];
-DmCumHigh=cellfun(@(x) x>=mRange(1) & x<mRange(2),DmCumReduced,'UniformOutput',false);
+LegObj = legend([LegObjs{:}], LegCaps{:}, 'Location',LegPos, ...
+                                          'FontName',SlFont, ...
+                                          'FontSize',SlFnSz);
 
-DmCumMediumHigh=cellfun(@(x) x>=mRange(2) & x<mRange(3),DmCumReduced,'UniformOutput',false);
-DmCumMedium=cellfun(@(x) x>=mRange(3) & x<mRange(4),DmCumReduced,'UniformOutput',false);
-DmCumLow=cellfun(@(x) x>=mRange(4) & x<=mRange(5),DmCumReduced,'UniformOutput',false);
+LegObj.Title.String={'{\it m_{cr}}'};
 
-NumHigh=cellfun(@(x) numel(find(x)),DmCumHigh);
-NumMediumHigh=cellfun(@(x) numel(find(x)),DmCumMediumHigh);
-NumMedium=cellfun(@(x) numel(find(x)),DmCumMedium);
-NumLow=cellfun(@(x) numel(find(x)),DmCumLow);
+fig_rescaler(CurrFig, LegObj, LegPos)
 
-%%
-filename1=strcat("Susceptibility Sr0=",num2str(Sr0));
-f1=figure(1);
-set(f1 , ...
-    'Color',[1 1 1],...
-    'PaperType','a4',...
-    'PaperSize',[29.68 20.98 ],...    
-    'PaperUnits', 'centimeters',...
-    'PaperPositionMode','manual',...
-    'PaperPosition', [0 1 12 6],...
-    'InvertHardcopy','off');
-set(gcf, 'Name' ,filename1);
-
-axes1 = axes('Parent',f1);
-hold(axes1,'on')
-hLow=cellfun(@(x,y,z) scatter(x(z),y(z),2,'Marker','s',...
-    'MarkerFaceColor',[229 190 1]./255,'MarkerEdgeColor','none'),...
-    xLongStudyReduced,yLatStudyReduced,DmCumLow,'UniformOutput',false);
-
-hMedium=cellfun(@(x,y,z) scatter(x(z),y(z),1.5,'Marker','s',...
-    'MarkerFaceColor',[255 117 20]./255,'MarkerEdgeColor','none'),...
-    xLongStudyReduced,yLatStudyReduced,DmCumMedium,'UniformOutput',false);
-
-hMediumHigh=cellfun(@(x,y,z) scatter(x(z),y(z),1.5,'Marker','s',...
-    'MarkerFaceColor',[255 0 0]./255,'MarkerEdgeColor','none'),...
-    xLongStudyReduced,yLatStudyReduced,DmCumMediumHigh,'UniformOutput',false);
-
-hHigh=cellfun(@(x,y,z) scatter(x(z),y(z),1.5,'Marker','s',...
-    'MarkerFaceColor',[128 0 0]./255,'MarkerEdgeColor','none'),...
-    xLongStudyReduced,yLatStudyReduced,DmCumHigh,'UniformOutput',false);
-
-legendCaption=arrayfun(@(x,y) strcat(num2str(x)," - ",num2str(y)),mRange(1:end-1),mRange(2:end), ...
-                                     'UniformOutput',false);
-
-hLowGood=find(~cellfun(@isempty,hLow));
-hMediumGood=find(~cellfun(@isempty,hMedium));
-hMediumHighGood=find(~cellfun(@isempty,hMediumHigh));
-hHighGood=find(~cellfun(@isempty,hHigh));
-
-IndLeg=[all(~cellfun(@isempty,hHigh)) all(~cellfun(@isempty,hMediumHigh)) ...
-    all(~cellfun(@isempty,hMedium)) all(~cellfun(@isempty,hLow))];
-
-legendCaption=legendCaption(IndLeg);
-
-allPlot={hHigh,hMediumHigh,hMedium,hLow};
-allPlotGood={hHighGood,hMediumHighGood,hMediumGood,hLowGood};
-
-allPlot=allPlot(IndLeg);
-allPlotGood=allPlotGood(IndLeg);
-
-allPlot2Plot=cellfun(@(x,y) x(y(1)),allPlot,allPlotGood);
-
-hleg=legend([allPlot2Plot{:}],...
-legendCaption{:}, ...
-            'Location',SelectedLocation, ...
-            'FontName',SelectedFont, ...
-            'FontSize',SelectedFontSize);
-legend('AutoUpdate','off');
-legend boxoff
-
-hleg.Title.String={'{\it m_{cr}}'};
-
-hold on
-plot(StudyAreaPolygon,'FaceColor','none','LineWidth',1)
-
-xlim([MinExtremes(1),MaxExtremes(1)])
-ylim([MinExtremes(2)-0.0005,MaxExtremes(2)+0.0005])
-
-%%
-save('SusceptibilityRes.mat','DmCum')
-
-cd(fold_fig)
-exportgraphics(f1,strcat(filename1,'.png'),'Resolution',600);
-cd(fold0)
-
-% for i2=9:size(xLongAll,2)
-% 
-% tic
-%     Ci=(Cohesion{i2}+RootCohesion{i2})+A{i2}.*Sr0.*(1-Sr0).^Lambda.*(1-DmCum).^Alpha;
-%     Wi_primo=cosd(Slope{i2}).*H.*GammaW.*(DmCum.*(n{i2}-1)+Gs.*(1-n{i2})+Sr0.*n{i2}.*(1-DmCum));
-%     Wi=cosd(Slope{i2}).*H.*GammaW.*(DmCum.*n{i2}+Gs.*(1-n{i2})+Sr0.*n{i2}.*(1-DmCum));
-%     FactorSafety=(Wi_primo.*cosd(Slope{i2}).*tand(Phi{i2})+Ci)./(Wi.*sind(Slope{i2}));
-%     eqn=FactorSafety==1;
-%     for i3=1:length(eqn)
-%         Dm_eval{i3,i2}=vpasolve(eqn(i3),DmCum,[0 1]);
-%         strcat('Fatto',num2str(i3),'di',num2str(length(eqn)))
-%     end
-% 
-% 
-%     toc
-% end
-% 
-% 
-% 
-% tic
-% Ci=cellfun(@(x,y,z) (x+y)+z*Sr0*(1-Sr0)^lambda*(1-Dm_cum)^alfa,...
-% CohesionStudy,RootStudy,AStudy,'UniformOutput',false);
-% 
-% Wi_primo=cellfun(@(x,y) cosd(x)*H*gammaw.*(Dm_cum.*(y-1)+Gs*(1-y)+Sr0*y.*(1-Dm_cum)),...
-%     SlopeStudy,nStudy,'UniformOutput',false);
-% 
-% Wi=cellfun(@(x,y) cosd(x)*H*gammaw.*(Dm_cum.*y+Gs*(1-y)+Sr0*y.*(1-Dm_cum)),...
-%      SlopeStudy,nStudy,'UniformOutput',false);
-% 
-% SafetyFactor=cellfun(@(a,b,c,d,e) (a.*cosd(b).*tand(c)+d)./(e.*sind(b)),...
-%     Wi_primo,SlopeStudy,PhiStudy,Ci,Wi,'UniformOutput',false);
-% toc
-% 
-% tic
-% eqn=cellfun(@(x) x==1,SafetyFactor,'UniformOutput',false);
-% toc
-% 
-% tic
-% eqn=cellfun(@sym2cell,eqn,'UniformOutput',false);
-% toc
-% 
-% 
-% eqn(1:8)=[];
-% % Dm_eval=arrayfun(@(x) solve(x,Dm_cum),cellfun(@(y) cell2sym(y),eqn(1:2),'UniformOutput',false),...
-% %     'UniformOutput',false);
-% 
-% tic
-% for i1=1:length(eqn)
-%     eqn1=eqn{i1};
-%     Dm_eval{i1}=cellfun(@(x) double(vpasolve(x,Dm_cum,[0 1])),eqn1,'UniformOutput',false);
-%     disp(strcat('Fatto',num2str(i1)))
-% end
-% toc
-% 
-% 
-% %Dm_eval=cellfun(@(x) cellfun(@(y) solve(y,Dm_cum),x),eqn,'UniformOutput',false);
-% %Dm_eval=cellfun(@(x) solve(x,Dm_cum),eqn(10),'UniformOutput',false);
+exportgraphics(CurrFig, [fold_fig,sl,CurrFln,'.png'], 'Resolution',600);

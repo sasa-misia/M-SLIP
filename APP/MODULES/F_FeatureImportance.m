@@ -36,7 +36,7 @@ FeatImpDst = FeatImpAns{2};
 if strcmp(FeatImpChc, 'FeaturePermutation')
     PermType = char(listdlg2({'Permutation values'}, {'Shuffle', 'AllRange'}));
     if not(NormData) && strcmp(PermType, 'AllRange')
-        error('You can not use AllRange permutation if your dataset is not normalized!')
+        warning('It would be better to use AllRange permutation if your dataset is normalized!')
     end
 
     Time2Rand = int64(str2double(inputdlg2({'Permutation times'}, 'DefInp',{'5'})));

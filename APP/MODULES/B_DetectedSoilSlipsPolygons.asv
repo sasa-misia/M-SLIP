@@ -383,9 +383,7 @@ if any(EmptyPolys)
         InvLandsTbl{EmptyPolys, 'AreaPolyTotal'} = num2cell(AreMpty);
         LndsUnShIDStudy = [LndsUnShIDStudy, InvLandsTbl{EmptyPolys, Cols2Tk(3)}'];
         LndsUnPlysStudy = [LndsUnPlysStudy, [InvLandsTbl{EmptyPolys, 'PolyTotal'}{:}]];
-        LndsUnOrCrStudy = [LndsUnOrCrStudy, ...
-                                    cellfun(@(x, y) [x, y], InvLandsTbl{EmptyPolys, Cols2Tk(1)}', ...
-                                                            InvLandsTbl{EmptyPolys, Cols2Tk(2)}', 'UniformOutput',false)];
+        LndsUnOrCrStudy = [LndsUnOrCrStudy, cellfun(@(x, y) [x, y], InvLandsTbl{1:10, Cols2Tk(1)}])
 
     else
         InvLandsTbl(EmptyPolys,:) = [];

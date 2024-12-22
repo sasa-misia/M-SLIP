@@ -31,7 +31,7 @@ if AddToExistingDataset && OldSettings
     RainDataSource = DatasetInfo.FullFilePaths.RainSource;
     TempDataSource = DatasetInfo.FullFilePaths.TempSource;
 
-    MinTrsh = DatasetInfo.EventsThresholds.MinimumRainfall;
+    Trsh4RE = DatasetInfo.EventsThresholds.MinimumRainfall;
     MinDays = DatasetInfo.EventsThresholds.MinimumTime;
     MinSpdT = DatasetInfo.EventsThresholds.MinimumSeparationTime;
     MaxDays = DatasetInfo.EventsThresholds.MaximumTime;
@@ -44,20 +44,20 @@ if AddToExistingDataset && OldSettings
         RngAvgCsTemp20dds = DatasetInfo.Options.SynthLandsMetrics.RngAvgCsTemp20d;
     end
 
-    ApproximationDays = DatasetInfo.MatchEventsRules.DeltaTimeMatch;
+    AppDays = DatasetInfo.MatchEventsRules.DeltaTimeMatch;
     
     JustForward = DatasetInfo.MatchEventsRules.JustLookForward;
 
     SingleMatch = DatasetInfo.MatchEventsRules.SingleMatch;
 
     if SingleMatch
-        SingleChoice = DatasetInfo.MatchEventsRules.SingleMatchType;
+        MtcMode = DatasetInfo.MatchEventsRules.SingleMatchType;
     end
 
-    DaysForCause = DatasetInfo.Options.DaysForCauseQuantities;
+    Days4Cause = DatasetInfo.Options.DaysForCauseQuantities;
 
-    StartDateFilter = DatasetInfo.Options.StartDate;
-    EndDateFilter   = DatasetInfo.Options.EndDate;
+    StrDateFlt = DatasetInfo.Options.StartDate;
+    EndDateFlt = DatasetInfo.Options.EndDate;
 
 else
     TimeSensSource = listdlg2({'Type of rainfalls?', 'Type of temperature?'}, ...
@@ -84,39 +84,39 @@ else
         RngAvgCsTemp20dds = str2num(SynthInputs{4});    % celsius
     end
 
-    InpMinValsEvent = inputdlg2({'Rain threshold [mm/day] for event:', ...
-                                 'Min number of days for events [d]:', ...
-                                 'Min num of days to separate events [d]:', ...
-                                 'Max number of days for an event [d]:'}, ...
-                                'DefInp',{'5', '1', '1', '10'});
-    MinTrsh = str2double(InpMinValsEvent{1});
-    MinDays = str2double(InpMinValsEvent{2});
-    MinSpdT = str2double(InpMinValsEvent{3});
-    MaxDays = str2double(InpMinValsEvent{4});
-    
-    ApproximationDays = str2double(inputdlg2('Extra days for rain-lands match?', 'DefInp',{'5'}));
-    
-    AnsForwardBackward = uiconfirm(Fig, 'Do you want to look only forward or also backwards?', ...
-                                        'Loooking forward', 'Options',{'Forward', 'Forward&Backwards'}, 'DefaultOption',1);
-    if strcmp(AnsForwardBackward,'Forward'); JustForward = true; else; JustForward = false; end
-    
-    AnsSingleMatch = uiconfirm(Fig, 'Do you want to have a single match landslides-rainfall events?', ...
-                                    'Single match', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
-    if strcmp(AnsSingleMatch,'Yes'); SingleMatch = true; else; SingleMatch = false; end
-    
-    if SingleMatch
-        SingleChoice = uiconfirm(Fig, 'If there are multiple matches, how do you want to take single event then?', ...
-                                      'Single match', 'Options',{'MaxAmount', 'LastEvent', 'Nearest'}, 'DefaultOption',1);
-    end
+    InpOpts = inputdlg2({'Start date filter', 'End date filter', ...
+                         'Days for cause windows' ...
+                         'Rain threshold [mm/day] for RE:', ...
+                         'Max number of days for RE [d]:', ...
+                         'Min number of days for RE [d]:', ...
+                         'Min number of days separating RE [d]:', ...
+                         'Extra days for RE-LE match?'}, 'DefInp',{'01-jan-2000', '31-dec-2023', ...
+                                                                   '[10, 20, 30, 60]' , ...
+                                                                   '5', '15', '1', '1', '7'});
 
-    DaysForCause = days([10, 20, 30, 60]);
+    StrDateFlt = datetime(InpOpts{1}, 'InputFormat','dd-MMM-yyyy');
+    EndDateFlt = datetime(InpOpts{2}, 'InputFormat','dd-MMM-yyyy');
 
-    StartDateFilter = datetime('01-jan-2001', 'InputFormat','dd-MMM-yyyy');
-    EndDateFilter   = datetime('31-oct-2019', 'InputFormat','dd-MMM-yyyy');
+    Days4Cause = days(str2num(InpOpts{3}));
+
+    Trsh4RE = str2double(InpOpts{4});
+    MaxDays = str2double(InpOpts{5});
+    MinDays = str2double(InpOpts{6});
+    MinSpdT = str2double(InpOpts{7});
+
+    AppDays = str2double(InpOpts{8});
+
+    MtcOpts = listdlg2({'Extra days mode', 'Match mode'}, ...
+                       {{'Forward', 'Forward&Backwards'}, ...
+                        {'MaxAmount', 'LastEvent', 'Nearest', 'AllowMultipleMatches'}});
+    
+    if strcmp(MtcOpts{1},'Forward'); JustForward = true; else; JustForward = false; end
+    if strcmp(MtcOpts{2},'AllowMultipleMatches'); SingleMatch = false; else; SingleMatch = true; end
+    MtcMode = MtcOpts{2};
 end
 
 %% Full filenames
-ReqAverageProps = {'NDVI'};
+ReqAvgTmSnProps = {'NDVI'};
 FilenameAverage = deal([fold_var,sl,'AverageValues.mat']);
 FilenameLndInfo = deal([fold_var,sl,'LandslidesInfo.mat']);
 
@@ -135,7 +135,7 @@ switch RainDataSource
 
     case 'Satellite'
         FilenameRainRec = FilenameAverage;
-        ReqAverageProps = [ReqAverageProps, {'Satellite Rain'}];
+        ReqAvgTmSnProps = [ReqAvgTmSnProps, {'Satellite Rain'}];
 
     case 'Synthetized'
         FilenameRainRec = [fold_var,sl,'SynthetizedRain.mat'];
@@ -159,7 +159,7 @@ switch TempDataSource
 
     case 'Satellite'
         FilenameTempRec = FilenameAverage;
-        ReqAverageProps = [ReqAverageProps, {'Satellite Avg Temperature', ...
+        ReqAvgTmSnProps = [ReqAvgTmSnProps, {'Satellite Avg Temperature', ...
                                              'Satellite Min Temperature', ...
                                              'Satellite Max Temperature'}];
 
@@ -168,8 +168,19 @@ switch TempDataSource
 end
 
 %% Loading files
-load(FilenameAverage, 'AverageValues')
-PropsSelAverage = listdlg2(ReqAverageProps, AverageValues.Properties.VariableNames);
+load(FilenameAverage, 'AvgValsTimeSens','AvgValsStatic')
+ReqAvgStatProps = {'Elevation', 'Slope', 'Main Curvature', ...
+                   'Planform Curvature', 'Profile Curvature'};
+StaticPrpsNames = {'AvgElev', 'AvgSlope', 'AvgMnCrv', ...
+                   'AvgPlCrv', 'AvgPrCrv'}; % Keep attention!! Same order of ReqAvgStatProps must be use!
+PropsSelAvgStat = listdlg2(ReqAvgStatProps, AvgValsStatic.Properties.VariableNames  );
+PropsSelAvgTmSn = listdlg2(ReqAvgTmSnProps, AvgValsTimeSens.Properties.VariableNames);
+
+if numel(unique(PropsSelAvgStat)) ~= numel(ReqAvgStatProps)
+    error('Duplicates found in the selection of static average features!')
+end
+
+StatTable = AvgValsStatic{'Content', PropsSelAvgStat};
 
 if not(SynthLands)
     if exist(FilenameLndInfo, 'file')
@@ -184,9 +195,9 @@ switch RainDataSource
     case 'RainGauges'
 
     case 'Satellite'
-        IndRain2T = contains(ReqAverageProps, 'Rain', 'IgnoreCase',true);
+        IndRain2T = contains(ReqAvgTmSnProps, 'Rain', 'IgnoreCase',true);
         if sum(IndRain2T) ~= 1; error('The column of rainfall must have just onme match!'); end
-        RainTable = AverageValues{'Content', PropsSelAverage(IndRain2T)}{:};
+        RainTable = AvgValsTimeSens{'Content', PropsSelAvgTmSn(IndRain2T)}{:};
 
     case 'Synthetized'
         if exist(FilenameRainRec, 'file')
@@ -207,9 +218,9 @@ switch TempDataSource
     case 'TempGauges'
 
     case 'Satellite'
-        IndTemp2T = contains(ReqAverageProps, 'Temperature', 'IgnoreCase',true);
+        IndTemp2T = contains(ReqAvgTmSnProps, 'Temperature', 'IgnoreCase',true);
         if sum(IndTemp2T) ~= 3; error('The columns of temperature must have 3 matches!'); end
-        TempTable = AverageValues{'Content', PropsSelAverage(IndTemp2T)}; % IT MUST BE A 1x3 CELL!!
+        TempTable = AvgValsTimeSens{'Content', PropsSelAvgTmSn(IndTemp2T)}; % IT MUST BE A 1x3 CELL!!
 
     otherwise
         error('RainDataSource not recognized while extracting files!')
@@ -366,19 +377,19 @@ DatasetInfo.FullFilePaths = struct('Rainfall',FilenameRainRec, ...
                                    'LandslidesPerMunicipality',FilenameLndInfo, ...
                                    'AverageNDVI',FilenameAverage);
 
-DatasetInfo.MatchEventsRules = struct('DeltaTimeMatch',ApproximationDays, ...
+DatasetInfo.MatchEventsRules = struct('DeltaTimeMatch',AppDays, ...
                                       'JustLookForward',JustForward, ...
                                       'SingleMatch',SingleMatch);
 
-DatasetInfo.EventsThresholds = struct('MinimumRainfall',MinTrsh, ...
+DatasetInfo.EventsThresholds = struct('MinimumRainfall',Trsh4RE, ...
                                       'MinimumTime',MinDays, ...
                                       'MaximumTime',MaxDays, ...
                                       'MinimumSeparationTime',MinSpdT);
 
 DatasetInfo.Options = struct('TestMode',TstMode, ...
-                             'DaysForCauseQuantities',DaysForCause, ...
-                             'StartDate',StartDateFilter, ...
-                             'EndDate',EndDateFilter, ...
+                             'DaysForCauseQuantities',Days4Cause, ...
+                             'StartDate',StrDateFlt, ...
+                             'EndDate',EndDateFlt, ...
                              'OutputType',OutMode, ...
                              'Resampling',ResDset, ...
                              'CrossDatasets',CrssVal, ...
@@ -389,7 +400,7 @@ DatasetInfo.Options = struct('TestMode',TstMode, ...
 
 % Optional part
 if SingleMatch
-    DatasetInfo.MatchEventsRules.SingleMatchType = SingleChoice;
+    DatasetInfo.MatchEventsRules.SingleMatchType = MtcMode;
 end
 
 switch TstMode
@@ -445,6 +456,22 @@ switch OutMode
         error('OutMode choice not recognized while writing ModelInfo!')
 end
 
+%% Static data processing
+AreaStatFilter = uiconfirm(Fig, 'Do you want to select area for static features?', ...
+                                 'Filter area', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
+if strcmp(AreaStatFilter, 'Yes')
+    ColsNmsStat = StatTable{1}.Properties.VariableNames;
+    Ind2RemRain = strcmpi(ColsNmsStat, 'StudyArea');
+    StatAreaSel = checkbox2(ColsNmsStat(not(Ind2RemRain)), 'Title',{'Area for static feats (multiple -> average):'});
+else
+    StatAreaSel = {'StudyArea'}; % The average column must be call StudyArea!
+end
+
+StatFeatsVals = zeros(1, numel(StaticPrpsNames));
+for i1 = 1:numel(StatFeatsVals)
+    StatFeatsVals(i1) = mean(StatTable{i1}{1, StatAreaSel}); % In case multiple municipalities are selected, the average is used!
+end
+
 %% Rainfall processing
 DltaTimeRain = hours(24); % In hours!!!
 AggrModeRain = {'sum'};
@@ -459,12 +486,11 @@ switch RainDataSource
         AutFllMode = ReadOption{1};
         if strcmp(ReadOption{2}, 'Yes'); StatFilt = true; else; StatFilt = false; end
     
-        [RecRainDatesStartsPerSta, ...
-            RecRainDatesEndsPerSta, RecRainNumDataPerSta, ...
-                RainGauges] = readtimesenscell(FilenameRainRec, 'AutoFill',AutFllMode, ...
-                                                                'StatsFilt',StatFilt, ...
-                                                                'DataSheet',Sheets2Use{1}, ...
-                                                                'StationSheet',Sheets2Use{2});
+        [RecRainDatesStartsPerSta, RecRainDatesEndsPerSta, ...
+            RecRainNumDataPerSta, RainGauges] = readtimesenscell(FilenameRainRec, 'AutoFill',AutFllMode, ...
+                                                                                  'StatsFilt',StatFilt, ...
+                                                                                  'DataSheet',Sheets2Use{1}, ...
+                                                                                  'StationSheet',Sheets2Use{2});
 
         if size(RecRainNumDataPerSta{1}, 2) ~= 1
             error('The columns of rainfall must be just one!')
@@ -488,15 +514,16 @@ switch RainDataSource
     
         CheckLength = isequal(length(min(GnrlDatesStr):days(1):max(GnrlDatesStr)), length(GnrlDatesStr));
         if not(CheckLength)
-            error('There is a problem of inconsistency in your recording (some datetimes are missed)!')
+            warning('There might be a problem of inconsistency in your recording (some datetimes are missed)!')
         end
     
         StationsRainFilter = uiconfirm(Fig, 'Do you want to select rainfall area?', ...
                                             'Filter Station', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
         if strcmp(StationsRainFilter, 'Yes')
             ColsNmsRain = RainTable.Properties.VariableNames;
-            Ind2RemRain = strcmpi(ColsNmsRain, 'StartDate') | strcmpi(ColsNmsRain, 'EndDate');
-            RainAreaSel = checkbox2(ColsNmsRain(not(Ind2RemRain)), 'Title',{'Select area:'});
+            Ind2RemRain = strcmpi(ColsNmsRain, 'StartDate') | strcmpi(ColsNmsRain, 'EndDate') | strcmpi(ColsNmsRain, 'StudyArea');
+            SuggDefIn   = contains(lower(ColsNmsRain(not(Ind2RemRain))), lower(StatAreaSel));
+            RainAreaSel = checkbox2(ColsNmsRain(not(Ind2RemRain)), 'Title',{'Area for rainfall (multiple -> average):'}, 'DefInp',SuggDefIn);
         else
             RainAreaSel = {'StudyArea'};
         end
@@ -560,8 +587,9 @@ switch TempDataSource
                                          'Filter Station', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
         if strcmp(StatsTempFilter, 'Yes')
             ColsNmsTemp = TempTable{1}.Properties.VariableNames;
-            Ind2RemTemp = strcmpi(ColsNmsTemp, 'StartDate') | strcmpi(ColsNmsTemp, 'EndDate');
-            TempAreaSel = checkbox2(ColsNmsTemp(not(Ind2RemTemp)), 'Title',{'Select area:'});
+            Ind2RemTemp = strcmpi(ColsNmsTemp, 'StartDate') | strcmpi(ColsNmsTemp, 'EndDate') | strcmpi(ColsNmsTemp, 'StudyArea');
+            SuggDefIn   = contains(lower(ColsNmsTemp(not(Ind2RemTemp))), lower(StatAreaSel));
+            TempAreaSel = checkbox2(ColsNmsTemp(not(Ind2RemTemp)), 'Title',{'Area for temperature (multiple -> average):'}, 'DefInp',SuggDefIn);
         else
             TempAreaSel = {'StudyArea'}; % The average column must be call StudyArea!
         end
@@ -608,9 +636,27 @@ end
 EqlDtes = isequal(GeneralDtTempStart, GnrlDatesStr) && ...
           isequal(GeneralDtTempEnd, GnrlDatesEnd);
 if not(EqlDtes)
-    warning(['After adjustment, dates of temperature are less ', ...
-             'than rainfall! Records will be further reduced!'])
-    Recs2Mant = ismember(GnrlDatesStr, GeneralDtTempStart);
+    Recs2Mant = find(ismember(GnrlDatesStr, GeneralDtTempStart));
+    if isempty(Recs2Mant)
+        Recs2Mant = zeros(size(GnrlDatesStr));
+        for i1 = 1:numel(GnrlDatesStr)
+            IndTmp = find((GnrlDatesStr(i1) + hours(12) - minutes(1)) > GeneralDtTempStart & (GnrlDatesStr(i1) - hours(12)) < GeneralDtTempStart);
+            if isscalar(IndTmp)
+                Recs2Mant(i1) = IndTmp;
+            end
+        end
+        Recs2Mant(Recs2Mant == 0) = []; % Not useful datetimes
+        if isempty(Recs2Mant)
+            error('No match between rainfall and temperature datetimes!');
+        else
+            warning(['After adjustment, dates of temperature are different ', ...
+                     'from rainfall! Records will be further adjusted (', ...
+                     'start and ends will be shifted of max 12 hours)!'])
+        end
+    else
+        warning(['After adjustment, dates of temperature are less ', ...
+                 'then rainfall! Records will be further adjusted!'])
+    end
     GnrlDatesStr = GnrlDatesStr(Recs2Mant);
     GnrlDatesEnd = GnrlDatesEnd(Recs2Mant);
     GnrlRainProp = cellfun(@(x) x(Recs2Mant,:), GnrlRainProp, 'UniformOutput',false);
@@ -635,11 +681,11 @@ end
 RecDatesEndCommon = GnrlDatesEnd;
 [IndsRecs4Ev, RecDates4Ev, Duration4Ev, ...
     IndsCseRecs4Ev] = rainevents(GeneralRainData, ...
-                                 RecDatesEndCommon, 'MinThreshold',MinTrsh, ...
+                                 RecDatesEndCommon, 'MinThreshold',Trsh4RE, ...
                                                     'MinDays',MinDays, ...
                                                     'MaxDays',MaxDays, ...
                                                     'MinSeparation',MinSpdT, ...
-                                                    'CauseDays',DaysForCause);
+                                                    'CauseDays',Days4Cause);
 
 StrDates4Ev = cellfun(@min, RecDates4Ev);
 EndDates4Ev = cellfun(@max, RecDates4Ev); % This is not actually the end but the start day of the end (if it is equal to StrDates4Ev it means that the duration is just 24h)
@@ -650,7 +696,7 @@ CauseRain4EvSta = cellfun(@(x) sum(GeneralRainData(:, x), 2), IndsCseRecs4Ev, 'U
 
 CauseRain4Ev = cellfun(@max, CauseRain4EvSta');
 
-ClNmsCauseRain = strcat('CauseRain',cellstr(string(days(DaysForCause))),'d');
+ClNmsCauseRain = strcat('CauseRain',cellstr(string(days(Days4Cause))),'d');
 CauseRainTable = array2table(CauseRain4Ev, 'VariableNames',ClNmsCauseRain);
 
 % Temperature
@@ -662,9 +708,9 @@ CauseTempAvg4Ev = cellfun(@mean, CauseTempAvg4EvSta');
 CauseTempMin4Ev = cellfun(@min, CauseTempMin4EvSta');
 CauseTempMax4Ev = cellfun(@min, CauseTempMax4EvSta');
 
-ClNmsCauseAvgTemp = strcat('AvgCsTmp',cellstr(string(days(DaysForCause))),'d');
-ClNmsCauseMinTemp = strcat('MinCsTmp',cellstr(string(days(DaysForCause))),'d');
-ClNmsCauseMaxTemp = strcat('MaxCsTmp',cellstr(string(days(DaysForCause))),'d');
+ClNmsCauseAvgTemp = strcat('AvgCsTmp',cellstr(string(days(Days4Cause))),'d');
+ClNmsCauseMinTemp = strcat('MinCsTmp',cellstr(string(days(Days4Cause))),'d');
+ClNmsCauseMaxTemp = strcat('MaxCsTmp',cellstr(string(days(Days4Cause))),'d');
 
 CauseAvgTempTable = array2table(CauseTempAvg4Ev, 'VariableNames',ClNmsCauseAvgTemp);
 CauseMinTempTable = array2table(CauseTempMin4Ev, 'VariableNames',ClNmsCauseMinTemp);
@@ -690,7 +736,7 @@ TrigAvgTemp4Ev = cellfun(@mean, TrigAvgTemp4EvSta);
 TrigMinTemp4Ev = cellfun(@min , TrigMinTemp4EvSta);
 TrigMaxTemp4Ev = cellfun(@max , TrigMaxTemp4EvSta);
 
-%% Filtering of GeneralLandslidesSummary
+%% Definition of GeneralLandslidesSummary
 if not(SynthLands)
     GeneralLandsSummAllMuns = GeneralLandslidesSummary;
 
@@ -734,11 +780,12 @@ MunsFilter = uiconfirm(Fig, 'Do you want to filter municipalities in General lan
                             'Filter Municiplities', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
 if strcmp(MunsFilter, 'Yes') % Remember to modify also column of Municipalities!
     MunsInGen = unique(cellstr(cat(1, GeneralLandslidesSummary.Municipalities{:})));
-    IndsMuns  = checkbox2(MunsInGen, 'Title',{'Municipalities to use:'}, 'OutType','NumInd');
+    SuggDefIn = contains(lower(MunsInGen), lower(StatAreaSel));
+    IndsMuns  = checkbox2(MunsInGen, 'Title',{'Area for landslides (multiple -> average):'}, 'OutType','NumInd', 'DefInp',SuggDefIn);
     MunsSlctd = MunsInGen(IndsMuns);
 
     NewLandsNum = sum(LandslidesCountPerMun{:,MunsSlctd}, 2);
-    GeneralLandslidesSummary.NumOfLandsllides = NewLandsNum; % To overwrite number of landslides contained only in your municipalities!
+    GeneralLandslidesSummary.NumOfLandslides = NewLandsNum; % To overwrite number of landslides contained only in your municipalities!
 
     RowsWithMunsSel = cellfun(@(x) any(ismember(MunsSlctd, x)), GeneralLandslidesSummary.Municipalities);
     GeneralLandslidesSummary(not(RowsWithMunsSel), :) = [];
@@ -756,15 +803,15 @@ if SingleMatch
     for i1 = 1:size(GeneralLandslidesSummary,1)
         if JustForward
             IndsEvsREGenLnds = (GeneralLandslidesSummary.Datetime(i1) >= StrDates4Ev) & ...
-                               (GeneralLandslidesSummary.Datetime(i1) <= EndDates4Ev+days(ApproximationDays));
+                               (GeneralLandslidesSummary.Datetime(i1) <= EndDates4Ev+days(AppDays));
         else
-            IndsEvsREGenLnds = (GeneralLandslidesSummary.Datetime(i1) >= StrDates4Ev-days(ApproximationDays)) & ...
-                               (GeneralLandslidesSummary.Datetime(i1) <= EndDates4Ev+days(ApproximationDays));
+            IndsEvsREGenLnds = (GeneralLandslidesSummary.Datetime(i1) >= StrDates4Ev-days(AppDays)) & ...
+                               (GeneralLandslidesSummary.Datetime(i1) <= EndDates4Ev+days(AppDays));
         end
         if sum(IndsEvsREGenLnds) >= 1
             IndNumEvent = find(IndsEvsREGenLnds);
             if numel(IndNumEvent) > 1
-                switch SingleChoice
+                switch MtcMode
                     case 'MaxAmount'
                         MaxAmountTemp     = TrigRain4Ev(IndsEvsREGenLnds);
                         [~, RelIndToTake] = max(MaxAmountTemp);
@@ -784,8 +831,8 @@ if SingleMatch
                         error('SingleChoice not recognized')
                 end
             end
-            Landslides4Ev(IndNumEvent) = sum([Landslides4Ev(IndNumEvent), GeneralLandslidesSummary.NumOfLandsllides(i1)]);
-            LandsTotIO4Ev(IndNumEvent) = sum([LandsTotIO4Ev(IndNumEvent), GeneralLandsSummAllMuns.NumOfLandsllides(i1)]);
+            Landslides4Ev(IndNumEvent) = sum([Landslides4Ev(IndNumEvent), GeneralLandslidesSummary.NumOfLandslides(i1)]);
+            LandsTotIO4Ev(IndNumEvent) = sum([LandsTotIO4Ev(IndNumEvent), GeneralLandsSummAllMuns.NumOfLandslides(i1)]);
             MunicipalsTmp              = [Municipals4Ev(IndNumEvent); GeneralLandslidesSummary.Municipalities(i1)];
             Municipals4Ev{IndNumEvent} = cat(1, MunicipalsTmp{:});
             DateInGenLnds{IndNumEvent} = [DateInGenLnds{IndNumEvent}; GeneralLandslidesSummary.Datetime(i1)];
@@ -796,14 +843,14 @@ else
     for i1 = 1:length(StrDates4Ev)
         if JustForward
             IndsInEv = (GeneralLandslidesSummary.Datetime >= min(RecDates4Ev{i1})) & ...
-                       (GeneralLandslidesSummary.Datetime <= max(RecDates4Ev{i1})+days(ApproximationDays));
+                       (GeneralLandslidesSummary.Datetime <= max(RecDates4Ev{i1})+days(AppDays));
         else
-            IndsInEv = (GeneralLandslidesSummary.Datetime >= min(RecDates4Ev{i1})-days(ApproximationDays)) & ...
-                       (GeneralLandslidesSummary.Datetime <= max(RecDates4Ev{i1})+days(ApproximationDays));
+            IndsInEv = (GeneralLandslidesSummary.Datetime >= min(RecDates4Ev{i1})-days(AppDays)) & ...
+                       (GeneralLandslidesSummary.Datetime <= max(RecDates4Ev{i1})+days(AppDays));
         end
         if any(IndsInEv)
-            Landslides4Ev(i1) = sum(GeneralLandslidesSummary.NumOfLandsllides(IndsInEv));
-            LandsTotIO4Ev(i1) = sum(GeneralLandsSummAllMuns.NumOfLandsllides(IndsInEv));
+            Landslides4Ev(i1) = sum(GeneralLandslidesSummary.NumOfLandslides(IndsInEv));
+            LandsTotIO4Ev(i1) = sum(GeneralLandsSummAllMuns.NumOfLandslides(IndsInEv));
             MunicipalsTmp     = GeneralLandslidesSummary.Municipalities(IndsInEv);
             Municipals4Ev{i1} = cat(1, MunicipalsTmp{:});
             DateInGenLnds{i1} = GeneralLandslidesSummary.Datetime(IndsInEv);
@@ -811,7 +858,7 @@ else
     end
 end
 
-TotLandsNum  = sum(GeneralLandslidesSummary.NumOfLandsllides);
+TotLandsNum  = sum(GeneralLandslidesSummary.NumOfLandslides);
 TotLandsAttr = sum(Landslides4Ev);
 
 if TotLandsAttr < TotLandsNum
@@ -821,13 +868,20 @@ elseif TotLandsAttr > TotLandsNum
 end
 
 %% NDVI association
-IndNDVI2T = contains(ReqAverageProps, 'NDVI', 'IgnoreCase',true);
+IndNDVI2T = contains(ReqAvgTmSnProps, 'NDVI', 'IgnoreCase',true);
 if sum(IndNDVI2T) ~= 1; error('The column of NDVI must have just one match!'); end
-NDVITable = AverageValues{'Content', PropsSelAverage(IndNDVI2T)}{:};
+NDVITable = AvgValsTimeSens{'Content', PropsSelAvgTmSn(IndNDVI2T)}{:};
 
-ColsNmsNDVI = NDVITable.Properties.VariableNames;
-Ind2RemNDVI = strcmpi(ColsNmsNDVI, 'StartDate') | strcmpi(ColsNmsNDVI, 'EndDate');
-NDVIAreaSel = checkbox2(ColsNmsNDVI(not(Ind2RemNDVI)), 'Title',{'Select area (multiple choice will be averaged):'});
+NDVIFilter = uiconfirm(Fig, 'Do you want to select NDVI area?', ...
+                            'Filter NDVI', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
+if strcmp(NDVIFilter, 'Yes')
+    ColsNmsNDVI = NDVITable.Properties.VariableNames;
+    Ind2RemNDVI = strcmpi(ColsNmsNDVI, 'StartDate') | strcmpi(ColsNmsNDVI, 'EndDate') | strcmpi(ColsNmsNDVI, 'StudyArea');
+    SuggDefIn   = contains(lower(ColsNmsNDVI(not(Ind2RemNDVI))), lower(StatAreaSel));
+    NDVIAreaSel = checkbox2(ColsNmsNDVI(not(Ind2RemNDVI)), 'Title',{'Area for NDVI (multiple -> average):'}, 'DefInp',SuggDefIn);
+else
+    NDVIAreaSel = {'StudyArea'}; % The average column must be call StudyArea!
+end
 
 NDVI4Ev = nan(size(StrDates4Ev));
 for i1 = 1:length(StrDates4Ev)
@@ -870,8 +924,21 @@ GeneralRE = [GeneralRE, CauseRainTable, CauseAvgTempTable, CauseMinTempTable, Ca
 GeneralRE = sortrows(GeneralRE, 'Start','ascend');
 
 % Filtering
-IndsOutDates = (GeneralRE.Start < StartDateFilter) | (GeneralRE.Start > EndDateFilter);
+IndsOutDates = (GeneralRE.Start < StrDateFlt) | (GeneralRE.Start > EndDateFlt);
 GeneralRE(IndsOutDates,:) = [];
+
+YearsUnq = unique(year(GeneralRE.Start));
+if numel(YearsUnq) > 2
+    YearFilter = uiconfirm(Fig, 'Do you want to filter years in General landslide data?', ...
+                                'Filter year', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
+    if strcmp(YearFilter, 'Yes')
+        YrsLnds = unique(year(GeneralLandslidesSummary.Datetime));
+        DefInps = ismember(YearsUnq, YrsLnds);
+        Ind2Mnt = checkbox2(string(YearsUnq), 'Title','Years to maintain', 'OutType','NumInd', 'DefInp',DefInps);
+        IndsOutYears = not(ismember(year(GeneralRE.Start), YearsUnq(Ind2Mnt)));
+        GeneralRE(IndsOutYears,:) = [];
+    end
+end
 
 if any(isnan(GeneralRE.AvgNDVI))
     warning('After filtering, some events still not have match with average NDVI!')
@@ -888,12 +955,8 @@ if not(all(ismember(DatesInds, PossFeats)))
     error('Indices of Start, End, amd LandsNum not found in GeneralRE')
 end
 
+% First filter feats
 Feats2Mnt = PossFeats(PtFtsInds);
-if AddToExistingDataset
-    Feats2Mnt = DsetInfoOld(end).Datasets.Feats; % Overwriting in case of add to old datasets
-elseif not(AddToExistingDataset) && SlFeats
-    Feats2Mnt = checkbox2(PossFeats, 'Title',{'Features to mantain:'}, 'DefInp',PtFtsInds); % Overwriting in case of new dataset where you want to select features
-end
 
 DatasetEvsDates = GeneralRE(:, DatesInds);
 DatasetEvsFeats = GeneralRE(:, Feats2Mnt);
@@ -901,6 +964,18 @@ DatasetEvsFeats = GeneralRE(:, Feats2Mnt);
 % Random feature
 DatasetEvsFeats.RandFeat = rand(size(DatasetEvsFeats, 1), 1);
 
+% Static features
+DatasetEvsFeats{:, StaticPrpsNames} = repmat(StatFeatsVals, size(DatasetEvsFeats, 1), 1);
+
+PossFeats = DatasetEvsFeats.Properties.VariableNames;
+PtFtsInds = contains(PossFeats, [{'Rain','Tmp','Temp','Dur','Time','NDVI','Rand'}, StaticPrpsNames], 'IgnoreCase',true);
+if AddToExistingDataset
+    Feats2Mnt = DsetInfoOld(end).Datasets.Feats; % Overwriting in case of add to old datasets
+elseif not(AddToExistingDataset) && SlFeats
+    Feats2Mnt = checkbox2(PossFeats, 'Title',{'Features to mantain:'}, 'DefInp',PtFtsInds); % Overwriting in case of new dataset where you want to select features
+end
+
+% Names of features
 DatasetFeatsNms = DatasetEvsFeats.Properties.VariableNames; % REMEMBER: It must be after DatasetEvsFeats.RandFeat = ..., otherwise it will miss the RandFeat!
 
 switch OutMode

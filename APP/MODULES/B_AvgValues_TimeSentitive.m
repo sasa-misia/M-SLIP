@@ -5,25 +5,33 @@ drawnow
 
 %% Reading files
 sl = filesep;
-load([fold0,sl,'os_folders.mat'              ], 'fold_raw_avg')
 load([fold_var,sl,'StudyAreaVariables.mat'   ], 'StudyAreaPolygonClean','MunPolygon')
 load([fold_var,sl,'UserStudyArea_Answers.mat'], 'MunSel')
 
+AvgExist = false;
 if exist([fold_var,sl,'AverageValues.mat'], 'file')
-    load([fold_var,sl,'AverageValues.mat'], 'AverageValues')
-else
-    AverageValues = table('RowNames',{'Content','OrigSource','CopyInAvg'});
+    AvgExist = true;
+    load([fold_var,sl,'AverageValues.mat'], 'AvgValsTimeSens')
 end
 
-PthFldRasts = uigetdir(pwd, 'Choose folders with rasters');
+if not(exist('AvgValsTimeSens', 'var'))
+    AvgValsTimeSens = table('RowNames',{'Content','SourceFile'});
+end
+
+PthFldRasts = uigetdir(pwd, 'Choose the folder with rasters');
 FilesInFold = { dir([PthFldRasts,sl,'*.tif']).name, ...
                 dir([PthFldRasts,sl,'*.nc' ]).name }; % UP TO NOW YOU CAN USE ONLY GEOTIFF AND NC!!!
-FilesToRead = strcat(PthFldRasts,sl,checkbox2(FilesInFold, 'Title',{'Files with same data:'}));
+if numel(FilesInFold) < 500
+    FilesToRead = strcat(PthFldRasts,sl,checkbox2(FilesInFold, 'Title',{'Files with same data type:'}));
+else
+    warning('More than 500 files -> all the files of the folder will be used -> selection prompt skipped.')
+    FilesToRead = strcat(PthFldRasts,sl,FilesInFold);
+end
 
 %% Options
 ProgressBar.Message = 'Options...';
 
-MsrdValInFl = char(inputdlg2({'Content of files?'}, 'DefInp',{'NDVI'}));
+LablReadVal = char(inputdlg2({'Content of selected files?'}, 'DefInp',{'NDVI'}));
 
 Patt2Search = {digitsPattern(2) + wildcardPattern(1) + digitsPattern(2) + wildcardPattern(1) + digitsPattern(4) + ...
                wildcardPattern(1) + ...
@@ -47,7 +55,7 @@ AvgValMns = zeros(length(FilesToRead), length(MunPolygon));
     DateEnd] = deal(NaT(length(FilesToRead), 1));
 ProgressBar.Indeterminate = 'off';
 for i1 = 1:length(FilesToRead)
-    ProgressBar.Message = ['Computing average NDVI for file n. ',num2str(i1),' of ',num2str(length(FilesToRead))];
+    ProgressBar.Message = ['Computing average for file n. ',num2str(i1),' of ',num2str(length(FilesToRead))];
     ProgressBar.Value   = i1/length(FilesToRead);
 
     [~, TmpNm] = fileparts(FilesToRead(i1));
@@ -149,31 +157,26 @@ AvgValsTbl = sortrows(AvgValsTbl, 'StartDate','ascend');
 %% Copy of files inside project directory
 ProgressBar.Message = 'Copying files...';
 
-CpyInAvgFld = false;
-CntntDirRaw = strcat(fold_raw,sl,{dir(fold_raw).name});
-if exist('fold_raw_avg', 'var')
-    CntntDirRaw = [CntntDirRaw, strcat(fold_raw_avg,sl,{dir(fold_raw_avg).name})];
-end
-if not(any(strcmp(PthFldRasts, CntntDirRaw)))
-    fold_raw_avg = [fold_raw,sl,'Avg'];
-    if not(exist(fold_raw_avg, 'dir'))
-        mkdir(fold_raw_avg)
-        save([fold0,sl,'os_folders.mat'], 'fold_raw_avg', '-append')
-    end
-    fold_raw_avg_val = [fold_raw_avg,sl,MsrdValInFl];
-    if not(exist(fold_raw_avg_val, 'dir'))
-        mkdir(fold_raw_avg_val)
-    end
-    copyindirectory('all', fold_raw_avg_val, 'mode','multiple', 'file2copy',FilesToRead)
-    CpyInAvgFld = true;
+fold_raw_avg = [fold_raw,sl,'Avg'];
+rel_fold_avg = [sl,'Avg',sl,LablReadVal];
+
+if numel(FilesToRead) < 100
+    SourceFile = copy_in_raw(fold_raw, rel_fold_avg, FilesToRead);
+else
+    SourceFile = cellstr(FilesToRead); % Copy skipped (too many files)
 end
 
 %% Update of AverageValues
 ProgressBar.Message = 'Update of variables...';
 
-AverageValues({'Content','OrigSource','CopyInAvg'}, MsrdValInFl) = {AvgValsTbl; FilesToRead; CpyInAvgFld};
+AvgValsTimeSens({'Content','SourceFile'}, LablReadVal) = {AvgValsTbl; SourceFile};
 
 %% Saving
 ProgressBar.Message = 'Saving...';
 
-save([fold_var,sl,'AverageValues.mat'], 'AverageValues')
+if AvgExist
+    save([fold_var,sl,'AverageValues.mat'], 'AvgValsTimeSens', '-append')
+else
+    save([fold_var,sl,'AverageValues.mat'], 'AvgValsTimeSens')
+end
+save([fold0,sl,'os_folders.mat'], 'fold_raw_avg', '-append')

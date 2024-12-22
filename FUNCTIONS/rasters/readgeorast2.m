@@ -1,4 +1,4 @@
-function [RastVals, RastRef, RastInfo, EPSGNum, SelFlds] = readgeorast2(FileToRead, varargin)
+function [rastVals, rastRef, rastInfo, epsgNum, selFlds] = readgeorast2(file2Read, varargin)
 
 % Function to read georaster values, reference object and info.
 %   
@@ -51,29 +51,29 @@ function [RastVals, RastRef, RastInfo, EPSGNum, SelFlds] = readgeorast2(FileToRe
 %   prompt will ask you for these fields, in case of a .nc filetype!
 
 %% Input check
-if not(ischar(FileToRead) || isstring(FileToRead) || iscellstr(FileToRead))
+if not(ischar(file2Read) || isstring(file2Read) || iscellstr(file2Read))
     error('FileToRead (1st input) must be a char or a string!')
 end
 
-FileToRead = string(FileToRead); % To have consistency!
+file2Read = string(file2Read); % To have consistency!
 
-SuppFiles = {'.tif', '.tiff', '.asc', '.img', '.jp2', '.grd', '.adf', '.nc'};
-[BasePath, BaseName, BaseExt] = fileparts(FileToRead);
-if not(any(strcmpi(BaseExt, SuppFiles)))
-    error(['File of type "',char(BaseExt),'" not supported. Please make ' ...
-           'shure your extension is: ',char(join(SuppFiles, '; ')),'!'])
+suppFiles = {'.tif', '.tiff', '.asc', '.img', '.jp2', '.grd', '.adf', '.nc'};
+[basePath, baseName, baseExt] = fileparts(file2Read);
+if not(any(strcmpi(baseExt, suppFiles)))
+    error(['File of type "',char(baseExt),'" not supported. Please make ' ...
+           'shure your extension is: ',char(join(suppFiles, '; ')),'!'])
 end
 
-if numel(FileToRead) > 1
+if numel(file2Read) > 1
     error(['You specified more than one file to read! Please ' ...
            'open a for cycle that call this function instead.'])
 end
 
 %% Settings
-OutType = 'native'; % Default
-EPSGNum = [];       % Default
-SepWrld = false;    % Default
-SelFlds = {};       % Default
+outType = 'native'; % Default
+epsgNum = [];       % Default
+sepWrld = false;    % Default
+selFlds = {};       % Default
 
 if ~isempty(varargin)
     StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
@@ -86,10 +86,10 @@ if ~isempty(varargin)
     InputSepWrld = find(cellfun(@(x) all(strcmpi(x, "separateworldfile")), vararginCp));
     InputSelFlds = find(cellfun(@(x) all(strcmpi(x, "fieldnc"          )), vararginCp));
 
-    if InputOutType; OutType = varargin{InputOutType+1}; end
-    if InputEPSGNum; EPSGNum = varargin{InputEPSGNum+1}; end
-    if InputSepWrld; SepWrld = varargin{InputSepWrld+1}; end
-    if InputSelFlds; SelFlds = varargin{InputSelFlds+1}; end
+    if InputOutType; outType = varargin{InputOutType+1}; end
+    if InputEPSGNum; epsgNum = varargin{InputEPSGNum+1}; end
+    if InputSepWrld; sepWrld = varargin{InputSepWrld+1}; end
+    if InputSelFlds; selFlds = varargin{InputSelFlds+1}; end
 
     varargin([ InputOutType, InputOutType+1, ...
                InputEPSGNum, InputEPSGNum+1, ...
@@ -101,49 +101,61 @@ if ~isempty(varargin)
     end
 end
 
-if not(any(strcmpi(OutType, {'native','single','double','int16','int32','int64', ...
+if not(any(strcmpi(outType, {'native','single','double','int16','int32','int64', ...
                              'uint8','uint16','uint32','uint64','logical'})))
     error(['OutputType not recognized! It must be one of the following: native, ' ...
            'single, double, int16, int32, int64, uint8, uint16, uint32, uint64, logical'])
 end
 
-if not(isempty(EPSGNum)) && (not(isnumeric(EPSGNum)) || numel(EPSGNum) > 1)
+if not(isempty(epsgNum)) && (not(isnumeric(epsgNum)) || numel(epsgNum) > 1)
     error('EPSG must be numeric and just a single number!')
 end
 
-if not(islogical(SepWrld))
+if not(islogical(sepWrld))
     error('SeparateWorldFile must be a logical value!')
 end
 
-if not(isempty(SelFlds)) && not(iscellstr(SelFlds) && numel(SelFlds) == 3)
+if not(isempty(selFlds)) && not(iscellstr(selFlds) && numel(selFlds) == 3)
     error('FieldNC must be a cellstring with dims 1x3 or 3x1!')
 end
 
 %% Core
-switch BaseExt
+switch baseExt
     case {'.tif', '.tiff', '.asc', '.img', '.jp2', '.grd', '.adf'}
-        RastInfo = georasterinfo(FileToRead);
-        [RastVals, RastRef] = readgeoraster(FileToRead, 'OutputType',OutType);
+        rastInfo = georasterinfo(file2Read);
+        coordSys = rastInfo.RasterReference.CoordinateSystemType;
+        [rastVals, rastRef] = readgeoraster(file2Read, 'OutputType',outType);
 
-    case {'.nc'}
-        FileInfo = ncinfo(FileToRead);
-        FileFlds = extractfield(FileInfo.Variables, 'Name');
-        if isempty(SelFlds)
-            SelFlds = listdlg2({'Longitude field', 'Latitude field', 'Data field'}, FileFlds);
+        xIsGeo = all(rastInfo.RasterReference.XWorldLimits < 180 & rastInfo.RasterReference.XWorldLimits > -180);
+        yIsGeo = all(rastInfo.RasterReference.YWorldLimits < 90  & rastInfo.RasterReference.YWorldLimits > -90 );
+        if xIsGeo && yIsGeo && strcmp(coordSys, 'planar') % MATLAB read the file in a wrong way, actually it is a geographic reference!
+            warning('File read is supposed to be geographic: it will be converted!')
+            rastRef = georefcells(rastInfo.RasterReference.YWorldLimits, ...
+                                  rastInfo.RasterReference.XWorldLimits, ...
+                                  rastInfo.RasterReference.RasterSize, 'ColumnsStartFrom',rastInfo.RasterReference.ColumnsStartFrom, ...
+                                                                       'RowsStartFrom',rastInfo.RasterReference.RowsStartFrom);
+            coordSys = rastRef.CoordinateSystemType;
         end
 
-        FileLon  = ncread(FileToRead, SelFlds{1});
-        FileLat  = ncread(FileToRead, SelFlds{2});
-        FileData = ncread(FileToRead, SelFlds{3});
+    case {'.nc'}
+        FileInfo = ncinfo(file2Read);
+        FileFlds = extractfield(FileInfo.Variables, 'Name');
+        if isempty(selFlds)
+            selFlds = listdlg2({'Longitude field', 'Latitude field', 'Data field'}, FileFlds);
+        end
+
+        FileLon  = ncread(file2Read, selFlds{1});
+        FileLat  = ncread(file2Read, selFlds{2});
+        FileData = ncread(file2Read, selFlds{3});
 
         FileLonS = unique(FileLon); % To sort values!
         FileLatS = unique(FileLat); % To sort values!
         DeltaLon = abs(FileLonS(2) - FileLonS(1));
         DeltaLat = abs(FileLatS(2) - FileLatS(1));
 
-        RastVals = FileData';
+        rastVals = FileData';
 
-        if not(isequal(size(RastVals), [numel(FileLat), numel(FileLon)]))
+        if not(isequal(size(rastVals), [numel(FileLat), numel(FileLon)]))
             error('Mismatch detected between Data and lat, lon arrays!')
         end
 
@@ -155,9 +167,9 @@ switch BaseExt
             error('Latitude coordinates out of ranges! Please check it!')
         end
     
-        IndData = find(strcmp(SelFlds{3}, FileFlds));
-        RastInfo.MissingDataIndicator = FileInfo.Variables(IndData).FillValue;
-        RastInfo.RasterReference.CoordinateSystemType = 'geographic';
+        IndData = find(strcmp(selFlds{3}, FileFlds));
+        rastInfo.MissingDataIndicator = FileInfo.Variables(IndData).FillValue;
+        [rastInfo.RasterReference.CoordinateSystemType, coordSys] = deal('geographic');
 
         LonLims = min(max([min(FileLon) - DeltaLon/2, max(FileLon) + DeltaLon/2], -180), 180);
         LatLims = min(max([min(FileLat) - DeltaLat/2, max(FileLat) + DeltaLat/2], -90 ), 90 );
@@ -167,26 +179,25 @@ switch BaseExt
         else
             StrtCol = 'south';
         end
-        RastRef = georefcells(LatLims, LonLims, size(RastVals), 'ColumnsStartFrom',StrtCol);
+        rastRef = georefcells(LatLims, LonLims, size(rastVals), 'ColumnsStartFrom',StrtCol);
 
     otherwise
         error('Extension of file not recognized during reading!')
 end
 
-if not(any(strcmp(RastInfo.RasterReference.CoordinateSystemType, {'geographic', 'planar'})))
-    CrdType = listdlg2({'File coordinate type not specified!'}, {'geographic', 'planar'});
-    RastInfo.RasterReference.CoordinateSystemType = CrdType{:};
+if not(any(strcmp(coordSys, {'geographic', 'planar'})))
+    crdType = listdlg2({'File coordinate type not specified!'}, {'geographic', 'planar'});
+    [rastInfo.RasterReference.CoordinateSystemType, coordSys] = deal(crdType{:});
 end
 
-if SepWrld
-    if isempty(RastRef) && exist(strcat(BasePath,filesep,BaseName,'.tfw'), 'file')
-        RastRef = worldfileread(strcat(BasePath,filesep,BaseName,'.tfw'), ...
-                                RastInfo.RasterReference.CoordinateSystemType, size(RastVals));
+if sepWrld
+    if isempty(rastRef) && exist(strcat(basePath,filesep,baseName,'.tfw'), 'file')
+        rastRef = worldfileread(strcat(basePath,filesep,baseName,'.tfw'), coordSys, size(rastVals));
     end
 end
 
-if isempty(RastRef)
-    switch RastInfo.RasterReference.CoordinateSystemType
+if isempty(rastRef)
+    switch coordSys
         case 'geographic'
             RngInps = inputdlg2({'Latitude limits [Ymin, Ymax]: ', ...
                                  'Longitude limits [Xmin, Xmax]: '}, ...
@@ -204,7 +215,7 @@ if isempty(RastRef)
                 StrtCol = 'south';
             end
         
-            RastRef = georefcells(LatLims, LonLims, size(RastVals), 'ColumnsStartFrom',StrtCol);
+            rastRef = georefcells(LatLims, LonLims, size(rastVals), 'ColumnsStartFrom',StrtCol);
 
         case 'planar'
             RngInps = inputdlg2({'x projected limits [Xmin, Xmax]: ', ...
@@ -223,30 +234,37 @@ if isempty(RastRef)
                 StrtCol = 'south';
             end
 
-            RastRef = maprefcells(xPlLims, yPlLims, size(RastVals), 'ColumnsStartFrom',StrtCol);
+            rastRef = maprefcells(xPlLims, yPlLims, size(rastVals), 'ColumnsStartFrom',StrtCol);
 
         otherwise
             error('Raster info does not contain info about geographic or projected coordinates!')
     end
 end
 
-switch RastRef.CoordinateSystemType
+switch rastRef.CoordinateSystemType
     case 'planar'
-        if isempty(RastRef.ProjectedCRS)
-            if exist(strcat(BasePath,filesep,BaseName,'.prj'), 'file')
-                PrjWKT = fileread(strcat(BasePath,filesep,BaseName,'.prj'));
-                RastRef.ProjectedCRS = projcrs(PrjWKT);
+        if isempty(rastRef.ProjectedCRS)
+            if exist(strcat(basePath,filesep,baseName,'.prj'), 'file')
+                PrjWKT = fileread(strcat(basePath,filesep,baseName,'.prj'));
             else
-                if isempty(EPSGNum)
-                    EPSGNum = str2double(inputdlg2({'DTM EPSG (Sicily -> 32633, Emilia Romagna -> 25832):'}, 'DefInp',{'25832'}));
+                if isempty(epsgNum)
+                    epsgNum = str2double(inputdlg2({'DTM EPSG (Sicily -> 32633, Emilia Romagna -> 25832):'}, 'DefInp',{'25832'}));
                 end
-                RastRef.ProjectedCRS = projcrs(EPSGNum);
+                PrjWKT = epsgNum;
             end
+
+            rastRef.ProjectedCRS = projcrs(PrjWKT);
         end
 
     case 'geographic'
-        if isempty(RastRef.GeographicCRS)
-            RastRef.GeographicCRS = geocrs(4326); % It will be applied the standard
+        if isempty(rastRef.GeographicCRS)
+            if exist(strcat(basePath,filesep,baseName,'.prj'), 'file')
+                PrjWKT = fileread(strcat(basePath,filesep,baseName,'.prj'));
+            else
+                PrjWKT = 4326; % It will be applied the standard
+            end
+
+            rastRef.GeographicCRS = geocrs(PrjWKT);
         end
 
     otherwise

@@ -53,40 +53,10 @@ if not(isempty(progDialog)) && not(progExist)
 end
 
 %% Reading
-shapeInfo = shapeinfo(filePath);
+[shapeInfo, shapeCont, shapeType] = readshape2(filePath, polyBound=polyBound, extraBound=extraBound);
 
-if shapeInfo.NumFeatures == 0
-    error('Shapefile is empty!')
-end
-
-if isempty(shapeInfo.CoordinateReferenceSystem)
-    warning('CoordinateReferenceSystem of the shapefile is empty!')
-    EPSG = str2double(inputdlg2({['DTM EPSG (Sicily -> 32633, ' ...
-                                  'Emilia Romagna -> 25832):']}, 'DefInp',{'25832'}));
-    shapeInfo.CoordinateReferenceSystem = projcrs(EPSG);
-end
-
-if isempty(polyBound.Vertices)
-    shapeCont = shaperead(filePath);
-else
-    minPolyCrds = min(polyBound.Vertices);
-    maxPolyCrds = max(polyBound.Vertices);
-    
-    [eBLon, eBLat] = meters2lonlat( extraBound, mean([minPolyCrds(2), maxPolyCrds(2)]) ); % extra bounds (Lat/Lon increments), necessary due to conversion errors
-    if isa(shapeInfo.CoordinateReferenceSystem, 'geocrs')
-        bBoxX = [minPolyCrds(1)-eBLon, maxPolyCrds(1)+eBLon];
-        bBoxY = [minPolyCrds(2)-eBLat, maxPolyCrds(2)+eBLat];
-    else
-        [bBoxX, bBoxY] = projfwd(shapeInfo.CoordinateReferenceSystem, ...
-                                       [minPolyCrds(2)-eBLat, maxPolyCrds(2)+eBLat], ...
-                                       [minPolyCrds(1)-eBLon, maxPolyCrds(1)+eBLon]);
-    end
-    shapeCont = shaperead(filePath, 'BoundingBox',[bBoxX(1), bBoxY(1);
-                                                   bBoxX(2), bBoxY(2)]);
-end
-
-if size(shapeCont, 1) < 1
-    error('Shapefile is not empty but have no element in bounding box!')
+if not(strcmp(shapeType, 'Polygon'))
+    error('Shapefile must be of type polygon!')
 end
 
 ind2Rem = false(size(shapeCont,1), 1); % Initialize logic array

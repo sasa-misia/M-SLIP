@@ -165,7 +165,15 @@ StringPartDataSheet(arrayfun(@(x) all(isspace(x)), StringPartDataSheet)) = [];
 
 IndStaInDataSheet = zeros(size(StationsRaw));
 for i1 = 1:length(StationsRaw)
-    IndStaInDataSheet(i1) = find(contains(StringPartDataSheet, StationsRaw(i1), 'IgnoreCase',true));
+    TmpIndMatch = find(contains(StringPartDataSheet, StationsRaw(i1), 'IgnoreCase',true));
+    if isscalar(TmpIndMatch)
+        IndStaInDataSheet(i1) = TmpIndMatch;
+    elseif isempty(TmpIndMatch)
+        error(['Station ',char(StationsRaw(i1)),' not found in tour data table!'])
+    else
+        CorrSta = listdlg2(['Which is ',char(StationsRaw(i1)),'?'], StringPartDataSheet(TmpIndMatch));
+        IndStaInDataSheet(i1) = find(strcmp(StringPartDataSheet, CorrSta));
+    end
 end
 
 if any(IndStaInDataSheet == 0)

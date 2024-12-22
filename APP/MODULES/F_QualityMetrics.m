@@ -15,7 +15,7 @@ switch MdlType
     case 1
         Fl2LdMdl = 'MLMdlA.mat';
         load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLMdl','MLPerf','ModelInfo')
-        ANNMode = ModelInfo.ANNsOptions.TrainMode;
+        MdlMode = ModelInfo.ANNsOptions.TrainMode;
         DsetInf = ModelInfo.Dataset;
         CrssVal = ModelInfo.Dataset(end).Options.CrossDatasets;
         NormVal = ModelInfo.Dataset(end).Options.ValidDatasets; % Not used!
@@ -25,7 +25,7 @@ switch MdlType
     case 2
         Fl2LdMdl = 'MLMdlB.mat';
         load([fold_res_ml_curr,sl,Fl2LdMdl], 'MLMdl','MLPerf','ModelInfo')
-        ANNMode = ModelInfo.ANNMode;
+        MdlMode = ModelInfo.MdlMode;
         DsetInf = ModelInfo.DatasetInfo{:};
         CrssVal = ModelInfo.DatasetInfo{:}{end,'CrossValidSet'};
         NormVal = ModelInfo.DatasetInfo{:}{end,'NormValidSet' };
@@ -56,42 +56,15 @@ if EvalRndFI
                      'dataset! RandFeat importance will be skipped.'])
             EvalRndFI = false;
         end
+
+    else
+        warning(['No field FeatureImportance inside ', ...
+                 'ModelInfo! RandFeat importance will be skipped.'])
+        EvalRndFI = false;
     end
 end
 
 ColsNms = MLMdl.Properties.VariableNames;
-
-RegrANN = false;
-switch OutMode
-    case {'4 risk classes', 'L-NL classes'}
-
-    case 'Regression'
-        RegrANN = true;
-        warning('Regression not yet tested, be careful!')
-
-    otherwise
-        error('OutMode choice not recognized!')
-end
-
-DoubleOut = true;
-switch ANNMode
-    case {'Classic (L)', 'Cross Validation (K-Fold M)', ...
-            'Classic (V)', 'Cross Validation (K-Fold V)'}
-
-    case {'Deep (L)', 'Deep (V)', 'Logistic Regression'}
-        DoubleOut = false;
-
-    case 'Sensitivity Analysis'
-
-    case 'Auto'
-
-    otherwise
-        error('ANN Mode not recognized!')
-end
-
-if RegrANN
-    DoubleOut = false;
-end
 
 if CrssVal
     load([fold_res_ml_curr,sl,Fl2LdMdl], 'CrossInfo')
@@ -141,6 +114,7 @@ MLPerf{{'PRC', 'PRGC'}, {'Train','Test'}} = {table('RowNames',MLPrfR)};
 [Thr4Trn, Thr4Tst, PrecTrn, ReclTrn, PrecTst, ReclTst, ...
     FScrTrn, FScrTst, PosMSETrn, NegMSETrn, PosMSETst, NegMSETst] = deal(nan(1, size(MLMdl,2)));
 for i1 = 1:size(MLMdl,2)
+    ProgressBar.Message = ['Processing normnal dataset for model n. ',num2str(i1),' of ',num2str(size(MLMdl,2))];
     CurrMdl = MLMdl{'Model', i1}{:};
 
     if UseBstThr
@@ -151,8 +125,8 @@ for i1 = 1:size(MLMdl,2)
         Thr4Tst(i1) = 0.5;
     end
 
-    PredsTrn  = mdlpredict(CurrMdl, DsetTbl{'Train', 'Feats'}{:}, 'SecondOut',DoubleOut);
-    PredsTst  = mdlpredict(CurrMdl, DsetTbl{'Test' , 'Feats'}{:}, 'SecondOut',DoubleOut);
+    PredsTrn  = mdlpredict(CurrMdl, DsetTbl{'Train', 'Feats'}{:});
+    PredsTst  = mdlpredict(CurrMdl, DsetTbl{'Test' , 'Feats'}{:});
 
     ExpOutTrn = double(DsetTbl{'Train', 'ExpOuts'}{:} >= 1);
     ExpOutTst = double(DsetTbl{'Test' , 'ExpOuts'}{:} >= 1);
@@ -166,8 +140,8 @@ for i1 = 1:size(MLMdl,2)
     [FScrTst(i1), PrecTst(i1), ReclTst(i1)] = f1score(ExpOutTst, PredsTst, 'Threshold',Thr4Tst(i1));
 
     if isnan(FScrTrn(i1)) || isnan(FScrTst(i1))
-        FScrTrn(i1) = 0;
-        FScrTst(i1) = 0;
+        FScrTrn(i1) = single(0);
+        FScrTst(i1) = single(0);
     end
 
     % Precision Recall curves
@@ -182,8 +156,8 @@ for i1 = 1:size(MLMdl,2)
                                                         'YCrit','prec'); % OptThPRCTst should be not available for AUPRC
 
     if isnan(AUPRCTrn) || isnan(AUPRCTst)
-        AUPRCTrn = 0;
-        AUPRCTst = 0;
+        AUPRCTrn = single(0);
+        AUPRCTst = single(0);
     end
 
     IndBstTrn = find(ismember([RcTrn, PrTrn], OptThPRCTrn, 'rows'));
@@ -258,9 +232,9 @@ if CrssVal
         for i2 = 1:size(CrossModels, 1)
             disp(['Cross dataset n. ',num2str(i2),' of model n. ',num2str(i1)])
             
-            PredsCrossTrnTemp = mdlpredict(CrossModels{i2,i1}, DsetTbl{'CvTrain','Feats'}{:}{i2}, 'SecondOut',DoubleOut);
-            PredsCrossValTemp = mdlpredict(CrossModels{i2,i1}, DsetTbl{'CvValid','Feats'}{:}{i2}, 'SecondOut',DoubleOut);
-            PredsCrossTstTemp = mdlpredict(CrossModels{i2,i1}, DsetTbl{'Test'   ,'Feats'}{:}    , 'SecondOut',DoubleOut);
+            PredsCrossTrnTemp = mdlpredict(CrossModels{i2,i1}, DsetTbl{'CvTrain','Feats'}{:}{i2});
+            PredsCrossValTemp = mdlpredict(CrossModels{i2,i1}, DsetTbl{'CvValid','Feats'}{:}{i2});
+            PredsCrossTstTemp = mdlpredict(CrossModels{i2,i1}, DsetTbl{'Test'   ,'Feats'}{:}    );
         
             ExpOutCrssTrnTemp = double(DsetTbl{'CvTrain','ExpOuts'}{:}{i2} >= 1);
             ExpOutCrssValTemp = double(DsetTbl{'CvValid','ExpOuts'}{:}{i2} >= 1);
@@ -315,7 +289,7 @@ if CrssVal
                         ExpOutsFI = DsetTbl{'Total','ExpOuts'}{:};
                 end
     
-                CrossFeatsRank{i2, i1}  = feature_importance(CrossModels{i2,i1}, DatasetFI, ExpOutsFI);
+                CrossFeatsRank{i2, i1}  = feature_permutation(CrossModels{i2,i1}, DatasetFI, ExpOutsFI);
                 CrossRndFeatImp(i2, i1) = CrossFeatsRank{i2, i1}{'PercentagesMSE',RndFtName};
             end
 
@@ -327,7 +301,7 @@ if CrssVal
     CrossInfo.AUPRC  = struct('Train',CrossTrnAUPRC , 'Valid',CrossValAUPRC , 'Test',CrossTstAUPRC );
     CrossInfo.AUPRGC = struct('Train',CrossTrnAUPRGC, 'Valid',CrossValAUPRGC, 'Test',CrossTstAUPRGC);
     if EvalRndFI
-        CrossInfo.FeatImp = struct('Ranking',CrossFeatsRank, 'RandFeat',CrossRndFeatImp);
+        CrossInfo.FeatImp = struct('Ranking',{CrossFeatsRank}, 'RandFeat',CrossRndFeatImp);
     end
 end
 
@@ -349,9 +323,9 @@ if HistMtr
                 continue
             end
             
-            PredsHistTrnTemp = mdlpredict(HistMdls{i2,i1}, DsetTbl{'NvTrain','Feats'}{:}, 'SecondOut',DoubleOut);
-            PredsHistValTemp = mdlpredict(HistMdls{i2,i1}, DsetTbl{'NvValid','Feats'}{:}, 'SecondOut',DoubleOut);
-            PredsHistTstTemp = mdlpredict(HistMdls{i2,i1}, DsetTbl{'Test'   ,'Feats'}{:}, 'SecondOut',DoubleOut);
+            PredsHistTrnTemp = mdlpredict(HistMdls{i2,i1}, DsetTbl{'NvTrain','Feats'}{:});
+            PredsHistValTemp = mdlpredict(HistMdls{i2,i1}, DsetTbl{'NvValid','Feats'}{:});
+            PredsHistTstTemp = mdlpredict(HistMdls{i2,i1}, DsetTbl{'Test'   ,'Feats'}{:});
         
             ExpOutHstTrnTemp = double(DsetTbl{'NvTrain','ExpOuts'}{:} >= 1);
             ExpOutHstValTemp = double(DsetTbl{'NvValid','ExpOuts'}{:} >= 1);
@@ -420,7 +394,7 @@ if HistMtr
                     continue
                 end
 
-                HistFeatsRank{i2, i1}  = feature_importance(HistMdls{i2,i1}, DatasetFI, ExpOutsFI);
+                HistFeatsRank{i2, i1}  = feature_permutation(HistMdls{i2,i1}, DatasetFI, ExpOutsFI);
                 HistRndFeatImp(i2, i1) = HistFeatsRank{i2, i1}{'PercentagesMSE',RndFtName};
             end
         end
@@ -431,7 +405,7 @@ if HistMtr
     HistInfo.AUPRC  = struct('Train',HistTrnAUPRC , 'Valid',HistValAUPRC , 'Test',HistTstAUPRC );
     HistInfo.AUPRGC = struct('Train',HistTrnAUPRGC, 'Valid',HistValAUPRGC, 'Test',HistTstAUPRGC);
     if EvalRndFI
-        HistInfo.FeatImp = struct('Ranking',HistFeatsRank, 'RandFeat',HistRndFeatImp);
+        HistInfo.FeatImp = struct('Ranking',{HistFeatsRank}, 'RandFeat',HistRndFeatImp);
     end
 end
 
@@ -449,6 +423,12 @@ AUPRCTst  = cell2mat(MLPerf{'PRC','Test' }{:}{'AUC',:});
 
 AUPRGCTrn = cell2mat(MLPerf{'PRGC','Train'}{:}{'AUC',:});
 AUPRGCTst = cell2mat(MLPerf{'PRGC','Test' }{:}{'AUC',:});
+
+FScrTrn = cell2mat(MLPerf{'F1S','Train'}{:}{'F1S',:});
+FScrTst = cell2mat(MLPerf{'F1S','Test' }{:}{'F1S',:});
+
+QCITrn = cell2mat(MLPerf{'QCI','Train'}{:}{'QCI',:});
+QCITst = cell2mat(MLPerf{'QCI','Test' }{:}{'QCI',:});
 
 % The best one is always the first!
 [~, RankAUROCTrn]  = sort(AUROCTrn, 'descend');

@@ -5,12 +5,14 @@ arguments
     indStudy (1,:) cell
     Options.subIndices (1,:) cell = {}
     Options.checkPtNum (1,1) logical = true
-    Options.cutFsValue (1,1) double = 100
+    Options.cutFsValue (1,2) double = [.1, 10]
+    Options.indAn2Load (1,1) double = 0
 end
 
 subIndices = Options.subIndices;
 checkPtNum = Options.checkPtNum;
 cutFsValue = Options.cutFsValue;
+indAn2Load = Options.indAn2Load;
 
 %% Check inputs
 if not(all(cellfun(@isnumeric, indStudy)))
@@ -44,14 +46,16 @@ switch anlTpID
     case 1 % SLIP or Hybrid
         load([foldPath,sl,'AnalysisInformation.mat'], 'StabilityAnalysis')
         
-        indexFs = listdlg2({'Datetime of analysis:'}, string(StabilityAnalysis{2}), 'OutType','NumInd');
+        if indAn2Load == 0
+            indAn2Load = listdlg2({'Datetime of analysis:'}, string(StabilityAnalysis{2}), 'OutType','NumInd');
+        end
     
         anlType = StabilityAnalysis{4}(1);
-        anlDate = StabilityAnalysis{2}(indexFs);
+        anlDate = StabilityAnalysis{2}(indAn2Load);
 
         switch anlType
             case "Slip"
-                load([foldPath,sl,'Fs',num2str(indexFs),'.mat'], 'FactorSafety')
+                load([foldPath,sl,'Fs',num2str(indAn2Load),'.mat'], 'FactorSafety')
 
                 if checkPtNum && ( sum(cellfun(@numel, FactorSafety)) ~= numStdy )
                     error(['You can not use this model because there is a ', ...
@@ -59,28 +63,33 @@ switch anlTpID
                 end
 
                 fsSub = cellfun(@(x,y) x(y), FactorSafety, subIndices, 'UniformOutput',false);
-                
-                isBigFs = cellfun(@(x) x > cutFsValue, fsSub, 'UniformOutput',false); % Fs > 100 means unconditionally stable!
+
+                isSmlFs = cellfun(@(x) x < cutFsValue(1), fsSub, 'UniformOutput',false); % Fs > 10 means unconditionally stable!
                 for i2 = 1:length(fsSub)
-                    fsSub{i2}(isBigFs{i2}) = cutFsValue; % Inf or too big points (unconditionally stable) will be considered cutFsValue (otherwise max will give Inf or a number too large)!
+                    fsSub{i2}(isSmlFs{i2}) = cutFsValue(1); % Too small points (unconditionally unstable) will be considered cutFsValue(1)
                 end
-    
-                limVals(1) = min(cellfun(@min, fsSub));
-                limVals(2) = max(cellfun(@max, fsSub));
-                dltVals    = limVals(2) - limVals(1);
-    
+                
+                isBigFs = cellfun(@(x) x > cutFsValue(2), fsSub, 'UniformOutput',false); % Fs > 10 means unconditionally stable!
+                for i2 = 1:length(fsSub)
+                    fsSub{i2}(isBigFs{i2}) = cutFsValue(2); % Inf or too big points (unconditionally stable) will be considered cutFsValue(2) (otherwise max will give Inf or a number too large)!
+                end
+
                 isNanFs = cellfun(@(x) isnan(x), fsSub, 'UniformOutput',false);
                 for i2 = 1:length(fsSub)
                     fsSub{i2}(isNanFs{i2}) = limVals(2); % NaN Points are excluded and considered as unconditionally stable
                 end
     
-                unstProbs = cellfun(@(x) 1 - (x-limVals(1)) / dltVals, fsSub, 'UniformOutput',false);
+                limVals(1) = min(cellfun(@min, fsSub));
+                limVals(2) = max(cellfun(@max, fsSub));
+                dltLogVals = log10(limVals(2)) - log10(limVals(1));
+    
+                unstProbs = cellfun(@(x) 1 - ( log10(x)-log10(limVals(1)) ) / dltLogVals, fsSub, 'UniformOutput',false);
 
                 signFsVl = [1, 1.5, 2];
-                signThrs = arrayfun(@(x) 1 - (x-limVals(1)) / dltVals, signFsVl);
+                signThrs = arrayfun(@(x) 1 - ( log10(x)-log10(limVals(1)) ) / dltLogVals, signFsVl);
 
             case "Hybrid"
-                load([foldPath,sl,'FsH',num2str(indexFs),'.mat'], 'FsHybrid');
+                load([foldPath,sl,'FsH',num2str(indAn2Load),'.mat'], 'FsHybrid');
 
                 if checkPtNum && ( sum(cellfun(@numel, FsHybrid)) ~= numStdy )
                     error(['You can not use this model because there is a ', ...
@@ -104,15 +113,18 @@ switch anlTpID
 
         load([foldPath,sl,'PredictionsStudy.mat'], 'PredProbs','EventsInfo')
 
-        indAnl = listdlg2({'Date of analysis:'}, [EventsInfo{'PredictionDate',:}{:}], 'OutType','NumInd');
+        if indAn2Load == 0
+            indAn2Load = listdlg2({'Date of analysis:'}, [EventsInfo{'PredictionDate',:}{:}], 'OutType','NumInd');
+        end
+        
         if isscalar(PredProbs.Properties.VariableNames)
             indMdl = 1;
         else
             indMdl = listdlg2({'Model to use:'}, PredProbs.Properties.VariableNames, 'OutType','NumInd');
         end
 
-        prStudy = full(PredProbs{indAnl, indMdl}{:});
-        anlDate = EventsInfo{'PredictionDate',indAnl}{:};
+        prStudy = full(PredProbs{indAn2Load, indMdl}{:});
+        anlDate = EventsInfo{'PredictionDate',indAn2Load}{:};
 
         limVals(1) = min(prStudy);
         limVals(2) = max(prStudy);

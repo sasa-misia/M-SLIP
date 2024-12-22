@@ -29,8 +29,8 @@ end
 
 %% HRUs options
 PrpOpts = {'How to define classes?', 'Generate polygons of HRUs?'};
-VlsOpts = {{'As they were imported', 'Classes in excel'}, {'Yes', 'No'}};
-if DsetStudyExist; VlsOpts{1} = [VlsOpts{1}, {'Polygons used for DatasetStudy'}]; end
+VlsOpts = {{'As they were imported'}, {'Yes', 'No'}};
+if DsetStudyExist; VlsOpts{1} = [VlsOpts{1}, {'Polygons of DatasetStudy'}]; end
 
 if TopSoilExist
     PrpOpts    = [PrpOpts, {'Information for soil classes'}];
@@ -67,77 +67,35 @@ ProgressBar.Message = 'Extracting classes...';
 
 switch Ply2Use
     case 'As they were imported'
-        AllLndUseUnq2Use = AllLandUnique;
-        LndUsePlysSA2Use = LandUsePolygonsStudyArea;
+        LndUNmeUnique = AllLandUnique;
+        LndUPolysStAr = LandUsePolygonsStudyArea;
 
         switch SoilInf
             case 'TopSoil'
-                SoilAllUnique = TopSoilAllUnique;
-                SoilPolygonsStudyArea = TopSoilPolygonsStudyArea;
+                SoilNmeUnique = TopSoilAllUnique;
+                SoilPolysStAr = TopSoilPolygonsStudyArea;
     
             case 'SubSoil'
-                SoilAllUnique = LithoAllUnique;
-                SoilPolygonsStudyArea = LithoPolygonsStudyArea;
+                SoilNmeUnique = LithoAllUnique;
+                SoilPolysStAr = LithoPolygonsStudyArea;
         end
 
-    case 'Classes in excel' % (CREATE A SEPARATE FUNCTION TO ASSOCIATE FROM ML EXCEL!)
-        Sheet_InfoClasses    = readcell([fold_user,sl,'ClassesML.xlsx'], 'Sheet','Main');
-        Sheet_LandUseClasses = readcell([fold_user,sl,'ClassesML.xlsx'], 'Sheet','Land use');
-    
-        % [ColWithTitles, ColWithClassNum] = deal(false(1, size(Sheet_InfoClasses, 2))); % AS STARTING POINT TO ADAPT!!
-        % for i1 = 1:length(ColWithTitles)
-        %     ColWithTitles(i1)   = any(cellfun(@(x) strcmp(string(x), 'Title'),  Sheet_InfoClasses(:,i1)));
-        %     ColWithClassNum(i1) = any(cellfun(@(x) strcmp(string(x), 'Number'), Sheet_InfoClasses(:,i1)));
-        % end
-        % ColWithSubject = find(ColWithTitles)-1;
-        % 
-        % if sum(ColWithTitles) > 1 || sum(ColWithClassNum) > 1
-        %     error('Please, align columns in excel! Sheet: Main')
-        % end
-        % 
-        % IndsBlankRowsTot = all(cellfun(@(x) all(ismissing(x)), Sheet_InfoClasses), 2);
-        % IndsBlnkInColNum = cellfun(@(x) all(ismissing(x)), Sheet_InfoClasses(:,ColWithClassNum));
-        % 
-        % if not(isequal(IndsBlankRowsTot, IndsBlnkInColNum))
-        %     error('Please fill with data only tables with association, no more else outside!')
-        % end
-        % 
-        % Sheet_Info_Splits = mat2cell(Sheet_InfoClasses, diff(find([true; diff(~IndsBlankRowsTot); true]))); % Line suggested by ChatGPT that works, but check it better!
-        % 
-        % InfoCont  = {'Sub soil', 'Top soil', 'Land use', 'Vegetation'};
-        % IndSplits = zeros(size(InfoCont));
-        % for i1 = 1:length(IndSplits)
-        %     IndSplits(i1) = find(cellfun(@(x) any(strcmp(InfoCont{i1}, string([x(:,ColWithSubject)]))), Sheet_Info_Splits));
-        % end
-        % 
-        % Sheet_Info_Div = cell2table(Sheet_Info_Splits(IndSplits)', 'VariableNames',InfoCont);
-    
-        NewAssLandUse = cell(size(AllLandUnique));
-        for i1 = 1:length(AllLandUnique)
-            NumOfClass        = Sheet_LandUseClasses{strcmp(AllLandUnique{i1}, Sheet_LandUseClasses), 2};
-            NewAssLandUse(i1) = Sheet_InfoClasses(find(NumOfClass==[Sheet_InfoClasses{2:end,3}])+1, 2);
-        end
-    
-        AllLndUseUnq2Use = unique(NewAssLandUse);
-        LndUsePlysSA2Use = repmat(polyshape, 1, length(AllLndUseUnq2Use));
-        for i1 = 1:length(AllLndUseUnq2Use)
-            IndToUnify = strcmp(AllLndUseUnq2Use{i1}, NewAssLandUse);
-            LndUsePlysSA2Use(i1) = union(LandUsePolygonsStudyArea(IndToUnify));
-        end
-
-    case 'Polygons used for DatasetStudy'
-        AllLndUseUnq2Use = ClassesPolys{'LandUse','ClassNames'}{:};
-        LndUsePlysSA2Use = ClassesPolys{'LandUse','Polys'}{:};
+    case 'Polygons of DatasetStudy'
+        LndUNmeUnique = ClassesPolys{'LandUse','ClassNames'}{:};
+        LndUPolysStAr = ClassesPolys{'LandUse','Polys'}{:};
 
         switch SoilInf
             case 'TopSoil'
-                SoilAllUnique = ClassesPolys{'TopSoil','ClassNames'}{:};
-                SoilPolygonsStudyArea = ClassesPolys{'TopSoil','Polys'}{:};
+                SoilNmeUnique = ClassesPolys{'TopSoil','ClassNames'}{:};
+                SoilPolysStAr = ClassesPolys{'TopSoil','Polys'}{:};
     
             case 'SubSoil'
-                SoilAllUnique = ClassesPolys{'SubSoil','ClassNames'}{:};
-                SoilPolygonsStudyArea = ClassesPolys{'SubSoil','Polys'}{:};
+                SoilNmeUnique = ClassesPolys{'SubSoil','ClassNames'}{:};
+                SoilPolysStAr = ClassesPolys{'SubSoil','Polys'}{:};
         end
+
+    otherwise
+        error('Source polygon type not recognized!')
 end
 
 %% Attributing slope class to each point of DTM
@@ -176,12 +134,12 @@ end
 %% Attributing land use class to each point of DTM
 ProgressBar.Message = 'Creating land use classes...';
 
-LegLandUse = strcat("LU", string(1:length(AllLndUseUnq2Use)));
-InfoLegLandUse = [LegLandUse; {AllLndUseUnq2Use{:}}]; % {AllLandUniqueToUse{:}} is to avoid problems of size
+LegLandUse = strcat("LU", string(1:length(LndUNmeUnique)));
+InfoLegLandUse = [LegLandUse; {LndUNmeUnique{:}}]; % {AllLandUniqueToUse{:}} is to avoid problems of size
 
-LandUseClssIndPts = cell(length(AllLndUseUnq2Use), size(xLongAll,2));
-for i1 = 1:length(LndUsePlysSA2Use)
-    [pp2,ee2] = getnan2([LndUsePlysSA2Use(i1).Vertices; nan, nan]);
+LandUseClssIndPts = cell(length(LndUNmeUnique), size(xLongAll,2));
+for i1 = 1:length(LndUPolysStAr)
+    [pp2,ee2] = getnan2([LndUPolysStAr(i1).Vertices; nan, nan]);
     LandUseClssIndPts(i1,:) = cellfun(@(x,y) find(inpoly([x(:),y(:)],pp2,ee2)==1), xLongAll, yLatAll, 'UniformOutput',false);
 end
 
@@ -196,12 +154,12 @@ end
 %% Attributing soil class to each point of DTM
 ProgressBar.Message = 'Creating soil classes...';
 
-LegSoil = strcat("SO", string(1:length(SoilAllUnique)));
-InfoLegSoil = [LegSoil; {SoilAllUnique{:}}];
+LegSoil = strcat("SO", string(1:length(SoilNmeUnique)));
+InfoLegSoil = [LegSoil; {SoilNmeUnique{:}}];
 
-SoilClssIndPts = cell(length(SoilAllUnique), size(xLongAll,2));
-for i1 = 1:length(SoilPolygonsStudyArea)
-    [pp3,ee3] = getnan2([SoilPolygonsStudyArea(i1).Vertices; nan, nan]);
+SoilClssIndPts = cell(length(SoilNmeUnique), size(xLongAll,2));
+for i1 = 1:length(SoilPolysStAr)
+    [pp3,ee3] = getnan2([SoilPolysStAr(i1).Vertices; nan, nan]);
     SoilClssIndPts(i1,:) = cellfun(@(x,y) find(inpoly([x(:),y(:)],pp3,ee3)==1), xLongAll, yLatAll, 'UniformOutput',false);
 end
 

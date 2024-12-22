@@ -11,20 +11,13 @@ load([fold_var,sl,'GenInfoRainfallEvents.mat'], 'GeneralRE')
 load([fold_var,sl,'DatasetMLA.mat'           ], 'DatasetInfo')
 
 %% Plots common options
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize')
-    SelFont = Font;
-    SelFnSz = FontSize;
-else
-    SelFont = 'Calibri';
-    SelFnSz = 8;
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 ShowPlt = uiconfirm(Fig, 'Do you want to show plots?', ...
                          'Show Plots', 'Options',{'Yes', 'No'}, 'DefaultOption',2);
 if strcmp(ShowPlt,'Yes'); ShowPlt = true; else; ShowPlt = false; end
 
-MunsSlc = DatasetInfo.LandslidesMunicipalities;
+MunsSlc = [DatasetInfo(:).LandslidesMunicipalities];
 
 %% Plots (RE and landslides number)
 ProgressBar.Message = 'Event overviews plots...';
@@ -33,8 +26,8 @@ EventsYear = year(GeneralRE.Start);
 EventsYrUn = unique(EventsYear);
 
 MunsLbls = MunsSlc;
-if numel(MunsLbls) > 8
-    MunsLbls = [MunsLbls(1:7); {'...'}];
+if numel(MunsLbls) > 7
+    MunsLbls = [MunsLbls(1:6); {'...'}];
 end
 
 fold_mun = [fold_fig,sl,'RE Overview'];
@@ -62,7 +55,7 @@ for i1 = 1:length(EventsYrUn)
     StartDatesToPlot = reordercats(StartDatesToPlot, string(datetime(GeneralRE.Start(IndsEventsInYear), 'Format','dd-MMM-yyyy'))); % DON'T DELETE THIS ROW!!! Is necessary even if FeaturesNames is already in the correct order!
     LandsNumInToPlot = GeneralRE.LandsNum(IndsEventsInYear);
     LandsNumIOToPlot = GeneralRE.LandsNumIO(IndsEventsInYear);
-    LandsNumOuToPlot = LandsNumIOToPlot-LandsNumInToPlot;
+    LandsNumOuToPlot = LandsNumIOToPlot - LandsNumInToPlot; % WRONG! Please correct it
 
     BarPlot = bar(CurrAxs, StartDatesToPlot, [LandsNumInToPlot, LandsNumOuToPlot], 'stacked', 'FaceColor','flat', 'BarWidth',1, 'EdgeColor','k');
     BarPlot(1).CData = repmat([.2, .6, .5], length(LandsNumInToPlot), 1);
@@ -70,21 +63,21 @@ for i1 = 1:length(EventsYrUn)
     UpYLim = max(ceil(1.15*max(LandsNumIOToPlot)), 5);
 
     ylim([0, UpYLim])
-    ylabel('Number of landslides', 'FontName',SelFont, 'FontSize',SelFnSz)
+    ylabel('Number of landslides', 'FontName',SlFont, 'FontSize',SlFnSz)
 
     xtickangle(CurrAxs, 90)
-    xlabel('Dates of rainfall events', 'FontName',SelFont, 'FontSize',SelFnSz)
+    xlabel('Dates of rainfall events', 'FontName',SlFont, 'FontSize',SlFnSz)
     
     pbaspect([3,1,1])
 
     xTick = get(CurrAxs,'XTickLabel');
-    set(CurrAxs, 'XTickLabel',xTick, 'FontName',SelFont,'FontSize',0.8*SelFnSz)
+    set(CurrAxs, 'XTickLabel',xTick, 'FontName',SlFont,'FontSize',0.8*SlFnSz)
 
     yTick = get(CurrAxs,'YTickLabel');
-    set(CurrAxs, 'YTickLabel',yTick, 'FontName',SelFont,'FontSize',0.8*SelFnSz)
+    set(CurrAxs, 'YTickLabel',yTick, 'FontName',SlFont,'FontSize',0.8*SlFnSz)
 
-    title('Generall view of RE', 'FontName',SelFont, 'FontSize',1.5*SelFnSz)
-    subtitle(['Green bars for sel muns (',strjoin(MunsLbls, '; '),')'], 'FontName',SelFont, 'FontSize',SelFnSz)
+    title('Generall view of RE', 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
+    subtitle(['Green bars is for selection (',strjoin(MunsLbls, '; '),')'], 'FontName',SlFont, 'FontSize',SlFnSz)
 
     % Showing plot and saving...
     if ShowPlt

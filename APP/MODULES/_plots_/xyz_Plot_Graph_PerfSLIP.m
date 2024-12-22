@@ -8,27 +8,15 @@ sl = filesep;
 
 load([fold_res,sl,'PerfCurveSLIP.mat'], 'AnlLbl','AnlFPR','AnlTPR','AnlAUC','AnlTpe')
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SlFont = Font;
-    SlFnSz = FontSize;
-else
-    SlFont = 'Calibri';
-    SlFnSz = 8;
-end
-
-if exist('LegendPosition', 'var')
-    LegPos = LegendPosition;
-else
-    LegPos = 'eastoutside';
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 %% Options
-PltOpts = checkbox2({'Show plot'}, 'DefInp',0, 'OutType','LogInd');
+PltOpts = checkbox2({'Show plot', 'Show key SLIP points'}, 'DefInp',[0, 0], 'OutType','LogInd');
 CurrFln = char(inputdlg2({'PNG export name:'}, 'DefInp',{'Performance Comparison'}));
 PltChc  = listdlg2('Type of chart?', {'TPR / FPR', 'TPR / TNR'}, 'OutType','NumInd');
 
 ShowPlt = PltOpts(1);
+ShowKey = PltOpts(2);
 
 %% Extraction
 NumROC = numel(AnlAUC);
@@ -47,7 +35,7 @@ hold(CurrAxs,'on');
 LnClrs = hex2rgb([ '#808080'; '#008080'; '#7A6446'; '#42E6AA'; ...
                    '#9616E6'; '#373737'; '#4B7A6F'; '#58587A' ]);
 LnTyps = ["-", "-.", "--", ":", "-.", "--", ":", "-."];
-MkTyps = ["d", "o" , "-s", "^", "+" , "x" , "p", ">" ];
+MkTyps = ["d", "o" , "s" , "^", "+" , "x" , "p", ">" ];
 
 switch PltChc
     case 1
@@ -57,11 +45,13 @@ switch PltChc
 
         plot([0 1],[0 1], '--', 'Color','r')
 
-        for i1 = 1:NumROC
-            if strcmp(AnlTpe{i1}, 'Slip')
-                for i2 = IndSgPts{i1}
-                    plot(AnlFPR{i1}(i2), AnlTPR{i1}(i2), 'Marker',MkTyps(i1), ...
-                                'MarkerEdgeColor',LnClrs(i1,:), 'MarkerFaceColor',LnClrs(i1,:))
+        if ShowKey
+            for i1 = 1:NumROC
+                if strcmp(AnlTpe{i1}, 'Slip')
+                    for i2 = IndSgPts{i1}
+                        plot(AnlFPR{i1}(i2), AnlTPR{i1}(i2), 'Marker',MkTyps(i1), ...
+                                    'MarkerEdgeColor',LnClrs(i1,:), 'MarkerFaceColor',LnClrs(i1,:))
+                    end
                 end
             end
         end
@@ -73,11 +63,13 @@ switch PltChc
 
         plot([0 1],[1 0], '--', 'Color','r')
 
-        for i1 = 1:NumROC
-            if strcmp(AnlTpe{i1}, 'Slip')
-                for i2 = IndSgPts{i1}
-                    plot(AnlTNR{i1}(i2), AnlTPR{i1}(i2), 'Marker',MkTyps(i1), ...
-                                'MarkerEdgeColor',LnClrs(i1,:), 'MarkerFaceColor',LnClrs(i1,:))
+        if ShowKey
+            for i1 = 1:NumROC
+                if strcmp(AnlTpe{i1}, 'Slip')
+                    for i2 = IndSgPts{i1}
+                        plot(AnlTNR{i1}(i2), AnlTPR{i1}(i2), 'Marker',MkTyps(i1), ...
+                                    'MarkerEdgeColor',LnClrs(i1,:), 'MarkerFaceColor',LnClrs(i1,:))
+                    end
                 end
             end
         end

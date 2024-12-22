@@ -101,5 +101,3 @@ ProgressBar.Message = 'Saving...';
 
 VarsFlowRouting = {'ContributingAreaAll', 'TwiAll'};
 save([fold_var,sl,'FlowRouting.mat'], VarsFlowRouting{:});
-
-close(ProgressBar)

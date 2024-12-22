@@ -12,16 +12,7 @@ load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','InfoPoi
 InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
 IfNrDet2Use = InfoPointsNearDetectedSoilSlips{IndDefInfoDet};
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SlFont = Font;
-    SlFnSz = FontSize;
-    if exist('LegendPosition', 'var'); LegPos = LegendPosition; end
-else
-    SlFont = 'Calibri';
-    SlFnSz = 8;
-    LegPos = 'southoutside';
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 %% Raster CTR Selection
 fold_raw_ctr = strcat(fold_raw,sl,'CTR');

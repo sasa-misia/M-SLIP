@@ -73,6 +73,8 @@ if SpecificWindow % Only if SpecificWindow checkbox is active
     end
 end
 
+MunSel = reshape(MunSel, numel(MunSel), 1);
+
 %% Union of Polygons
 ProgressBar.Message = 'Union of polygons...';
 

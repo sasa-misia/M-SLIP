@@ -6,30 +6,16 @@ drawnow
 %% File loading
 sl = filesep;
 
-load([fold_var,sl,'StudyAreaVariables.mat'  ], 'StudyAreaPolygon')
+load([fold_var,sl,'StudyAreaVariables.mat'  ], 'StudyAreaPolygon','MunPolygon')
 load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
 load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll','SlopeAll','AspectAngleAll','GradEAll','GradNAll')
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SlFont = Font;
-    SlFnSz = FontSize;
-    if exist('LegendPosition', 'var'); LegPos = LegendPosition; end
-else
-    SlFont = 'Calibri';
-    SlFnSz = 8;
-    LegPos = 'Best';
-end
-
-InfoDetExst = false;
-if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
-    load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
-    InfoDetExst = true;
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
+[InfoDetExst, InfoDet2Use] = load_info_detected(fold_var);
 
 %% For scatter dimension
-[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon);
+PixelScale = 0.35 * abs(yLatAll{1}(2,1) - yLatAll{1}(1,1)) / 6e-05;
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon, FinScale=PixelScale);
 
 %% Options
 ProgressBar.Message = 'Options...';
@@ -54,12 +40,6 @@ clear('SlopeAll')
 AspctStudy = cellfun(@(x,y) x(y), AspectAngleAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
 clear('AspectAngleAll')
 
-GradEStudy = cellfun(@(x,y) x(y), GradEAll      , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-clear('GradEAll')
-
-GradNStudy = cellfun(@(x,y) x(y), GradNAll      , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
-clear('GradNAll')
-
 %% Ranges
 ProgressBar.Message = 'Definition of ranges for colors...';
 ElvtnMin = min(cellfun(@min, ElvtnStudy));
@@ -67,10 +47,10 @@ ElvtnMax = max(cellfun(@max, ElvtnStudy));
 ElvtnRng = linspace(ElvtnMin, ElvtnMax, 11)';
 % ElvRng = [200, 250, 300, 350, 400, 450, 500, 600, 700, 800, 900];
 
-if ElvtnMax <= 1000
+if (ElvtnMax-ElvtnMin) <= 10 % ElvtnMax <= 1000
     VlsElv = round(ElvtnRng, 2, 'significant');
 else
-    VlsElv = round(ElvtnRng, 3, 'significant');
+    VlsElv = round(ElvtnRng, 0); % VlsElv = round(ElvtnRng, 3, 'significant');
 end
 
 LegElvtn = [strcat(string(VlsElv(1:end-1)), " - ", string(VlsElv(2:end)))];
@@ -211,6 +191,7 @@ for iCase = [NumFigPlot(:)]' % To ensure that it will be horizontal
 
     %% Finalizing
     plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5)
+    plot(MunPolygon      , 'FaceColor','none', 'LineWidth',1  )
     
     fig_settings(fold0)
 

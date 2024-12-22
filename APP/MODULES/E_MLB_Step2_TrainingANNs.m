@@ -462,7 +462,7 @@ MLPerf{'ROC','Test' }{:}.Properties.VariableNames = MLCls;
 if ChkPlt
     ProgressBar.Message = 'Check plot for predictions...';
 
-    check_plot_mdlb(MLMdl, MLPerf, DsetTbl, {UnstabPolygons, IndecnPolygons, StablePolygons}, false, 30, DatasetInfo{1,'MultipleDays'}, fold0)
+    check_plot_mdlb(MLMdl, MLPerf, DsetTbl, {UnstabPolygons, IndecnPolygons, StablePolygons}, false, 30, DatasetInfo{1,'MultipleDays'}, fold0);
 end
 
 %% Creation of CrossInfo structure
@@ -521,7 +521,7 @@ for i1 = 1:numel(LyrAct)
     end
 end
 
-SuggFldNme = [DsetTpe,'_',num2str(Days4TmSns),'d_',TrnType,'_',strjoin(unique(AcFnAbb), '_')];
+SuggFldNme = [DsetTpe,'_',char(join(string(Days4TmSns{:}), '-')),'d_',TrnType,'_',strjoin(unique(AcFnAbb), '_')];
 MLFoldName = [char(inputdlg2({'Folder name (Results->ML Models and Predictions):'}, 'DefInp',{SuggFldNme}))];
 
 fold_res_ml_curr = [fold_res_ml,sl,MLFoldName];
@@ -549,5 +549,3 @@ if CrssVal
     VariablesML = [VariablesML, {'CrossInfo'}];
 end
 saveswitch([fold_res_ml_curr,sl,'MLMdlB.mat'], VariablesML)
-
-close(ProgressBar) % Fig instead of ProgressBar if in standalone version

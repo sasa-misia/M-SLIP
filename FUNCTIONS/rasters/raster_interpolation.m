@@ -1,83 +1,103 @@
-function InterpolatedRaster = raster_interpolation(xLongAll, yLatAll, FileNamePath, InterpMethod)
+function interpolatedRaster = raster_interpolation(xLonAll, yLatAll, filePath, interpMet, Options)
 
 % Creation of a new cell array containing value interpolated for all original
 % raster files with your new one.
 %
 % Syntax
 %
-%     InterpolatedRaster = raster_interpolation(xCoordAll, yCoordAll, FileNamePath, InterpMethod)
+%     interpolatedRaster = raster_interpolation(xCoordAll, yCoordAll, fileNamePath, interpMethod)
 
-RasterInfo = georasterinfo(FileNamePath);
-[RastValues, RastRef] = readgeoraster(FileNamePath, 'OutputType','native');
+arguments
+    xLonAll (1,:) cell
+    yLatAll (1,:) cell
+    filePath (1,:) char {mustBeFile}
+    interpMet (1,:) char
+    Options.replaceMiss (1,1) logical = true
+    Options.val2Replace (1,1) double = 0
+end
 
-if isempty(RastRef)
-    switch class(RasterInfo.CoordinateReferenceSystem)
+repMiss = Options.replaceMiss;
+val2Rep = Options.val2Replace;
+
+rastInfo = georasterinfo(filePath);
+[rastVals, rastRef] = readgeoraster(filePath, 'OutputType','native');
+
+if isempty(rastRef)
+    switch class(rastInfo.CoordinateReferenceSystem)
         case 'geocrs'
-            RangesInput = inputdlg( ["Latitude limits (no info in tif file):  "
+            rngInps = inputdlg( ["Latitude limits (no info in tif file):  "
                                      "Longitude limits (no info in tif file): "], '', 1, ...
                                     {'[-90, 90]'
                                      '[-180, 180]'} );
-            LatLimits = str2num(RangesInput{1});
-            LonLimits = str2num(RangesInput{2});
+            latLims = str2num(rngInps{1});
+            lonLims = str2num(rngInps{2});
         
-            RastRef = georefcells(LatLimits, LonLimits, size(RastValues), 'ColumnsStartFrom','north');
+            rastRef = georefcells(latLims, lonLims, size(rastVals), 'ColumnsStartFrom','north');
 
         case 'projcrs'
-            RangesInput = inputdlg( ["x projected limits (no info in tif file):  "
+            rngInps = inputdlg( ["x projected limits (no info in tif file):  "
                                      "y projected limits (no info in tif file): "], '', 1, ...
                                     {'[40000, 45000]'
                                      '[50000, 55000]'} );
-            xLimits = str2num(RangesInput{1});
-            yLimits = str2num(RangesInput{2});
+            xLimits = str2num(rngInps{1});
+            yLimits = str2num(rngInps{2});
 
-            RastRef = maprefcells(xLimits, yLimits, size(RastValues), 'ColumnsStartFrom','north');
+            rastRef = maprefcells(xLimits, yLimits, size(rastVals), 'ColumnsStartFrom','north');
     end
 end
 
-if isfield(RastRef, 'ProjectedCRS') && isempty(RastRef.ProjectedCRS)
+if isfield(rastRef, 'ProjectedCRS') && isempty(rastRef.ProjectedCRS)
     EPSG = str2double(inputdlg({["Set DTM EPSG"
                                  "For Example:"
                                  "Sicily -> 32633"
                                  "Emilia Romagna -> 25832"]}, '', 1, {'25832'}));
-    RastRef.ProjectedCRS = projcrs(EPSG);
+    rastRef.ProjectedCRS = projcrs(EPSG);
 end
     
-if RastRef.CoordinateSystemType == "planar"
-    [xPlanRaster, yPlanRaster] = worldGrid(RastRef);
-    [yLatRaster,  xLongRaster] = projinv(RastRef.ProjectedCRS, xPlanRaster, yPlanRaster);
-elseif RastRef.CoordinateSystemType == "geographic"
-    [yLatRaster,  xLongRaster] = geographicGrid(RastRef);
+if rastRef.CoordinateSystemType == "planar"
+    [xPlnRaster, yPlnRaster] = worldGrid(rastRef);
+    [yLatRaster, xLonRaster] = projinv(rastRef.ProjectedCRS, xPlnRaster, yPlnRaster);
+    clear('xPlnRaster', 'yPlnRaster')
+
+elseif rastRef.CoordinateSystemType == "geographic"
+    [yLatRaster, xLonRaster] = geographicGrid(rastRef);
 end
 
-if isempty(RasterInfo.MissingDataIndicator)
-    NoDataValue = min(RastValues, [], 'all');
+if isempty(rastInfo.MissingDataIndicator)
+    noDataVal = min(rastVals, [], 'all'); % Sometimes it could be the biggest! Please find a solution
 else
-    NoDataValue = RasterInfo.MissingDataIndicator;
+    noDataVal = rastInfo.MissingDataIndicator;
 end
 
-xLongMin = min(cellfun(@(x) min(x, [], 'all'), xLongAll));
-xLongMax = max(cellfun(@(x) max(x, [], 'all'), xLongAll));
-yLatMin  = min(cellfun(@(x) min(x, [], 'all'), yLatAll));
-yLatMax  = max(cellfun(@(x) max(x, [], 'all'), yLatAll));
+if repMiss
+    rastVals(rastVals(:) == noDataVal) = val2Rep;
+end
 
-StudyBounds = polyshape([xLongMin, xLongMax, xLongMax, xLongMin], ...
-                        [yLatMin , yLatMin , yLatMax , yLatMax ]);
+xLonMin = min(cellfun(@(x) min(x, [], 'all'), xLonAll));
+xLonMax = max(cellfun(@(x) max(x, [], 'all'), xLonAll));
+yLatMin = min(cellfun(@(x) min(x, [], 'all'), yLatAll));
+yLatMax = max(cellfun(@(x) max(x, [], 'all'), yLatAll));
 
-[pp1, ee1]  = getnan2([StudyBounds.Vertices; nan, nan]);
-IndOfPointsWithVal = find( (RastValues(:) ~= NoDataValue) & ...
-                           (inpoly([xLongRaster(:), yLatRaster(:)], pp1,ee1)) );
+studyBounds = polyshape([xLonMin, xLonMax, xLonMax, xLonMin], ...
+                        [yLatMin, yLatMin, yLatMax, yLatMax ]);
 
-if isempty(IndOfPointsWithVal) || numel(IndOfPointsWithVal) < 3
-    InterpolatedRaster = cell(size(xLongAll));
+[pp1, ee1] = getnan2([studyBounds.Vertices; nan, nan]);
+indPntsVal = find( (rastVals(:) ~= noDataVal) & ...
+                   (inpoly([xLonRaster(:), yLatRaster(:)], pp1, ee1)) );
+
+xRawRast = xLonRaster(indPntsVal);
+yRawRast = yLatRaster(indPntsVal);
+vRawRast = double(rastVals(indPntsVal));
+clear('xLonRaster', 'yLatRaster', 'rastVals')
+
+if isempty(indPntsVal) || numel(indPntsVal) < 3
+    interpolatedRaster = cell(size(xLonAll));
 else
-    InterpFunValues = scatteredInterpolant(xLongRaster(IndOfPointsWithVal), ...
-                                           yLatRaster(IndOfPointsWithVal), ...
-                                           double(RastValues(IndOfPointsWithVal)), ...
-                                           InterpMethod);
+    interpFunVals = scatteredInterpolant(xRawRast, yRawRast, vRawRast, interpMet);
     
-    InterpolatedRaster = cellfun(@(x) zeros(size(x)), xLongAll, 'UniformOutput',false);
-    for i1 = 1:length(xLongAll)
-        InterpolatedRaster{i1}(:) = InterpFunValues(xLongAll{i1}(:), yLatAll{i1}(:));
+    interpolatedRaster = cellfun(@(x) zeros(size(x)), xLonAll, 'UniformOutput',false);
+    for i1 = 1:numel(xLonAll)
+        interpolatedRaster{i1}(:) = interpFunVals(xLonAll{i1}(:), yLatAll{i1}(:));
     end
 end
 

@@ -7,8 +7,8 @@ rng(10) % For reproducibility of the model
 
 %% Loading data and initialization of variables
 sl = filesep;
-load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','SubArea','FilesDetectedSoilSlip')
-load([fold_var,sl,'GridCoordinates.mat'      ], 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
+load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'SubArea','FilesDetectedSoilSlip')
+% load([fold_var,sl,'GridCoordinates.mat'      ], 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
 load([fold_var,sl,'StudyAreaVariables.mat'   ], 'StudyAreaPolygon')
 
 IdDet2Use = 1;
@@ -25,6 +25,7 @@ TmSnsMode = "";
 CauseMode = "";
 RsmplMode = nan;
 Ratio2Imp = nan;
+MntUnstPt = true;
 
 %% Pre existing DatasetML check
 [Add2OldDset, OldSettings] = deal(false);
@@ -56,17 +57,17 @@ end
 ProgressBar.Message = 'Dataset options...';
 
 if Add2OldDset
-    FeaturesChd = DatasetInfoOld.Parameters{end};
+    FeaturesChn = DatasetInfoOld.Parameters{end};
 else
-    FeaturesOps = {'Elevation', 'Slope', 'Aspect Angle', 'Mean Curvature', 'Profile Curvature', ...
-                   'Planform Curvature', 'Contributing Area (log)', 'TWI', 'Clay Content', ...
-                   'Sand Content', 'NDVI', 'Sub Soil', 'Top Soil', 'Land Use', 'Vegetation', ...
-                   'Distance To Roads', 'Random', 'Rainfall', 'Temperature', 'Veg Probs'};
-    FeaturesChd = checkbox2(FeaturesOps, 'Title',{'Select features to use:'});
+    FeaturesOps = {'Elevation', 'Slope', 'Aspect angle', 'Mean curvature', 'Profile curvature', ...
+                   'Planform curvature', 'Contributing area (log)', 'TWI', 'Clay content', ...
+                   'Sand content', 'NDVI', 'Sub Soil', 'Top Soil', 'Land use', 'Vegetation', ...
+                   'Distances to roads', 'Random', 'Rainfall', 'Temperature', 'Veg probs'};
+    FeaturesChn = checkbox2(FeaturesOps, 'Title',{'Select features to use:'});
 end
 
 TmSensExs = false;
-if any(strcmp(FeaturesChd, 'Rainfall')) || any(strcmp(FeaturesChd, 'Temperature'))
+if any(strcmp(FeaturesChn, 'Rainfall')) || any(strcmp(FeaturesChn, 'Temperature'))
     if Add2OldDset
         TmSnsMode = DatasetInfoOld.TimeSensMode{end};
     else
@@ -76,7 +77,7 @@ if any(strcmp(FeaturesChd, 'Rainfall')) || any(strcmp(FeaturesChd, 'Temperature'
     if Add2OldDset && OldSettings
         MultDayAnl = DatasetInfoOld.MultipleDays(end);
     else
-        MultDayChc = uiconfirm(Fig, 'Do you want to add a different day in dataset?', ...
+        MultDayChc = uiconfirm(Fig, 'Do you want to add the NO landslide day?', ...
                                     'Time sensitive analyses', 'Options',{'Yes', 'No, just one'}, 'DefaultOption',2);
         if strcmp(MultDayChc,'Yes'); MultDayAnl = true; else; MultDayAnl = false; end
     end
@@ -150,8 +151,8 @@ if Add2OldDset && OldSettings
         RatioInps = table2array(DatasetInfoOld.RatioClasses{end})';
         Ratio2Imp = RatioInps(1)/RatioInps(2);
         RsmplMode = DatasetInfoOld.Resampling(end);
-        if exist('MultDayAnl', 'var') && MultDayAnl && strcmp(RsmplMode,'Undersampling')
-            MntUnstPts = DatasetInfoOld.UnstPointsMant(end);
+        if exist('MultDayAnl', 'var') && MultDayAnl
+            MntUnstPt = DatasetInfoOld.UnstPointsMant(end);
         end
     end
 
@@ -182,7 +183,7 @@ else
     InpBffSzs = str2double(inputdlg2(PromptBuffer, 'DefInp',SuggBuffVals));
     
     ModRatAns = uiconfirm(Fig, 'Do you want to resample dataset (rebalancing)?', ...
-                                'Resampling', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
+                               'Resampling', 'Options',{'Yes', 'No'}, 'DefaultOption',1);
     if strcmp(ModRatAns,'Yes'); ModifyRat = true; else; ModifyRat = false; end
     if ModifyRat
         RatioInps = str2double(inputdlg2({'Part of unstable:', 'Part of stable:'}, 'DefInp',{'1', '2'})');
@@ -195,7 +196,7 @@ else
                                          '(these points will be mantained during the merge and ' ...
                                          'the subsequent ratio adjustment)'], 'Mantain unstable points', ...
                                         'Options',{'Yes', 'No'}, 'DefaultOption',1);
-            if strcmp(MntUnstChc,'Yes'); MntUnstPts = true; else; MntUnstPts = false; end
+            if strcmp(MntUnstChc,'No'); MntUnstPt = false; end
         end
     end
 end
@@ -218,7 +219,7 @@ end
 DatasetStudyInfo = table;
 
 DatasetStudyInfo.FullPathInfoDet  = string(FilesDetectedSoilSlip(IdDet2Use)); % Before was string([fold_raw_det_ss,sl,char(FilesDetectedSoilSlip(IndDetToUse))]); or you should modify at row 13, mantaining only names and not full path and put it again!
-DatasetStudyInfo.Parameters       = {FeaturesChd};
+DatasetStudyInfo.Parameters       = {FeaturesChn};
 DatasetStudyInfo.NormalizedData   = NormData;
 DatasetStudyInfo.CategClasses     = CtgExist;
 DatasetStudyInfo.CrossValidSet    = CreateCV;
@@ -235,10 +236,8 @@ DatasetStudyInfo.ModifyRatioOuts  = ModifyRat;
 if ModifyRat
     DatasetStudyInfo.RatioClasses = {array2table(RatioInps', 'VariableNames',{'UnstablePart','StablePart'})};
     DatasetStudyInfo.Resampling   = string(RsmplMode);
-    if MultDayAnl && strcmp(RsmplMode,'Undersampling')
-        DatasetStudyInfo.UnstPointsMant = MntUnstPts;
-    else
-        DatasetStudyInfo.UnstPointsMant = true;
+    if MultDayAnl
+        DatasetStudyInfo.UnstPointsMant = MntUnstPt;
     end
 end
 
@@ -247,14 +246,14 @@ if TmSensExs
     TmSensDts = {};
     
     % Rainfall
-    if any(strcmp(FeaturesChd, 'Rainfall'))
+    if any(strcmp(FeaturesChn, 'Rainfall'))
         load([fold_var,sl,'RainInterpolated.mat'], 'RainDateInterpolationStarts')
         TmSensDts = [TmSensDts, {RainDateInterpolationStarts}];
         TmSensExs = true;
     end
     
     % Temperature
-    if any(strcmp(FeaturesChd, 'Temperature'))
+    if any(strcmp(FeaturesChn, 'Temperature'))
         load([fold_var,sl,'TempInterpolated.mat'], 'TempDateInterpolationStarts')
         TmSensDts = [TmSensDts, {TempDateInterpolationStarts}];
         TmSensExs = true;
@@ -302,7 +301,7 @@ if TmSensExs
             end
         else
             DaysBfWhStb = str2double(inputdlg2({['Days before event, when all points are stable. (', ...
-                                                               num2str(IndOfEvnt),' days of cum rain to your event)']}, 'DefInp',{'10'}));
+                                                 num2str(IndOfEvnt),' days of cum rain to your event)']}, 'DefInp',{'10'}));
 
             if (IndOfEvnt-DaysBfWhStb) <= 0
                 error(['You have to select another day for stable points, ', ...
@@ -315,10 +314,10 @@ if TmSensExs
     end
 
     if Add2OldDset % Important: do not add OldSettings because, even if you don't want the OldSettings, this parameter MUST BE the same!
-        DaysForTS = DatasetInfoOld.DaysForTS(end);
-        if (MaxDaysPoss - DaysForTS) < 0
+        DaysForTS = DatasetInfoOld.DaysForTS{end};
+        if (MaxDaysPoss - max(DaysForTS)) < 0
             error(['Since you want to add this dataset to the old one, you need more ', ...
-                   num2str(abs(MaxDaysPoss-DaysForTS)),' days in recs!'])
+                   num2str(abs(MaxDaysPoss-max(DaysForTS))),' days in recs!'])
         end
         if strcmp(TmSnsMode,'TriggerCausePeak')
             CauseMode = DatasetInfoOld.CauseMode{end};
@@ -327,17 +326,17 @@ if TmSensExs
     else
         switch TmSnsMode
             case 'SeparateDays'
-                DaysForTS = str2double(inputdlg2({['Num of days (max ',num2str(MaxDaysPoss),') to consider:']}, 'DefInp',{num2str(MaxDaysPoss)}));
+                DaysForTS = str2num(inputdlg2({['Num of days (max ',num2str(MaxDaysPoss),') to consider:']}, 'DefInp',{['[',num2str(MaxDaysPoss),']']}));
         
             case 'CondensedDays'
-                DaysForTS = str2double(inputdlg2({['Days to cumulate/average (max ',num2str(MaxDaysPoss),')']}, 'DefInp',{num2str(MaxDaysPoss)}));
+                DaysForTS = str2num(inputdlg2({['Days to cumulate/average (max ',num2str(MaxDaysPoss),')']}, 'DefInp',{['[',num2str(MaxDaysPoss),']']}));
 
             case 'TriggerCausePeak'
-                DaysForTS = str2double(inputdlg2({['Days for cause rain (max ',num2str(MaxDaysPoss-2),')']}, 'DefInp',{num2str(MaxDaysPoss-2)})); % -2 because script is set to search an event in a time window of max 2 days before or after
+                DaysForTS = str2num(char(inputdlg2({['Days for cause rain (max ',num2str(MaxDaysPoss-2),')']}, 'DefInp',{['[',num2str(MaxDaysPoss-2),']']}))); % -2 because script is set to search an event in a time window of max 2 days before or after
                 CauseMode = char(listdlg2({'Cause rainfall type?'}, {'DailyCumulate', 'EventsCumulate'}));
         end
 
-        if (MaxDaysPoss - DaysForTS) < 0
+        if (MaxDaysPoss - max(DaysForTS)) < 0
             error('You have to select fewer days than the maximum possible (or you have to change matrix of daily rainfalls)')
         end
     end
@@ -357,7 +356,7 @@ if TmSensExs
         DatasetStudyInfo.BeforeEventDate = NaT;
         DatasetStudyInfo.DayBeforeEvent  = NaN;
     end
-    DatasetStudyInfo.DaysForTS = DaysForTS;
+    DatasetStudyInfo.DaysForTS = {DaysForTS};
 end
 
 %% Check for changes compared to eventual old dataset
@@ -392,7 +391,7 @@ end
 %% Datasets creation
 [DatasetStudyFeats, DatasetStudyCoords, ...
     Rngs4Norm, TimeSensPart, DatasetStudyFtsOg, ...
-        FeaturesType, ClassPolys] = datasetstudy_creation( fold0, 'Features',FeaturesChd, ...
+        FeaturesType, ClassPolys] = datasetstudy_creation( fold0, 'Features',FeaturesChn, ...
                                                                   'Categorical',CtgExist, ...
                                                                   'Normalize',NormData, ...
                                                                   'TargetFig',Fig, ...
@@ -418,7 +417,7 @@ if TmSensExs
         HoursDff = abs(EventDate - StrDtTrg);
         if HoursDff >= hours(1)
             warning(['There is a difference of ',num2str(hours(HoursDff)), ...
-                     ' between data you chosed and the start of the triggering!', ...
+                     'h between data you chosed and the start of the triggering!', ...
                      ' Event date will be overwrite.'])
         end
     end
@@ -440,26 +439,8 @@ end
 %% R2 Correlation coefficients for Study Area
 ProgressBar.Message = 'Creation of correlation matrix...';
 
-DsetStudyFeaturesTmp = DatasetStudyFeats;
-DsetStudyFtsNoNrmTmp = DatasetStudyFtsOg;
-if any(strcmp(FeaturesType, "Categorical"))
-    ColumnsToConvert = find(strcmp(FeaturesType, "Categorical"));
-    for i1 = ColumnsToConvert % ColumnsToConvert must be always horizontal!
-        DsetStudyFeaturesTmp.(FeatsNames{i1}) = grp2idx(DsetStudyFeaturesTmp{:, i1});
-        DsetStudyFtsNoNrmTmp.(FeatsNames{i1}) = grp2idx(DsetStudyFtsNoNrmTmp{:, i1});
-    end
-end
-
-DsetStudyFeaturesTmp = table2array(DsetStudyFeaturesTmp);
-DsetStudyFtsNoNrmTmp = table2array(DsetStudyFtsNoNrmTmp);
-
-DsetStudyFeaturesTmp(isnan(DsetStudyFeaturesTmp)) = -9999; % To replace NaNs with -9999 because otherwise you will have NaNs in R2 matrix.
-DsetStudyFtsNoNrmTmp(isnan(DsetStudyFtsNoNrmTmp)) = -9999; % To replace NaNs with -9999 because otherwise you will have NaNs in R2 matrix.
-
-R2ForDatasetStudyFeats = array2table(corrcoef(DsetStudyFeaturesTmp), ...
-                                            'VariableNames',FeatsNames, 'RowNames',FeatsNames);
-R2ForDatasetStudyFtsOg = array2table(corrcoef(DsetStudyFtsNoNrmTmp), ...
-                                            'VariableNames',FeatsNames, 'RowNames',FeatsNames);
+R2ForDatasetStudyFeats = feats_correlation(DatasetStudyFeats);
+R2ForDatasetStudyFtsOg = feats_correlation(DatasetStudyFtsOg);
 
 %% Statistics of study area
 ProgressBar.Message = 'Statistics of study area...';
@@ -605,10 +586,12 @@ elseif MultDayAnl
     DsetRedDatesPrt2 = table(repmat(BefEvntDate, size(DsetRedCoordPrt1,1), 1), ...
                              false(size(DsetRedCoordPrt1,1), 1), 'VariableNames',{'Datetime','LandslideEvent'}); % false because this is the day of not landslide!
     DsetRedCoordPrt2 = DsetRedCoordPrt1;
-    DsetRedFeatsPrt2 = dataset_update_ts(TmSnsData, TmSensDts, BefEvntDate, DsetRedFeatsPrt1, ...
-                                         TmSnsMode, TmSnsPrms, DaysForTS, Rngs4Nrm=Rngs4Norm, ...
-                                         Inds2Tk=IndsDsetRedPrt1, TmSnCmlb=CumlbPrms, TmSnTrgg=TmSnsTrg, ...
-                                         TmSnPeak=TmSnsPks, TmSnEvDt=TmSnsEvD, TmSnTrCs=CauseMode);
+    for i1 = 1:numel(DaysForTS)
+        [DsetRedFeatsPrt2, StrDtNoTrg] = dataset_update_ts(TmSnsData, TmSensDts, BefEvntDate, DsetRedFeatsPrt1, ...
+                                                           TmSnsMode, TmSnsPrms, DaysForTS(i1), Rngs4Nrm=Rngs4Norm, ...
+                                                           Inds2Tk=IndsDsetRedPrt1, TmSnCmlb=CumlbPrms, TmSnTrgg=TmSnsTrg, ...
+                                                           TmSnPeak=TmSnsPks, TmSnEvDt=TmSnsEvD, TmSnTrCs=CauseMode);
+    end
     DsetRedClassPrt2 = double(false(size(ExpOutsRedPrt1))); % At this particular timing prediction should be 0! (no landslide)
 
     DsetRedDates = [DsetRedDatesPrt1; DsetRedDatesPrt2];
@@ -622,9 +605,9 @@ if TmSensExs && strcmp(TmSnsMode,'TriggerCausePeak')
     DatasetStudyInfo.EventDate = StrDtTrg;
     DsetRedDates.Datetime(DsetRedDates.Datetime == EventDate) = StrDtTrg;
     if MultDayAnl
-        DatasetStudyInfo.BeforeEventDate = StartDateNoTrigg;
-        DatasetStudyInfo.DayBeforeEvent  = ceil(days(StrDtTrg-StartDateNoTrigg));
-        DsetRedDates.Datetime(DsetRedDates.Datetime == BefEvntDate) = StartDateNoTrigg;
+        DatasetStudyInfo.BeforeEventDate = StrDtNoTrg;
+        DatasetStudyInfo.DayBeforeEvent  = ceil(days(StrDtTrg-StrDtNoTrg));
+        DsetRedDates.Datetime(DsetRedDates.Datetime == BefEvntDate) = StrDtNoTrg;
     end
 end
 DatasetInfo = DatasetStudyInfo;
@@ -724,7 +707,7 @@ end
 if ModifyRat
     Inds2KpTrn = false(size(DsetTrnCoord, 1), 1);
     Inds2KpTst = false(size(DsetTstCoord, 1), 1);
-    if MntUnstPts
+    if MntUnstPt
         [pUn, eUn] = getnan2([UnstPolyMrgd.Vertices; nan, nan]);
         Inds2KpTrn = inpoly([DsetTrnCoord.Longitude,DsetTrnCoord.Latitude], pUn,eUn);
         Inds2KpTst = inpoly([DsetTstCoord.Longitude,DsetTstCoord.Latitude], pUn,eUn);
@@ -743,7 +726,7 @@ if ModifyRat
     if CreateNV
         Inds2KpNvT = false(size(DsetNvTCoord, 1), 1);
         Inds2KpNvV = false(size(DsetNvVCoord, 1), 1);
-        if MntUnstPts
+        if MntUnstPt
             Inds2KpNvT = inpoly([DsetNvTCoord.Longitude,DsetNvTCoord.Latitude], pUn,eUn);
             Inds2KpNvV = inpoly([DsetNvVCoord.Longitude,DsetNvVCoord.Latitude], pUn,eUn);
         end
@@ -763,7 +746,7 @@ if ModifyRat
         Inds2KpCvV = cell(1, PerfMetr.CVFolds);
         for i1 = 1:PerfMetr.CVFolds
             Inds2KpTmp = false(size(DsetCvVCoord{i1}, 1), 1);
-            if MntUnstPts
+            if MntUnstPt
                 Inds2KpTmp = inpoly([DsetCvVCoord{i1}.Longitude,DsetCvVCoord{i1}.Latitude], pUn,eUn);
             end
             Inds2KpCvV{i1} = Inds2KpTmp;

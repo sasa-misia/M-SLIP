@@ -92,9 +92,14 @@ ProgressBar.Message = 'Merging and intersecting polygons...';
 ObjDstPln = projfwdpoly(ObjDstGeo, ProjCRS);
 ObjDstStA = intersect(ObjDstGeo, StudyAreaPolygon);
 
-if MrgObjD % Merging
-    ObjDstPln = union(ObjDstPln);
-    ObjDstStA = union(ObjDstStA);
+if MrgObjD && (numel(ObjDstPln) > 1) % Merging
+    if (numel(ObjDstPln) > 500)
+        ObjDstPln = fast_union(ObjDstPln);
+        ObjDstStA = fast_union(ObjDstStA);
+    else
+        ObjDstPln = union(ObjDstPln);
+        ObjDstStA = union(ObjDstStA);
+    end
 end
 
 SuggLbl = ObjDstNms;
@@ -231,5 +236,3 @@ VarsUser = {'DistType', 'LoadOld', 'DstMode', 'IntMode', 'MrgObjD', 'FileName_Ob
 
 saveswitch([fold_var,sl,'Distances.mat'      ], VarDstnc)
 save([fold_var,sl,'UserDistances_Answers.mat'], VarsUser{:})
-
-close(ProgressBar) % Fig instead of ProgressBar if in standalone version

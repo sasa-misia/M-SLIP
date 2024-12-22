@@ -85,14 +85,22 @@ if strcmp(StableMode, "alloutside")
 end
 
 if isscalar(FilesDetectedSoilSlip)
-    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{1};
+    infoDet2Use = InfoDetectedSoilSlips{1};
     IndInfoToUse = 1;
 elseif exist('IndInfoToUse', 'var')
-    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndInfoToUse};
+    infoDet2Use = InfoDetectedSoilSlips{IndInfoToUse};
 else
     IndInfoToUse = listdlg2({'Choose dataset you want to use to define polygons: '}, FilesDetectedSoilSlip, 'OutType','NumInd');
-    InfoDetectedSoilSlipsToUse = InfoDetectedSoilSlips{IndInfoToUse};
+    infoDet2Use = InfoDetectedSoilSlips{IndInfoToUse};
 end
+
+ind2Mnt = true(size(infoDet2Use, 1), 1);
+if numel(unique(infoDet2Use.Datetime)) > 1
+    dts2Mnt = checkbox2(unique(infoDet2Use.Datetime), 'Title','Select datetimes of InfoDet:');
+    ind2Mnt = ismember(infoDet2Use.Datetime, dts2Mnt);
+end
+
+infoDet2Use = infoDet2Use(ind2Mnt, :);
 
 load([fold_var,sl,'MorphologyParameters.mat'], 'OriginallyProjected','SameCRSForAll')
 if OriginallyProjected && SameCRSForAll
@@ -129,7 +137,7 @@ switch UnstableMode
 
         BufferIndecision = BufferSizes(1);
 
-        UnstablePolys = InfoDetectedSoilSlipsAverage{IndInfoToUse}{1};
+        UnstablePolys = InfoDetectedSoilSlipsAverage{IndInfoToUse}{1}(ind2Mnt);
         clear('InfoDetectedSoilSlipsAverage')
 
         [UnstabPolysCoordPlanX, UnstabPolysCoordPlanY] = arrayfun(@(x) projfwd(ProjCRS,x.Vertices(:,2),x.Vertices(:,1)), UnstablePolys, 'UniformOutput',false);
@@ -167,41 +175,41 @@ switch UnstableMode
       
         switch CreateCoords
             case "geographic"
-                yLatMean = mean(InfoDetectedSoilSlipsToUse{:,6});
+                yLatMean = mean(infoDet2Use{:,6});
 
                 % Polygons around detected soil slips (you will attribute certain event)
                 SideUnstabPolys   = BufferSizes(1); % This is the size in meters around the detected soil slip
                 dLatUnstPoints    = rad2deg(SideUnstabPolys/2/earthRadius); % /2 to have half of the size from the centre
                 dLongUnstPoints   = rad2deg(acos( (cos(SideUnstabPolys/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
-                BoundsUnstabPolys = [cellfun(@(x) x-dLongUnstPoints, InfoDetectedSoilSlipsToUse(:,5)), ...
-                                     cellfun(@(x) x-dLatUnstPoints,  InfoDetectedSoilSlipsToUse(:,6)), ...
-                                     cellfun(@(x) x+dLongUnstPoints, InfoDetectedSoilSlipsToUse(:,5)), ...
-                                     cellfun(@(x) x+dLatUnstPoints,  InfoDetectedSoilSlipsToUse(:,6))];
+                BoundsUnstabPolys = [arrayfun(@(x) x-dLongUnstPoints, infoDet2Use{:,5}), ...
+                                     arrayfun(@(x) x-dLatUnstPoints,  infoDet2Use{:,6}), ...
+                                     arrayfun(@(x) x+dLongUnstPoints, infoDet2Use{:,5}), ...
+                                     arrayfun(@(x) x+dLatUnstPoints,  infoDet2Use{:,6})];
                 
                 % Polygons around detected soil slips (polygon where you are uncertain because landslide could be greater than 45x45)
                 SideIndecisionPolys = BufferSizes(2); % This is the size in meters around the detected soil slip
                 dLatIndecPoints     = rad2deg(SideIndecisionPolys/2/earthRadius); % /2 to have half of the size from the centre
                 dLongIndecPoints    = rad2deg(acos( (cos(SideIndecisionPolys/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
-                BoundsIndecPolys    = [cellfun(@(x) x-dLongIndecPoints, InfoDetectedSoilSlipsToUse(:,5)), ...
-                                       cellfun(@(x) x-dLatIndecPoints,  InfoDetectedSoilSlipsToUse(:,6)), ...
-                                       cellfun(@(x) x+dLongIndecPoints, InfoDetectedSoilSlipsToUse(:,5)), ...
-                                       cellfun(@(x) x+dLatIndecPoints,  InfoDetectedSoilSlipsToUse(:,6))];
+                BoundsIndecPolys    = [arrayfun(@(x) x-dLongIndecPoints, infoDet2Use{:,5}), ...
+                                       arrayfun(@(x) x-dLatIndecPoints,  infoDet2Use{:,6}), ...
+                                       arrayfun(@(x) x+dLongIndecPoints, infoDet2Use{:,5}), ...
+                                       arrayfun(@(x) x+dLatIndecPoints,  infoDet2Use{:,6})];
                 
                 if strcmp(StableMode, "buffer")
                     % Polygons around detected soil slips (max polygon visible by human)
                     SideStablePolys   = BufferSizes(3); % This is the size in meters around the detected soil slip
                     dLatStabPoints    = rad2deg(SideStablePolys/2/earthRadius); % /2 to have half of the size from the centre
                     dLongStabPoints   = rad2deg(acos( (cos(SideStablePolys/2/earthRadius)-sind(yLatMean)^2)/cosd(yLatMean)^2 )); % /2 to have half of the size from the centre
-                    BoundsStablePolys = [cellfun(@(x) x-dLongStabPoints, InfoDetectedSoilSlipsToUse(:,5)), ...
-                                         cellfun(@(x) x-dLatStabPoints,  InfoDetectedSoilSlipsToUse(:,6)), ...
-                                         cellfun(@(x) x+dLongStabPoints, InfoDetectedSoilSlipsToUse(:,5)), ...
-                                         cellfun(@(x) x+dLatStabPoints,  InfoDetectedSoilSlipsToUse(:,6))];
+                    BoundsStablePolys = [arrayfun(@(x) x-dLongStabPoints, infoDet2Use{:,5}), ...
+                                         arrayfun(@(x) x-dLatStabPoints,  infoDet2Use{:,6}), ...
+                                         arrayfun(@(x) x+dLongStabPoints, infoDet2Use{:,5}), ...
+                                         arrayfun(@(x) x+dLatStabPoints,  infoDet2Use{:,6})];
                 end
         
             case "planar"
-                InfoDetectedSoilSlipsToUsePlan = zeros(size(InfoDetectedSoilSlipsToUse,1), 2);    
+                InfoDetectedSoilSlipsToUsePlan = zeros(size(infoDet2Use,1), 2);    
                 [InfoDetectedSoilSlipsToUsePlan(:,1), InfoDetectedSoilSlipsToUsePlan(:,2)] = ...
-                                projfwd(ProjCRS, [InfoDetectedSoilSlipsToUse{:,6}]', [InfoDetectedSoilSlipsToUse{:,5}]');
+                                projfwd(ProjCRS, [infoDet2Use{:,6}]', [infoDet2Use{:,5}]');
                 InfoDetectedSoilSlipsToUsePlan = num2cell(InfoDetectedSoilSlipsToUsePlan);
         
                 % Polygons around detected soil slips (you will attribute certain event)

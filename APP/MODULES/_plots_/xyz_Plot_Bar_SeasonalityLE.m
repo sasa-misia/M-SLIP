@@ -7,14 +7,7 @@ drawnow
 sl = filesep;
 load([fold_var,sl,'GenInfoRainfallEvents.mat'], 'GeneralRE')
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize')
-    SelFont = Font;
-    SelFnSz = FontSize;
-else
-    SelFont = 'Calibri';
-    SelFnSz = 8;
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 %% Options
 ProgressBar.Message = 'Options...';
@@ -43,11 +36,11 @@ TrgTempAmt = GeneralRE.AvgTrgTmp;
 TrgNDVIAmt = GeneralRE.AvgNDVI;
 NumOfYears = numel(unique(EventYear));
 EventMonth = month(GeneralRE.Start);
-EventXMnth = arrayfun(@(x) sum(EventMonth == x), PssMnth);
-LandsXMnth = arrayfun(@(x) sum(LandsCount(EventMonth == x)), PssMnth);
-RainAmXMnt = arrayfun(@(x) mean(TrgRainAmt(EventMonth == x)), PssMnth);
-TempAmXMnt = arrayfun(@(x) mean(TrgTempAmt(EventMonth == x)), PssMnth);
-NDVIAmXMnt = arrayfun(@(x) mean(TrgNDVIAmt(EventMonth == x)), PssMnth);
+EventXMnth = arrayfun(@(x) sum(EventMonth == x, 'omitnan'), PssMnth);
+LandsXMnth = arrayfun(@(x) sum(LandsCount(EventMonth == x ), 'omitnan'), PssMnth);
+RainAmXMnt = arrayfun(@(x) mean(TrgRainAmt(EventMonth == x), 'omitnan'), PssMnth);
+TempAmXMnt = arrayfun(@(x) mean(TrgTempAmt(EventMonth == x), 'omitnan'), PssMnth);
+NDVIAmXMnt = arrayfun(@(x) mean(TrgNDVIAmt(EventMonth == x), 'omitnan'), PssMnth);
 
 %% Plot
 ProgressBar.Message = 'Plot...';
@@ -63,59 +56,67 @@ CurrLay = tiledlayout(NumRows, NumCols, 'Parent',CurrFig);
 CurrAxs = deal(cell(1, numel(Var2Plt)));
 xLabTxt = 'Month';
 
+iF = 1;
+
+if any(strcmpi(Var2Plt, 'Number of LE'))
+    CurrAxs{iF} = nexttile([1, 1]);
+    hold(CurrAxs{iF}, 'on')
+    set(CurrAxs{iF}, 'FontName',SlFont, 'FontSize',SlFnSz)
+    xlabel(CurrAxs{iF}, xLabTxt, 'FontName',SlFont, 'FontSize',SlFnSz)
+    ylabel(CurrAxs{iF}, 'Number of LE [-]', 'FontName',SlFont, 'FontSize',SlFnSz)
+    title(CurrAxs{iF}, ['LE (from ',num2str(min(EventYear)),' to ',num2str(max(EventYear)),')'], 'FontName',SlFont, 'FontSize',SlFnSz)
+    LENumPlt = bar(CurrAxs{iF}, MnthCtg, LandsXMnth, 'FaceColor','#b11771', 'EdgeColor','#000000', 'LineWidth',.7, 'BarWidth',BarWdth);
+    pbaspect([4,1,1])
+    iF = iF + 1;
+end
+
 if any(strcmpi(Var2Plt, 'Number of RE'))
-    CurrAxs{1} = nexttile([1, 1]);
-    hold(CurrAxs{1}, 'on')
-    set(CurrAxs{1}, 'FontName',SelFont, 'FontSize',SelFnSz)
-    xlabel(CurrAxs{1}, xLabTxt, 'FontName',SelFont, 'FontSize',SelFnSz)
-    ylabel(CurrAxs{1}, 'Number of RE [-]', 'FontName',SelFont, 'FontSize',SelFnSz)
-    title(CurrAxs{1}, ['RE (from ',num2str(min(EventYear)),' to ',num2str(max(EventYear)),')'], 'FontName',SelFont, 'FontSize',SelFnSz)
-    RENumPlt = bar(CurrAxs{1}, MnthCtg, EventXMnth, 'FaceColor','#717171', 'EdgeColor','#000000', 'LineWidth',.7, 'BarWidth',BarWdth);
-    pbaspect([3,1,1])
+    CurrAxs{iF} = nexttile([1, 1]);
+    hold(CurrAxs{iF}, 'on')
+    set(CurrAxs{iF}, 'FontName',SlFont, 'FontSize',SlFnSz)
+    xlabel(CurrAxs{iF}, xLabTxt, 'FontName',SlFont, 'FontSize',SlFnSz)
+    ylabel(CurrAxs{iF}, 'Number of RE [-]', 'FontName',SlFont, 'FontSize',SlFnSz)
+    title(CurrAxs{iF}, ['RE (from ',num2str(min(EventYear)),' to ',num2str(max(EventYear)),')'], 'FontName',SlFont, 'FontSize',SlFnSz)
+    RENumPlt = bar(CurrAxs{iF}, MnthCtg, EventXMnth, 'FaceColor','#717171', 'EdgeColor','#000000', 'LineWidth',.7, 'BarWidth',BarWdth);
+    pbaspect([4,1,1])
+    iF = iF + 1;
 end
 
 if any(strcmpi(Var2Plt, 'Average rain amount'))
-    CurrAxs{2} = nexttile([1, 1]);
-    hold(CurrAxs{2}, 'on')
-    set(CurrAxs{2}, 'FontName',SelFont, 'FontSize',SelFnSz)
-    xlabel(CurrAxs{2}, xLabTxt, 'FontName',SelFont, 'FontSize',SelFnSz)
-    ylabel(CurrAxs{2}, 'Average rain amount [mm]', 'FontName',SelFont, 'FontSize',SelFnSz)
-    title(CurrAxs{2}, ['RE average amount (',num2str(min(EventYear)),' - ',num2str(max(EventYear)),')'], 'FontName',SelFont, 'FontSize',SelFnSz)
-    RERnAmPlt = bar(CurrAxs{2}, MnthCtg, RainAmXMnt, 'FaceColor','#185e9f', 'EdgeColor','#000000', 'LineWidth',.7, 'BarWidth',BarWdth);
-    pbaspect([3,1,1])
-end
-
-if any(strcmpi(Var2Plt, 'Number of LE'))
-    CurrAxs{3} = nexttile([1, 1]);
-    hold(CurrAxs{3}, 'on')
-    set(CurrAxs{3}, 'FontName',SelFont, 'FontSize',SelFnSz)
-    xlabel(CurrAxs{3}, xLabTxt, 'FontName',SelFont, 'FontSize',SelFnSz)
-    ylabel(CurrAxs{3}, 'Number of LE [-]', 'FontName',SelFont, 'FontSize',SelFnSz)
-    title(CurrAxs{3}, ['LE (from ',num2str(min(EventYear)),' to ',num2str(max(EventYear)),')'], 'FontName',SelFont, 'FontSize',SelFnSz)
-    LENumPlt = bar(CurrAxs{3}, MnthCtg, LandsXMnth, 'FaceColor','#b11771', 'EdgeColor','#000000', 'LineWidth',.7, 'BarWidth',BarWdth);
-    pbaspect([3,1,1])
+    CurrAxs{iF} = nexttile([1, 1]);
+    hold(CurrAxs{iF}, 'on')
+    set(CurrAxs{iF}, 'FontName',SlFont, 'FontSize',SlFnSz)
+    xlabel(CurrAxs{iF}, xLabTxt, 'FontName',SlFont, 'FontSize',SlFnSz)
+    ylabel(CurrAxs{iF}, 'Average rain amount [mm]', 'FontName',SlFont, 'FontSize',SlFnSz)
+    title(CurrAxs{iF}, ['RE avg rain (',num2str(min(EventYear)),' - ',num2str(max(EventYear)),')'], 'FontName',SlFont, 'FontSize',SlFnSz)
+    RERnAmPlt = bar(CurrAxs{iF}, MnthCtg, RainAmXMnt, 'FaceColor','#185e9f', 'EdgeColor','#000000', 'LineWidth',.7, 'BarWidth',BarWdth);
+    pbaspect([4,1,1])
+    iF = iF + 1;
 end
 
 if any(strcmpi(Var2Plt, 'Average temperature'))
-    CurrAxs{4} = nexttile([1, 1]);
-    hold(CurrAxs{4}, 'on')
-    set(CurrAxs{4}, 'FontName',SelFont, 'FontSize',SelFnSz)
-    xlabel(CurrAxs{4}, xLabTxt, 'FontName',SelFont, 'FontSize',SelFnSz)
-    ylabel(CurrAxs{4}, 'Average temperature [°C]', 'FontName',SelFont, 'FontSize',SelFnSz)
-    title(CurrAxs{4}, ['RE average temperature (',num2str(min(EventYear)),' - ',num2str(max(EventYear)),')'], 'FontName',SelFont, 'FontSize',SelFnSz)
-    RETmAmPlt = bar(CurrAxs{4}, MnthCtg, TempAmXMnt, 'FaceColor','#ffc262', 'EdgeColor','#000000', 'LineWidth',.7, 'BarWidth',BarWdth);
-    pbaspect([3,1,1])
+    CurrAxs{iF} = nexttile([1, 1]);
+    hold(CurrAxs{iF}, 'on')
+    set(CurrAxs{iF}, 'FontName',SlFont, 'FontSize',SlFnSz)
+    xlabel(CurrAxs{iF}, xLabTxt, 'FontName',SlFont, 'FontSize',SlFnSz)
+    ylabel(CurrAxs{iF}, 'Average temperature [°C]', 'FontName',SlFont, 'FontSize',SlFnSz)
+    title(CurrAxs{iF}, ['RE avg temperature (',num2str(min(EventYear)),' - ',num2str(max(EventYear)),')'], 'FontName',SlFont, 'FontSize',SlFnSz)
+    RETmAmPlt = bar(CurrAxs{iF}, MnthCtg, TempAmXMnt, 'FaceColor','#ffc262', 'EdgeColor','#000000', 'LineWidth',.7, 'BarWidth',BarWdth);
+    pbaspect([4,1,1])
+    iF = iF + 1;
 end
 
 if any(strcmpi(Var2Plt, 'Average NDVI'))
-    CurrAxs{5} = nexttile([1, 1]);
-    hold(CurrAxs{5}, 'on')
-    set(CurrAxs{5}, 'FontName',SelFont, 'FontSize',SelFnSz)
-    xlabel(CurrAxs{5}, xLabTxt, 'FontName',SelFont, 'FontSize',SelFnSz)
-    ylabel(CurrAxs{5}, 'Average NDVI [-]', 'FontName',SelFont, 'FontSize',SelFnSz)
-    title(CurrAxs{5}, ['RE average NDVI (',num2str(min(EventYear)),' - ',num2str(max(EventYear)),')'], 'FontName',SelFont, 'FontSize',SelFnSz)
-    RENVAmPlt = bar(CurrAxs{5}, MnthCtg, NDVIAmXMnt, 'FaceColor','#a0db8e', 'EdgeColor','#000000', 'LineWidth',.7, 'BarWidth',BarWdth);
-    pbaspect([3,1,1])
+    CurrAxs{iF} = nexttile([1, 1]);
+    hold(CurrAxs{iF}, 'on')
+    set(CurrAxs{iF}, 'FontName',SlFont, 'FontSize',SlFnSz)
+    xlabel(CurrAxs{iF}, xLabTxt, 'FontName',SlFont, 'FontSize',SlFnSz)
+    ylabel(CurrAxs{iF}, 'Average NDVI [-]', 'FontName',SlFont, 'FontSize',SlFnSz)
+    title(CurrAxs{iF}, ['RE avg NDVI (',num2str(min(EventYear)),' - ',num2str(max(EventYear)),')'], 'FontName',SlFont, 'FontSize',SlFnSz)
+    RENVAmPlt = bar(CurrAxs{iF}, MnthCtg, NDVIAmXMnt, 'FaceColor','#a0db8e', 'EdgeColor','#000000', 'LineWidth',.7, 'BarWidth',BarWdth);
+    ylim([140, 180])
+    pbaspect([4,1,1])
+    iF = iF + 1;
 end
 
 % Showing plot and saving...

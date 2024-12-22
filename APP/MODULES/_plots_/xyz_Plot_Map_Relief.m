@@ -9,23 +9,8 @@ load([fold_var,sl,'StudyAreaVariables.mat'  ], 'StudyAreaPolygon','MunPolygon')
 load([fold_var,sl,'GridCoordinates.mat'     ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
 load([fold_var,sl,'MorphologyParameters.mat'], 'ElevationAll','OriginallyProjected','SameCRSForAll')
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SlFont = Font;
-    SlFnSz = FontSize;
-    if exist('LegendPosition', 'var'); LegPos = LegendPosition; else; LegPos = 'Best'; end
-else
-    SlFont = 'Calibri';
-    SlFnSz = 8;
-    LegPos = 'Best';
-end
-
-InfoDetExst = false;
-if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
-    load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
-    InfoDetExst = true;
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
+[InfoDetExst, InfoDet2Use] = load_info_detected(fold_var);
 
 %% For scatter dimension
 [PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon);
@@ -58,7 +43,7 @@ if GrpYears
         if isempty(YrsToUse)
             error(['No elements left for your group n. ',num2str(i1)])
         end
-        Ind2Take = checkbox2(string(YrsToUse), 'OutType','NumInd');
+        Ind2Take = checkbox2(string(YrsToUse), 'OutType','NumInd', 'Title',{['Group n. ',num2str(i1)]});
         DetYears{i1} = YrsToUse(Ind2Take);
         YrsToUse(Ind2Take) = [];
     end
@@ -152,24 +137,24 @@ end
 %% Plot
 ProgressBar.Message = "Plotting...";
 
-filename1 = 'Hillshade';
-curr_fig  = figure('Visible','off');
-curr_ax   = axes('Parent',curr_fig); 
-hold(curr_ax,'on');
+CurrFln = 'Hillshade';
+CurrFig  = figure('Visible','off');
+CurrAxs   = axes('Parent',CurrFig); 
+hold(CurrAxs,'on');
 
 if GrayPlot
-    filename1 = [filename1,'BW'];
+    CurrFln = [CurrFln,'BW'];
 end
 
-set(curr_fig, 'Name',filename1);
+set(CurrFig, 'Name',CurrFln);
 
 for i1 = 1:length(xLongAll)
-    imagesc(curr_ax, xLongAll{i1}(:), yLatAll{i1}(:), ShdColorsAll{i1});
+    fastscattergrid(ShdColorsAll{i1}, xLongAll{i1}, yLatAll{i1}, Parent=CurrAxs);
 end
 
-plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5, 'Parent',curr_ax)
+plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5, 'Parent',CurrAxs)
 if ShowMuns
-    plot(MunPolygon, 'FaceColor','none', 'LineWidth',1, 'Parent',curr_ax)
+    plot(MunPolygon, 'FaceColor','none', 'LineWidth',1, 'Parent',CurrAxs)
 end
 
 fig_settings(fold0)
@@ -179,7 +164,7 @@ if InfoDetExst
     for i1 = 1:length(IdsDetXYr)
         hDet{i1} = arrayfun(@(x,y) scatter(x, y, DetPixelSize, 'filled', 'MarkerFaceColor',YearColor{i1}, ...
                                                                'Marker','o', 'MarkerEdgeColor','k', ...
-                                                               'LineWidth',PixelSize, 'Parent',curr_ax), ...
+                                                               'LineWidth',PixelSize, 'Parent',CurrAxs), ...
                                               InfoDet2Use{IdsDetXYr{i1},'Longitude'}, ...
                                               InfoDet2Use{IdsDetXYr{i1},'Latitude' });
         uistack(hDet{i1},'top')
@@ -208,20 +193,20 @@ if exist('LegPos', 'var')
     
     title(hLeg, 'Hillshade plot', 'FontName',SlFont, 'FontSize',SlFnSz*1.2, 'FontWeight','bold')
 
-    fig_rescaler(curr_fig, hLeg, LegPos)
+    fig_rescaler(CurrFig, hLeg, LegPos)
 
 end
 
-set(curr_ax, 'visible','off')
+set(CurrAxs, 'visible','off')
 
 if ShowPlot
-    set(curr_fig, 'visible','on');
+    set(CurrFig, 'visible','on');
     pause
 end
 
 %% Saving
 ProgressBar.Message = "Saving...";
 
-exportgraphics(curr_fig, [fold_fig,sl,filename1,'.png'], 'Resolution',600);
+exportgraphics(CurrFig, [fold_fig,sl,CurrFln,'.png'], 'Resolution',600);
 
-close(curr_fig)
+close(CurrFig)

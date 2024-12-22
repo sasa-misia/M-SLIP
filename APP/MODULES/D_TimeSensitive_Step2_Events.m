@@ -18,13 +18,13 @@ switch DataRead
 end
 
 sl = filesep;
-load([fold_var,sl,GenrlFlnm            ], 'GeneralData','Gauges','RecDatesEndCommon') % Remember that RainfallDates are referred at the end of your registration period
+load([fold_var,sl,GenrlFlnm            ], 'GeneralData','Gauges','RecDatesEndCommon','GenDataProps') % Remember that RainfallDates are referred at the end of your registration period
 load([fold_var,sl,'GridCoordinates.mat'], 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
 
 IndPrp2Use = 1;
 if not(iscell(GeneralData)); error('Please, update Generaldata (run again Select file(s))'); end
 if numel(GeneralData) > 1
-    IndPrp2Use = listdlg2({'Property to interpolate:'}, GenDataProps, 'OutType','NumInd');
+    IndPrp2Use = listdlg2({'Property to interpolate (average):'}, GenDataProps, 'OutType','NumInd');
 end
 GenrlProp = GeneralData{IndPrp2Use};
 
@@ -42,7 +42,7 @@ switch DataRead
         MaxHours  = str2double(InpMinValsEvent{4});
 
     case 'Temperature'
-        error('Not yet implemented!!! Please contact the support.')
+        % error('Not yet implemented!!! Please contact the support.')
         if exist([fold_var,sl,'RainEvents.mat'], 'file')
             load([fold_var,sl,'RainEvents.mat'], 'RainRecDatesPerEvent')
         else
@@ -77,8 +77,8 @@ switch DataRead
         RowsOfStarts = IndsNoEvents(IndsOfStarts) + 1; % + 1 because you have to start from the next row after the last non event
         RowsOfEnds   = IndsNoEvents(IndsOfStarts+1) - 1; % - 1 because you have to end in the previous row before the first non event
         if not(NoEventLogic(1)) % If your first element is a possible event, then you have to add it manually
-            RowsOfStarts = [1                , RowsOfStarts];
-            RowsOfEnds   = [IndsNoEvents(1)-1, RowsOfEnds  ];
+            RowsOfStarts = [1                ; RowsOfStarts];
+            RowsOfEnds   = [IndsNoEvents(1)-1; RowsOfEnds  ];
         end
         if not(NoEventLogic(end)) % If your last element is a possible event, then you have to add it manually
             RowsOfStarts(end+1) = IndsNoEvents(end) + 1;
@@ -169,8 +169,8 @@ for i1 = 1:size(AmountPerEvent,2)
     ProgressBar.Value = i1/size(AmountPerEvent,2);
     ProgressBar.Message = strcat("Interpolating event ", string(i1)," of ", string(size(AmountPerEvent,2)));
 
-    CurrAmountInterp  = scatteredInterpolant(xLongSta, yLatSta, AmountPerEvent{i1},  InterpMethod); 
-    CurrMaxPeakInterp = scatteredInterpolant(xLongSta, yLatSta, MaxPeakPerEvent{i1}, InterpMethod);
+    CurrAmountInterp  = scatteredInterpolant(xLongSta, yLatSta, AmountPerEvent{i1}',  InterpMethod); 
+    CurrMaxPeakInterp = scatteredInterpolant(xLongSta, yLatSta, MaxPeakPerEvent{i1}', InterpMethod);
     for i2 = 1:size(xLongAll,2)
         xLong = xLongAll{i2}(IndexDTMPointsInsideStudyArea{i2});
         yLat  = yLatAll{i2}(IndexDTMPointsInsideStudyArea{i2});
@@ -204,5 +204,3 @@ VariablesEvents = {[ShortName,'AmountPerEventInterp'], [ShortName,'MaxPeakPerEve
                    [ShortName,'RecDatesPerEvent'], [ShortName,'dTRecordings']};
 
 saveswitch([fold_var,sl,ShortName,'Events.mat'], VariablesEvents);
-
-close(ProgressBar)

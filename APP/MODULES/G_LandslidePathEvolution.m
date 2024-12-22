@@ -29,40 +29,6 @@ end
 %% Options
 ProgressBar.Message = 'Options...';
 
-fold_an = uigetdir(fold_res_fs, 'Select analysis folder');
-[~, FoldnameFS] = fileparts(fold_an);
-
-figure(Fig)
-drawnow
-
-if exist([fold_an,sl,'AnalysisInformation.mat'], 'file')
-    load([fold_an,sl,'AnalysisInformation.mat'], 'StabilityAnalysis');
-
-    if strcmp(StabilityAnalysis{1, 4}, 'Slip')
-        InstAnTp = 'SLIP';
-
-        EvsAnlyz = string(StabilityAnalysis{:,2});
-        IndEvFS  = listdlg2({'Event to plot:'}, EvsAnlyz, 'OutType','NumInd');
-        EventFS  = datetime(EvsAnlyz(IndEvFS), 'InputFormat','dd/MM/yyyy HH:mm:ss');
-        
-        load([fold_an,sl,'Fs',num2str(IndEvFS),'.mat'], 'FactorSafety');
-
-    elseif any(strcmp(StabilityAnalysis{1, 4}, 'Machine Learning'))
-        InstAnTp = 'ML';
-        error('Not implemented for ML!')
-
-    else
-        error('Instability analysis type not recognized in StabilityAnalysis file!')
-    end
-
-elseif exist([fold_an,sl,'MLMdlB.mat'], 'file')
-    InstAnTp = 'ML';
-    error('Not implemented for ANNs!')
-
-else
-    error('No info file recognized in your folder!')
-end
-
 GenOpts = listdlg2({'Merge all DEMs?', 'Path algorithm', ...
                     'Triggering landslide body', 'Replace phi and cohesion'}, ...
                    {{'Yes', 'No, separated'}, {'Gradient descent', 'Step by step'}, ...
@@ -81,8 +47,42 @@ if strcmp(PathAlg,'Gradient descent')
     StepSz = str2double(inputdlg2({'Step size for gradient descent:'}, 'DefInp',{'1'}));
 end
 
+InstAnTp = 'DetLands';
 if not(strcmp(StrtPnt,'Detected points'))
-    CritFS = str2double(inputdlg2({'Critical FS (below unstable points):'}, 'DefInp',{'1.5'}));
+    fold_an = uigetdir(fold_res_fs, 'Select analysis folder');
+    [~, FoldnameFS] = fileparts(fold_an);
+    
+    figure(Fig)
+    drawnow
+
+    if exist([fold_an,sl,'AnalysisInformation.mat'], 'file')
+        load([fold_an,sl,'AnalysisInformation.mat'], 'StabilityAnalysis');
+    
+        if strcmp(StabilityAnalysis{1, 4}, 'Slip')
+            InstAnTp = 'SLIP';
+            CritFS   = str2double(inputdlg2({'Critical FS (below -> unstable points):'}, 'DefInp',{'1.5'}));
+            EvsAnlyz = string(StabilityAnalysis{:,2});
+            IndEvFS  = listdlg2({'Event to plot:'}, EvsAnlyz, 'OutType','NumInd');
+            EventFS  = datetime(EvsAnlyz(IndEvFS), 'InputFormat','dd/MM/yyyy HH:mm:ss');
+            
+            load([fold_an,sl,'Fs',num2str(IndEvFS),'.mat'], 'FactorSafety');
+    
+        elseif any(strcmp(StabilityAnalysis{1, 4}, 'Machine Learning'))
+            InstAnTp = 'ML';
+            error('Not implemented for ML!')
+    
+        else
+            error('Instability analysis type not recognized in StabilityAnalysis file!')
+        end
+    
+    elseif exist([fold_an,sl,'MLMdlB.mat'], 'file')
+        InstAnTp = 'ML';
+        CritProb = str2double(inputdlg2({'Critical proability (above -> unstable points):'}, 'DefInp',{'0.8'}));
+        UnstPrbs = load_fs2probs([fold_an,sl,'MLMdlB.mat'], IndexDTMPointsInsideStudyArea);
+    
+    else
+        error('No info file recognized in your folder!')
+    end
 end
 
 EvlAns = inputdlg2({'Gamma soil (wet):', 'A Skempton coefficient:', ...
@@ -112,7 +112,7 @@ if strcmp(PathAlg,'Gradient descent')
     PathsInfo.StepSizeGD = StepSz;
 end
 
-if not(strcmp(StrtPnt,'Detected points'))
+if strcmp(InstAnTp,'SLIP')
     PathsInfo.CriticalFS = CritFS;
 end
 
@@ -153,12 +153,10 @@ for i1 = 1:length(xLongAll)
     yPlCrStudyArea = yPlanAll{i1}(IndexDTMPointsInsideStudyArea{i1});
     ElevStudyArea  = ElevationAll{i1}(IndexDTMPointsInsideStudyArea{i1});
     AsAngStudyArea = AspectAngleAll{i1}(IndexDTMPointsInsideStudyArea{i1});
-    RIndsStudyArea = (1:numel(IndexDTMPointsInsideStudyArea{i1}))';
+    RelIdStudyArea = (1:numel(IndexDTMPointsInsideStudyArea{i1}))';
 
     RelIndsAll = zeros(size(xLongAll{i1}));
-    RelIndsAll(IndexDTMPointsInsideStudyArea{i1}) = RIndsStudyArea;
-    
-    FsStudyArea = FactorSafety{i1}; % FsStudyArea have same dimension of IndexDTMPointsInsideStudyArea
+    RelIndsAll(IndexDTMPointsInsideStudyArea{i1}) = RelIdStudyArea;
 
     % Basic sizes for grid
     dX   = abs(xPlanAll{i1}(1,2)-xPlanAll{i1}(1,1));
@@ -171,13 +169,18 @@ for i1 = 1:length(xLongAll)
     [PlGradE, PlGradN] = gradient(ElevationAll{i1}, dX, dY);
     
     %% Search for critical points
-    switch StrtPnt
-        case 'Instability points'
+    switch InstAnTp
+        case 'SLIP'
+            FsStudyArea    = FactorSafety{i1}; % FsStudyArea have same dimension of IndexDTMPointsInsideStudyArea
             IndUnstPntsRaw = find(FsStudyArea(:) <= CritFS & FsStudyArea(:) >= 0);
 
-        case 'Detected points'
+        case 'DetLands'
             IndWithCurrDTM = InfoDet2Use{:, 3} == i1;
             IndUnstPntsRaw = InfoDet2Use{IndWithCurrDTM, 4};
+
+        case 'ML'
+            UnstPrbCurrDTM = UnstPrbs{i1}; % UnstPrbCurrDTM have same dimension of IndexDTMPointsInsideStudyArea
+            IndUnstPntsRaw = find(UnstPrbCurrDTM(:) >= CritProb);
 
         otherwise
             error('Type of points for land bodies not recognized!')

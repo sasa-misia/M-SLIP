@@ -74,7 +74,7 @@ if AnswerTypeRec == 1
 
     %% Adjustment of data and dates
     dTRecRaw = RecDatesStartsPerSta{1}(2)-RecDatesStartsPerSta{1}(1);
-    DltaTime = hours(str2double(inputdlg2({['Delta time rec (current is ',num2str(hours(dTRecRaw)),' h):']}, 'DefInp',{'1'}))); % In hours!!!
+    DltaTime = hours(str2double(inputdlg2({['Delta time rec (current is ',num2str(hours(dTRecRaw)),' h):']}, 'DefInp',{num2str(hours(dTRecRaw))}))); % In hours!!!
     PrmptsMd = strcat({'Aggregation mode, column '},string(1:size(RecNumDataPerSta{1}, 2)),{':'});
     AggrMode = listdlg2(PrmptsMd, {'sum', 'avg', 'min', 'max'});
     [GeneralDatesStart, GeneralDatesEnd, ...
@@ -257,15 +257,15 @@ if AnswerTypeFor == 1
 end
 
 %% Saving
-ProgressBar.Message = strcat("Saving data...");
+ProgressBar.Message = 'Saving data...';
 
 NameInterp  = [ShortName,'Interpolated.mat'];
 NameGeneral = ['General',DataRead,'.mat'];
 AnswerType  = {'AnswerTypeRec', 'AnswerTypeFor', 'InterpDuration'};
 
 SaveNewFile = true;
-if exist([fold_var,sl,'RainInterpolated.mat'], 'file')
-    Overwrite = uiconfirm(Fig, 'RainInterpolated.mat file already exist. Overwrite or update?', ...
+if exist([fold_var,sl,ShortName,'Interpolated.mat'], 'file')
+    Overwrite = uiconfirm(Fig, [ShortName,'Interpolated.mat file already exist. Overwrite or update?'], ...
                                'Overwrite', 'Options',{'Overwrite', 'Update'});
     if strcmp(Overwrite,'Update'); SaveNewFile = false; end
 end

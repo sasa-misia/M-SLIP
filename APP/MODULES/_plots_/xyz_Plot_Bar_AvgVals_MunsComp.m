@@ -5,7 +5,7 @@ drawnow
 
 %% File loading
 sl = filesep;
-load([fold_var,sl,'AverageValues.mat'], 'AverageValues')
+load([fold_var,sl,'AverageValues.mat'], 'AvgValsTimeSens')
 
 if exist([fold_var,sl,'PlotSettings.mat'], 'file')
     load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize')
@@ -22,8 +22,8 @@ ShowPlots = uiconfirm(Fig, 'Do you want to show plots?', ...
 if strcmp(ShowPlots,'Yes'); ShowPlots = true; else; ShowPlots = false; end
 
 %% Plot Average
-Prp2Plt = listdlg2({'Property to plot:'}, AverageValues.Properties.VariableNames);
-AvgVlTb = AverageValues{'Content',Prp2Plt}{:};
+Prp2Plt = listdlg2({'Property to plot:'}, AvgValsTimeSens.Properties.VariableNames);
+AvgVlTb = AvgValsTimeSens{'Content',Prp2Plt}{:};
 ColNms  = AvgVlTb.Properties.VariableNames;
 ColNmsF = ColNms(not(contains(ColNms, {'Start','End'}, 'IgnoreCase',true)));
 ColSel  = checkbox2(ColNmsF, 'Title',{'Select column to plot:'});

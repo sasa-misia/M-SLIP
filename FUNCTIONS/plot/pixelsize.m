@@ -1,4 +1,4 @@
-function [varargout] = pixelsize(StudyAreaPolygon, varargin)
+function [pixelSize, infoDetSize] = pixelsize(studyAreaPolygon, Options)
 
 % RETURN THE CORRECT PIXEL SIZE TO PLOT
 %   
@@ -29,50 +29,40 @@ function [varargout] = pixelsize(StudyAreaPolygon, varargin)
 %   - 'DetPxSize', num : is to specify the ratio between the normal pixels 
 %   and the pixels of the detected landslides when 'FixedDetSize' is set to 
 %   'false'. When 'FixedDetSize' is set to 'true', this value is the absolute 
-%   value of det pixel size. If no value is specified, then 15 will be take 
+%   value of det pixel size. If no value is specified, then 10 will be take 
 %   as default.
 
-%% Settings
-RefStudyArea = .0417; % Default
-UseJustExtr  = false; % Default
-FinalScale   = .028;  % Default
-DetectPxSize = 15;    % Default
-FixedDetSize = true;  % Default
-
-if ~isempty(varargin)
-    StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
-
-    vararginCp = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
-    vararginCp(StringPart) = cellfun(@(x) lower(string(x)), varargin(StringPart),  'Uniform',false);
-
-    InputRefArea = find(cellfun(@(x) all(strcmpi(x, "refarea"     )), vararginCp));
-    InputUseExtr = find(cellfun(@(x) all(strcmpi(x, "extremes"    )), vararginCp));
-    InputFnlScl  = find(cellfun(@(x) all(strcmpi(x, "finscale"    )), vararginCp));
-    InputDetPxSz = find(cellfun(@(x) all(strcmpi(x, "detpxsize"   )), vararginCp));
-    InputFixdSzs = find(cellfun(@(x) all(strcmpi(x, "fixeddetsize")), vararginCp));
-
-    if InputRefArea; RefStudyArea = varargin{InputRefArea+1}; end
-    if InputUseExtr; UseJustExtr  = varargin{InputUseExtr+1}; end
-    if InputFnlScl ; FinalScale   = varargin{InputFnlScl+1 }; end
-    if InputDetPxSz; DetectPxSize = varargin{InputDetPxSz+1}; end
-    if InputFixdSzs; FixedDetSize = varargin{InputFixdSzs+1}; end
+arguments
+    studyAreaPolygon (1,1) polyshape
+    Options.RefArea (1,1) double = .0417; % Default
+    Options.Extremes (1,1) logical = false; % Default
+    Options.FinScale (1,1) double = .028; % Default
+    Options.FixedDetSize (1,1) logical = true; % Default
+    Options.DetPxSize (1,1) double = 10; % Default
 end
 
-%% Processing
-ExtStudyArea = area(StudyAreaPolygon);
+%% Settings
+refStudyArea = Options.RefArea;
+useJustExtr  = Options.RefArea;
+finalScale   = Options.FinScale;
+detectPxSize = Options.DetPxSize;
+fixedDetSize = Options.FixedDetSize;
 
-if UseJustExtr
-    MaxExtremes  = max(StudyAreaPolygon.Vertices);
-    MinExtremes  = min(StudyAreaPolygon.Vertices);
+%% Processing
+ExtStudyArea = area(studyAreaPolygon);
+
+if useJustExtr
+    MaxExtremes  = max(studyAreaPolygon.Vertices);
+    MinExtremes  = min(studyAreaPolygon.Vertices);
     ExtStudyArea = prod(MaxExtremes-MinExtremes);
 end
 
-RatioRef = ExtStudyArea/RefStudyArea;
-varargout{1} = FinalScale/RatioRef;
-if FixedDetSize
-    varargout{2} = DetectPxSize;
+RatioRef = ExtStudyArea/refStudyArea;
+pixelSize = finalScale/RatioRef;
+if fixedDetSize
+    infoDetSize = detectPxSize;
 else
-    varargout{2} = DetectPxSize*varargout{1};
+    infoDetSize = detectPxSize*pixelSize;
 end
 
 end

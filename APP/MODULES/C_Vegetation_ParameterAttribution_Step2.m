@@ -10,12 +10,7 @@ load([fold_var,sl,'GridCoordinates.mat'     ], 'IndexDTMPointsInsideStudyArea','
 load([fold_var,sl,'VegetationParameters.mat'], 'BetaStarAll','RootCohesionAll')
 load([fold_var,sl,'VegPolygonsStudyArea.mat'], 'FileName_VegAssociation','VegPolygonsStudyArea','VegetationAllUnique')
 
-InfoDetExst = false;
-if exist([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'file')
-    load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'InfoDetectedSoilSlips','IndDefInfoDet')
-    InfoDet2Use = InfoDetectedSoilSlips{IndDefInfoDet};
-    InfoDetExst = true;
-end
+[InfoDetExst, InfoDet2Use] = load_info_detected(fold_var);
 
 ModVegInDet = 'No';
 if InfoDetExst
@@ -50,12 +45,13 @@ ProgressBar.Message = 'Reading excel...';
 
 %% InPolygon Procedure
 if strcmp(ModVegInDet, 'Yes') || strcmp(ModVegInDet, 'Average')
-    load([fold_var,sl,'InfoDetectedSoilSlips.mat'])
+    load([fold_var,sl,'MorphologyParameters.mat'], 'SlopeAll')
     DetDTM = InfoDet2Use{:,3};
     DetInd = InfoDet2Use{:,4}; % These indices are relative to StudyArea, not to xLongAll!
     DetIdA = arrayfun(@(x,y) IndexDTMPointsInsideStudyArea{x}(y), DetDTM, DetInd); % Now these are relative to xLongAll
-    Cr2Mnt = arrayfun(@(x,y) RootCohesionAll{x}(y), DetDTM, DetIdA);
-    Bs2Mnt = arrayfun(@(x,y) BetaStarAll{x}(y)    , DetDTM, DetIdA);
+    Sl2Use = arrayfun(@(x,y) SlopeAll{x}(y), DetDTM, DetIdA);
+    Cr2Mnt = zeros(size(Sl2Use)); % Cr2Mnt = arrayfun(@(x,y) RootCohesionAll{x}(y), DetDTM, DetIdA);
+    Bs2Mnt = arrayfun(@cosd, Sl2Use); % arrayfun(@(x,y) BetaStarAll{x}(y), DetDTM, DetIdA);
 end
 
 tic

@@ -1,4 +1,4 @@
-function PredictionProbabilities = mdlpredict(Model, Dataset, varargin)
+function PredictionProbabilities = mdlpredict(Model, Dataset, Options)
 
 % Modded version of "predict" MATLAB function, useful in M-SLIP
 %   
@@ -28,7 +28,18 @@ function PredictionProbabilities = mdlpredict(Model, Dataset, varargin)
 %   If no value is specified, then 'false' will be take as default for 
 %   regression and true for classification.
 
+%% Arguments
+arguments
+    Model (1,1)
+    Dataset (:,:)
+    Options.SingleCol (1,1) logical = false
+    Options.CutValues (:,:) logical = false([])
+    Options.SecondOut (1,1) logical = true
+end
+
 %% Settings initialization
+SnglCol = Options.SingleCol;
+
 MdlClss = strsplit(class(Model), '.'); MdlClss = MdlClss{end};
 ScndOut = contains(MdlClss, 'class', 'IgnoreCase',true); % Default
 if not(ScndOut) && any(strcmpi(fieldnames(Model), 'modelparameters'))
@@ -37,23 +48,17 @@ end
 if not(ScndOut) && any(strcmpi(fieldnames(Model), 'method'))
     ScndOut = any(strcmpi(Model.Method, {'classification'}));
 end
-SnglCol = false; % Default
-CutVals = ScndOut;
 
-if ~isempty(varargin)
-    StringPart = cellfun(@(x) (ischar(x) || isstring(x)), varargin);
-    varargin(StringPart) = cellfun(@(x) lower(string(x)), varargin(StringPart), 'Uniform',false);
+if ScndOut ~= Options.SecondOut
+    % Nothing, it can be only automatic...
+end
 
-    vararginCopy = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
-    vararginCopy(StringPart) = varargin(StringPart);
-
-    InputSecondOut = find(cellfun(@(x) strcmpi(x, "secondout"), vararginCopy));
-    InputSingleCol = find(cellfun(@(x) strcmpi(x, "singlecol"), vararginCopy));
-    InputCutValues = find(cellfun(@(x) strcmpi(x, "cutvalues"), vararginCopy));
-
-    if InputSecondOut; ScndOut = varargin{InputSecondOut+1}; end
-    if InputSingleCol; SnglCol = varargin{InputSingleCol+1}; end
-    if InputCutValues; CutVals = varargin{InputCutValues+1}; end
+if isempty(Options.CutValues)
+    CutVals = ScndOut;
+elseif isscalar(Options.CutValues)
+    CutVals = Options.CutValues;
+else
+    error('CutValues must be scalar or empty!')
 end
 
 %% Core
@@ -86,7 +91,7 @@ FrstPreds = CurrPreds(:,1);
 if size(CurrPreds, 2) > 1 % In case of multiple columns it should be a classification!
     CurrPreds = CurrPreds(:,2:end);
 
-    if not(all(single(round(FrstPreds, 2)) + single(round(sum(CurrPreds, 2), 2)) == 1)) % sum(CurrPreds, 2) is the remaining part, which summed must return 1-FrstPreds
+    if not(all( (round(FrstPreds, 2) + round(sum(CurrPreds, 2), 2) - 1) <= 0.01 )) % sum(CurrPreds, 2) is the remaining part, which summed must return 1-FrstPreds (a tolerance of 1% is allowed!)
         warning(['mdlpredict| Summed probabilities after 2nd column are not ' ...
                  'equal to the first one! Please check with "predict" function!'])
     end

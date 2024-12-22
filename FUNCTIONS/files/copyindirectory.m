@@ -1,12 +1,12 @@
-function [] = copyindirectory(FileType, DestinationPath, varargin)
+function [] = copyindirectory(fileType, destinationPath, varargin)
 %CopyInDirectory Select a file and copy it in a sirectory
 %
-%       FileType = you can specify the extension as string. Examples:
+%       fileType = you can specify the extension as string. Examples:
 %       'shp', 'xlsx', etc. 
 %       If you want to have multiple types simoultaneously you can write 
 %       a cell array of strings. Example: {'shp','xlsx'}
 %
-%       DestinationPath = You have to specify path where you want to save
+%       destinationPath = You have to specify path where you want to save
 %       files. Example: C:\Users\name\.....
 %       
 %       Optional arguments ('key','value')
@@ -14,13 +14,14 @@ function [] = copyindirectory(FileType, DestinationPath, varargin)
 %       copy only selected file, in the second one you will copy all files
 %       that contain that name, no matter the extension of the file.
 
-if not(( (isstring(FileType) && isscalar(FileType))    || ...
-         (ischar(FileType)   && size(FileType,1)==1) ) || ...
-          iscell(FileType))
+%% Input check
+if not(( (isstring(fileType) && isscalar(fileType))    || ...
+         (ischar(fileType)   && size(fileType,1)==1) ) || ...
+          iscell(fileType))
     error("First argument must be a scalar string, a 1 row char or a cell vector of strings/char")
 end
 
-if not(isstring(DestinationPath) || ischar(DestinationPath))
+if not(isstring(destinationPath) || ischar(destinationPath))
     error("Second argument must be a scalar string or a 1 row char")
 end
 
@@ -28,6 +29,7 @@ if isempty(varargin)
     varargin = {'mode','single', 'title','Choose your file', 'file2copy',''};
 end
 
+%% Variable args
 convert = cellfun(@ischar, varargin) | cellfun(@isstring, varargin);
 vararginCp = cellstr(strings(size(varargin))); % It is necessary because you want to find indices only for the string part
 vararginCp(convert) = cellfun(@(x) lower(string(x)), varargin(convert),  'Uniform',false);
@@ -39,53 +41,56 @@ InputTitle = find(cellfun(@(x) strcmpi(x, "title"), vararginCp));
 if InputTitle; Title = varargin{InputTitle+1}; else; Title = 'Choose your file'; end
 
 InputFile2Copy = find(cellfun(@(x) strcmpi(x, "file2copy"), vararginCp));
-if InputFile2Copy; PreExFiles = varargin{InputFile2Copy+1}; else; PreExFiles = ''; end
+if InputFile2Copy; preSelFiles = cellstr(varargin{InputFile2Copy+1}); else; preSelFiles = {}; end
 
-if isvector(FileType) && iscell(FileType)
-    if isrow(FileType); FileType = FileType'; end
+if isvector(fileType) && iscell(fileType)
+    if isrow(fileType); fileType = fileType'; end
 end
 
-Extension = char(FileType);
-if ~strcmp(Extension(1:2), '*.'); Extension = strcat('*.',Extension); end
-if size(Extension,1)>1; Extension = join(cellstr(Extension),"; "); end
+%% Core
+extsType = char(fileType);
+if not(strcmp(extsType(1:2), '*.')); extsType = strcat('*.',extsType); end
+if size(extsType,1) > 1; extsType = join(cellstr(extsType),"; "); end
 
-if isempty(PreExFiles)
-    [FileName, FilePath] = uigetfile(Extension, Title, 'MultiSelect','on');
+if isempty(preSelFiles)
+    [fileName, filePath] = uigetfile(extsType, Title, 'MultiSelect','on');
 else
-    [FilePathM, FileNamePr, FileNameExt] = fileparts(PreExFiles);
-    FilePath = [char(unique(FilePathM)),filesep];
-    FileName = strcat(FileNamePr,FileNameExt);
+    [filePathM, fileNamePr, fileNameExt] = fileparts(preSelFiles);
+    filePath = [char(unique(filePathM)),filesep];
+    fileName = strcat(fileNamePr,fileNameExt);
 end
 
 switch Mode
     case "single"
-        FilesToCopy = cellstr(fullfile(FilePath, FileName));
+        files2Copy = cellstr(fullfile(filePath, fileName));
 
     case "multiple"
-        Files = string({dir(FilePath).name});
-        [~, FileName] = fileparts(FileName);
-        IndFilesToCopy = contains(Files,FileName);
-        FilesToCopy = cellstr(strcat(FilePath,Files(IndFilesToCopy)));
+        possFiles  = string({dir(filePath).name});
+        [~, fileName] = fileparts(fileName);
+        indFilesCp = contains(possFiles,fileName);
+        files2Copy = cellstr(strcat(filePath,possFiles(indFilesCp)));
 
     otherwise
         error("'mode' must be 'single'or 'multiple'")
 end
 
-FlIndInDestPath = not([dir(DestinationPath).isdir]);
-CntntInDestPath = {dir(DestinationPath).name};
-FilesInDestPath = CntntInDestPath(FlIndInDestPath);
+isFldInDestPath = not([dir(destinationPath).isdir]);
+cntntInDestPath = {dir(destinationPath).name};
+filesInDestPath = cntntInDestPath(isFldInDestPath);
 
-Inds2Copy = true(1, numel(FilesToCopy));
-if not(isempty(FilesInDestPath))
-    for i1 = 1:numel(FilesToCopy)
-        [~, TempFlNm, TempFlExt] = fileparts(FilesToCopy{i1});
-        TempFile2Chck = [TempFlNm,TempFlExt];
-        Inds2Copy(i1) = not(any(strcmp(TempFile2Chck, FilesInDestPath)));
+inds2Copy = true(1, numel(files2Copy));
+if not(isempty(filesInDestPath)) % Check of pre-existing files
+    for i1 = 1:numel(files2Copy)
+        [~, tempFlNm, tempFlExt] = fileparts(files2Copy{i1});
+        tempFile2Chck = [tempFlNm,tempFlExt];
+        inds2Copy(i1) = not(any(strcmp(tempFile2Chck, filesInDestPath)));
     end
 end
 
-if all(not(Inds2Copy))
+if any(inds2Copy)
+    cellfun(@(x) copyfile(x, destinationPath), files2Copy(inds2Copy));
+end
+
+if all(not(inds2Copy))
     warning('All these files are already present in the destination folder!')
-else
-    cellfun(@(x) copyfile(x, DestinationPath), FilesToCopy(Inds2Copy));
 end

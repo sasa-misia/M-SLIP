@@ -31,9 +31,9 @@ end
     AspectAngleAll, SlopeAll, GradNAll, GradEAll, OriginalProjCRS] = deal(cell(1, length(NameFile1)));
 
 ProgressBar.Indeterminate = 'off';
-for i1 = 1:length(NameFile1)
+for i1 = 1:numel(NameFile1)
     ProgressBar.Message = strcat("Analyzing DTM n. ",num2str(i1)," of ", num2str(length(NameFile1)));
-    ProgressBar.Value   = i1/length(NameFile1);
+    ProgressBar.Value   = i1/numel(NameFile1);
 
     [RasterData, RasterRef] = readgeorast2([fold_raw_dtm,sl,char(NameFile1(i1))], 'SeparateWorldFile',SepWrldFl);
         
@@ -64,21 +64,26 @@ for i1 = 1:length(NameFile1)
     clear('RasterData')
     
     if strcmp(RasterRef.CoordinateSystemType,"planar")
-        [yLat   , xLong   ] = projinv(RasterRef.ProjectedCRS, xScaled, yScaled);
-        [yLatExt, xLongExt] = projinv(RasterRef.ProjectedCRS, RasterRef.XWorldLimits, RasterRef.YWorldLimits);
-        RastInfoGeo = georefcells(yLatExt, xLongExt, size(Elevation), 'ColumnsStartFrom','north'); % Remember to automatize this parameter (ColumnsStartFrom) depending on emisphere!
-        RastInfoGeo.GeographicCRS = RasterRef.ProjectedCRS.GeographicCRS;
+        [yLat, xLon] = projinv(RasterRef.ProjectedCRS, xScaled, yScaled);
+        [yLim, xLim] = projinv(RasterRef.ProjectedCRS, RasterRef.XWorldLimits, RasterRef.YWorldLimits);
+        crsObj       = RasterRef.ProjectedCRS.GeographicCRS;
 
     elseif strcmp(RasterRef.CoordinateSystemType,"geographic")
-        xLong = xScaled;
-        yLat  = yScaled;
-        RastInfoGeo  = RasterRef;
+        xLon   = xScaled; 
+        yLat   = yScaled;
+        xLim   = RasterRef.LongitudeLimits; 
+        yLim   = RasterRef.LatitudeLimits;
+        crsObj = RasterRef.GeographicCRS;
     end
+
+    RastInfoGeo = georefcells(yLim, xLim, size(Elevation), 'ColumnsStartFrom',RasterRef.ColumnsStartFrom, ...
+                                                           'RowsStartFrom',RasterRef.RowsStartFrom);
+    RastInfoGeo.GeographicCRS = crsObj;
 
     clear('xScaled', 'yScaled', 'RasterRef')
 
-    xLongAll{i1} = xLong;
-    clear('xLong')
+    xLongAll{i1} = xLon;
+    clear('xLon')
 
     yLatAll{i1} = yLat;
     clear('yLat')

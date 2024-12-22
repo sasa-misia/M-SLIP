@@ -18,7 +18,8 @@ if OrthophotoAnswer
 end
 
 %% For scatter dimension
-[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon, 'Extremes',true); % 'RefArea',0.035
+PixelScale = 0.3 * abs(yLatAll{1}(2,1) - yLatAll{1}(1,1)) / 6e-05;
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon, Extremes=true, FinScale=PixelScale); % 'RefArea',0.035
 
 %% Options
 ProgressBar.Message = 'Options...';

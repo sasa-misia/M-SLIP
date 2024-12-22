@@ -8,14 +8,7 @@ sl = filesep;
 
 fold_res_ml_curr = uigetdir(fold_res_ml, 'Chose your analysis folder');
 
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize')
-    SelFont = Font;
-    SelFnSz = FontSize;
-else
-    SelFont = 'Calibri';
-    SelFnSz = 8;
-end
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 MdlType = find([exist([fold_res_ml_curr,sl,'MLMdlA.mat'], 'file'), ...
                 exist([fold_res_ml_curr,sl,'MLMdlB.mat'], 'file')]);
@@ -23,12 +16,12 @@ if not(isscalar(MdlType)); error('More than one model found in your folder!'); e
 switch MdlType
     case 1
         load([fold_res_ml_curr,sl,'MLMdlA.mat'], 'MLMdl','MLPerf','ModelInfo')
-        ANNMode = ModelInfo.ANNsOptions.TrainMode;
-        CurrFts = ModelInfo.Dataset.Datasets(1).Feats;
+        MdlMode = ModelInfo.ANNsOptions.TrainMode;
+        CurrFts = ModelInfo.Dataset(1).Datasets.Feats;
 
     case 2
         load([fold_res_ml_curr,sl,'MLMdlB.mat'], 'MLMdl','MLPerf','ModelInfo')
-        ANNMode = ModelInfo.ANNMode;
+        MdlMode = ModelInfo.MdlMode;
         CurrFts = ModelInfo.DatasetInfo{1}.FeaturesNames{:};
 
     otherwise
@@ -103,7 +96,7 @@ for i1 = 1:length(IndMdls2Tk)
 
     CurrFln = ['Feature importance model n - ',num2str(i1),' - Dataset ',DsetPrt4FI];
     CurrFig = figure(i1);
-    CurrAxs = axes(CurrFig, 'FontName',SelFont, 'FontSize',SelFnSz);
+    CurrAxs = axes(CurrFig, 'FontName',SlFont, 'FontSize',SlFnSz);
     set(CurrFig, 'Name',CurrFln, 'visible','off')
 
     CurrPssFts = MLMdl{'FeatsConsidered',i1}{:};
@@ -115,7 +108,7 @@ for i1 = 1:length(IndMdls2Tk)
     FeatsNames = reordercats(FeatsNames, CurrFtsNms); % DON'T DELETE THIS ROW!!! Is necessary even if FeaturesNames is already in the correct order!
     CurrntLoss = MLPerf{'Err','Test'}{:}{'Loss',i1};
     CrrntAUROC = MLPerf{'ROC','Test'}{:}{'AUC',i1}{:};
-    switch ANNMode
+    switch MdlMode
         case {'Classic (V)', 'Classic (L)', 'Cross Validation (K-Fold M)', ...
                 'Cross Validation (K-Fold V)', 'Auto', 'Sensitivity Analysis', ...
                     'Deep (L)', 'Deep (V)'}
@@ -142,27 +135,27 @@ for i1 = 1:length(IndMdls2Tk)
     BarLbls = string(1:length(FeatsNames));
     [~, FeatOrd2] = sort(FeatOrd, 'ascend');
     BarLbls = BarLbls(FeatOrd2);
-    text(xBarPos, yBarPos, BarLbls, 'HorizontalAlignment','center', 'VerticalAlignment','bottom')
+    text(xBarPos, yBarPos, BarLbls, 'HorizontalAlignment','center', 'VerticalAlignment','bottom', 'FontName',SlFont ,'FontSize',0.7*SlFnSz)
 
     if DynUpLm
         UpYLim = min(ceil(1.10*max(ImpInPercs)), 100);
     else
-        UpYLim = 100;
+        UpYLim = FixdLimY;
     end
 
     ylim([0, UpYLim])
-    ylabel('Feature Importance [%]', 'FontName',SelFont, 'FontSize',SelFnSz)
-    CurrAxs.YAxis.FontSize = SelFnSz;
+    ylabel('Feature Importance [%]', 'FontName',SlFont, 'FontSize',SlFnSz)
+    CurrAxs.YAxis.FontSize = SlFnSz;
 
     xtickangle(CurrAxs, 90)
-    xlabel(' ', 'FontName',SelFont, 'FontSize',SelFnSz)
-    CurrAxs.XAxis.FontSize = SelFnSz;
+    xlabel(' ', 'FontName',SlFont, 'FontSize',SlFnSz)
+    CurrAxs.XAxis.FontSize = SlFnSz;
     
     pbaspect([3,1,1])
 
-    title(['Feature Importance (Model n. ',ANNsNames{i1},'; Dataset ',DsetPrt4FI,')'], 'FontName',SelFont, 'FontSize',1.5*SelFnSz)
+    title(['Feature Importance (Model n. ',ANNsNames{i1},'; Dataset ',DsetPrt4FI,')'], 'FontName',SlFont, 'FontSize',1.5*SlFnSz)
     subtitle(['Loss: ',num2str(CurrntLoss),'; Test AUC: ',num2str(CrrntAUROC), ...
-              '; Struct: [',StructStrn,']'], 'FontName',SelFont, 'FontSize',SelFnSz)
+              '; Struct: [',StructStrn,']'], 'FontName',SlFont, 'FontSize',SlFnSz)
 
     %% Showing plot and saving...
     if ShowPlt

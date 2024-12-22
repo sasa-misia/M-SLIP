@@ -1,128 +1,102 @@
-cd(fold_var)
-load('GridCoordinates.mat');
-load('LandUsesVariables.mat');
-load('StudyAreaVariables.mat');
-load('Distances.mat');
-load('PolygonsDistances.mat');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
+drawnow
 
+%% File loading
+sl = filesep;
+load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon','MunPolygon')
+load([fold_var,sl,'GridCoordinates.mat'   ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
+load([fold_var,sl,'Distances.mat'         ], 'Distances')
 
-cd(fold_user)
-Sheet_Ass=readcell(FileName_LandUsesAssociation,'Sheet','Association');
-LandUniqueLeg=Sheet_Ass(2:end,2);
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
+[InfoDetExst, InfoDet2Use] = load_info_detected(fold_var);
 
-LUColors = cell2mat(cellfun(@(x) sscanf(x,'%d',[1 3]), ...
-                        Sheet_Ass(2:end,3),'UniformOutput',false)); 
+%% For scatter dimension
+PixelScale = 0.35 * abs(yLatAll{1}(2,1) - yLatAll{1}(1,1)) / 6e-05;
+[PixelSize, DetPixelSize] = pixelsize(StudyAreaPolygon, FinScale=PixelScale);
 
-if exist('LegendSettings.mat')
-    load('LegendSettings.mat')
+%% Options
+PltOpts = listdlg2({'Object to plot', 'Show plot'}, {Distances.Properties.VariableNames, {'Yes','No'}});
+PltObjL = PltOpts{1};
+if strcmp(PltOpts{2}, 'Yes'); ShowPlt = true; else; ShowPlt = false; end
+
+LablPlt = inputdlg2({'Label for the object'}, 'DefInp',PltObjL);
+
+%% Data extraction
+ProgressBar.Message = 'Data extraction...';
+xLonStudy = cellfun(@(x,y) x(y), xLongAll, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('xLongAll')
+
+yLatStudy = cellfun(@(x,y) x(y), yLatAll , IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+clear('yLatAll')
+
+DistStudy = cellfun(@(x,y) x(y), Distances{'Distances',PltObjL}{:}, IndexDTMPointsInsideStudyArea, 'UniformOutput',false);
+
+PolygDist = Distances{'Objects',PltObjL}{:};
+
+%% Plot
+CurrFln = ['Distance from ',LablPlt{:}];
+CurrFig = figure('Visible','off', 'Name',CurrFln);
+CurrAxs = axes('Parent',CurrFig); 
+hold(CurrAxs,'on');
+
+for i1 = 1:numel(xLonStudy)
+    fastscatter(xLonStudy{i1}(:), yLatStudy{i1}(:), DistStudy{i1}(:))
+end
+
+plot(StudyAreaPolygon, 'FaceColor','none', 'LineWidth',1.5, 'Parent',CurrAxs);
+plot(MunPolygon      , 'FaceColor','none', 'LineWidth',1  , 'Parent',CurrAxs);
+% plot(PolygDist       , 'FaceColor','none', 'LineWidth',.7 , 'Parent',CurrAxs);
+
+fig_settings(fold0)
+
+if InfoDetExst
+    DetObjs = arrayfun(@(x,y) scatter(x, y, DetPixelSize, '^k','Filled'), InfoDet2Use{:,5}, InfoDet2Use{:,6});
+    uistack(DetObjs,'top')
+end
+
+if exist('LegPos', 'var')
+    if InfoDetExst
+        LegObjs = {DetObjs(1)};
+        LegCaps = {"Points Analyzed"};
+    end
+
+    CurrLeg = legend(CurrAxs, ...
+                     [LegObjs{:}], LegCaps, 'AutoUpdate','off', ...
+                                            'NumColumns',2, ...
+                                            'FontName',SlFont, ...
+                                            'FontSize',SlFnSz, ...
+                                            'Location',LegPos, ...
+                                            'Box','off');
+
+    CurrLeg.ItemTokenSize(1) = 5;
+
+    fig_rescaler(CurrFig, CurrLeg, LegPos)
+end
+
+set(CurrAxs, 'Visible','off')
+
+colormap(CurrAxs, flipud(colormap('turbo')))
+% colormap(CurrAxs,'pink')
+
+LimsCol = linspace(min(cellfun(@(x) min(x, [], 'all'), DistStudy)), ...
+                   max(cellfun(@(x) max(x, [], 'all'), DistStudy)), 5);
+LimsCol = round(LimsCol, 2, 'significant'); % CHECK FOR LEGEND THAT IS CUTTED AND WITH 3 DECIMAL NUMBERS, WHEN 0 IS PRESENT
+clim([LimsCol(1), LimsCol(end)])
+ColBar = colorbar('Location','westoutside', 'Ticks',LimsCol, 'TickLabels',string(LimsCol), 'FontSize',SlFnSz*.8);
+ColBarPos = get(ColBar,'Position');
+ColBarPos(1) = ColBarPos(1)-.05;
+ColBarPos(3) = ColBarPos(3)*.5;
+set(ColBar, 'Position',ColBarPos)
+title(ColBar, 'Dist. [m]', 'FontName',SlFont, 'FontSize',SlFnSz)
+
+%% Export
+exportgraphics(CurrFig, [fold_fig,sl,CurrFln,'.png'], 'Resolution',600);
+
+% Show Fig
+if ShowPlt
+    set(CurrFig, 'Visible','on');
 else
-    SelectedFont='Times New Roman';
-    SelectedFontSize=8;
-    SelectedLocation='Best';
-end
-
-xLongStudy=cellfun(@(x,y) x(y),xLongAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
-
-yLatStudy=cellfun(@(x,y) x(y),yLatAll,IndexDTMPointsInsideStudyArea,...
-        'UniformOutput',false);
-
-
-if IndLandUse
-
-    IndLU=cellfun(@(x) find(strcmp(AllLandUnique,x)),SelectedLU4Dist);
-
-    for i1=1:length(xLongStudy)
-        cellfun(@(x,y,z) fastscatter(x,y,z),xLongStudy(i1),yLatStudy(i1),MinDistanceLU(i1))
-        hold on
-    end
-
-    filename1='DistanceLU';
-    f1=figure(1);
-    set(f1 , ...
-        'Color',[1 1 1],...
-        'PaperType','a4',...
-        'PaperSize',[29.68 20.98 ],...    
-        'PaperUnits', 'centimeters',...
-        'PaperPositionMode','manual',...
-        'PaperPosition', [0 1 16 12],...
-        'InvertHardcopy','off');
-    set( gcf ,'Name' , filename1);
-    
-    for i1=1:length(IndLU)
-        hLU(i1)=plot(LandUsePolygonsStudyArea(IndLU(i1)),...
-            'FaceColor',LUColors(IndLU(i1),:)./255,'FaceAlpha',1,'EdgeColor','none');
-        hold on
-    end
-
-
-    hcol=colorbar;
-    hcol.Title.String='Distance [km]';
-    hcol.Location = 'southoutside';
-
-    hleg1=legend(hLU,LandUniqueLeg(IndLU),...
-        'FontName',SelectedFont,...
-        'Location',SelectedLocation,...
-        'FontSize',SelectedFontSize,...
-        'Box','off');
-    
-    hleg1.ItemTokenSize(1)=4;
-
-
-    xlim([MinExtremes(1),MaxExtremes(1)])
-    ylim([MinExtremes(2)-0.0005,MaxExtremes(2)+0.0005])
-
-    set(gca,'visible','off')
-    cd(fold_fig)
-    exportgraphics(f1,strcat(filename1,'.png'),'Resolution',600);
-end
-
-if IndRoad
-    VertRoad=cellfun(@(x) x.Vertices,RoadPoly,'UniformOutput',false);
-    IndGoodLong=cellfun(@(x) x(:,1)>MinExtremes(1) & x(:,1)<MaxExtremes(1),...
-        VertRoad,'UniformOutput',false);
-    
-    IndGoodLat=cellfun(@(x) x(:,2)>MinExtremes(2) & x(:,2)<MaxExtremes(2),...
-        VertRoad,'UniformOutput',false);
-
-    IndGoodAll=cellfun(@(x,y) cat(2,x,y),IndGoodLong,IndGoodLat,...
-        'UniformOutput',false);
-    
-    IndGoodAll=cellfun(@(x) min(x,[],2),IndGoodAll,...
-        'UniformOutput',false);
-
-    filename2='DistanceRoad';
-    f2=figure(2);
-    set(f2 , ...
-        'Color',[1 1 1],...
-        'PaperType','a4',...
-        'PaperSize',[29.68 20.98 ],...    
-        'PaperUnits', 'centimeters',...
-        'PaperPositionMode','manual',...
-        'PaperPosition', [0 1 16 12],...
-        'InvertHardcopy','off');
-    set( gcf ,'Name' , filename2);
-
-    for i1=1:length(xLongStudy)
-        cellfun(@(x,y,z) fastscatter(x,y,z),xLongStudy(i1),yLatStudy(i1),MinDistanceRoad(i1))
-        hold on
-    end
-
-    hRoad=cellfun(@(x,y) plot(x(y,1),x(y,2),'Color',[228 229 224]./255,'LineWidth',3),...
-        VertRoad,IndGoodAll);
-
-    legend(hRoad,NameRoad{:},...
-        'Location',SelectedLocation)
-
-    hcol=colorbar;
-    hcol.Title.String='Distance [km]';
-
-    xlim([MinExtremes(1),MaxExtremes(1)])
-    ylim([MinExtremes(2)-0.0005,MaxExtremes(2)+0.0005])
-        
-        
-    set(gca,'visible','off')
-    cd(fold_fig)
-    exportgraphics(f2,strcat(filename2,'.png'),'Resolution',600);
-
+    close(CurrFig)
 end

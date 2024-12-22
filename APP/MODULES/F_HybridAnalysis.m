@@ -1,91 +1,92 @@
-% Fig = uifigure; % Remember to comment this line if is app version
-ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Message','Reading files...', ...
-                                 'Indeterminate','on');
+if not(exist('Fig', 'var')); Fig = uifigure; end
+ProgressBar = uiprogressdlg(Fig, 'Title','Please wait', 'Indeterminate','on', ...
+                                 'Message','Reading files...', 'Cancelable','off');
 drawnow
 
-%% Cretion of folder
-cd(fold_res_fs)
-FsFolderName = string(inputdlg({'Choose analysis folder name (inside Results->Factors of Safety):'}, ...
-                                '', 1, {'Hybrid-Event-SLIP-RF-v1'}));
+%% Options
+sl = filesep;
+load([fold0,sl,'os_folders.mat'        ], 'fold_res_fs','fold_res_ml','fold_var')
+load([fold_var,sl,'GridCoordinates.mat'], 'IndexDTMPointsInsideStudyArea')
 
-if exist(FsFolderName,'dir')
+FsFolderName = char(inputdlg2({['New analysis folder name (inside ', ...
+                                'Results->Factors of Safety):']}, 'DefInp',{'EventDate-Hybrid'}));
+
+if exist([fold_res_fs,sl,FsFolderName], 'dir')
     Options = {'Yes, thanks', 'No, for God!'};
-    Answer = uiconfirm(Fig, strcat(FsFolderName, " is an existing folder. " + ...
-                                   "Do you want to overwrite it?"), ...
-                            'Window type', 'Options',Options);
-    switch Answer
+    DelAnsw = uiconfirm(Fig, [FsFolderName,' is an existing folder. Do you want to overwrite it?'], ...
+                            'Overwrite', 'Options',Options);
+    switch DelAnsw
         case 'Yes, thanks.'
-            rmdir(FsFolderName,'s')
-            mkdir(FsFolderName)
+            rmdir([fold_res_fs,sl,FsFolderName],'s')
+            mkdir([fold_res_fs,sl,FsFolderName])
         case 'No, for God!'
             return
     end
 else
-    mkdir(FsFolderName)
+    mkdir([fold_res_fs,sl,FsFolderName])
 end
 
-fold_res_fs_new = strcat(fold_res_fs,sl,FsFolderName);
+fold_res_fs_new = [fold_res_fs,sl,FsFolderName];
 
-%% Analyses combination
-AnalysisTypes = strings(1, 2);
-fold_res_fs_an = strings(1, 2);
-NumberOfAnalyses = zeros(1,2);
-for i1 = 1:2
-    cd(fold_res_fs)
-    fold_res_fs_an(i1) = string(uigetdir('open', strcat('Select Folder n. ',string(i1))));
-    
-    cd(fold_res_fs_an(i1))
-
-    load('AnalysisInformation.mat')
-    AnalysisTypes(i1) = StabilityAnalysis{4}(1);
-    if AnalysisTypes(i1) == "Machine Learning"; MLType = StabilityAnalysis{4}(2); end
-    NumberOfAnalyses(i1) = StabilityAnalysis{1};
-
+ImpSLIP = str2double(char(inputdlg2({'SLIP importance (from 0 to 1):'}, 'DefInp',{'0.5'})));
+if ImpSLIP <= 0 || ImpSLIP >= 1
+    error('Importance of SLIP must be greater than 0 and smaller than 1!')
 end
 
-StabilityAnalysis{4} = ["Hybrid", strcat("SLIP and ML: ", MLType)];
-cd(fold_res_fs_new)
-save('AnalysisInformation.mat','StabilityAnalysis');
+tolHours = 72; % 24 is better if you want more precise results
 
-if NumberOfAnalyses(1) ~= NumberOfAnalyses(2); error('Incompatible analysis sizes'); end
+%% Data loading
+[fold_anls_src, PossDatetimes, AnalysisTypes] = deal(cell(1, 2));
 
-SlipPercentage = .5; % Give the possibility to choose to the user!
-MLPercentage   = .5;
+% SLIP
+fold_anls_src{1} = char(uigetdir(fold_res_fs, strcat('Select SLIP folder')));
+
+load([fold_anls_src{1},sl,'AnalysisInformation.mat'], 'StabilityAnalysis')
+
+AnalysisTypes{1} = char(StabilityAnalysis{4}(1));
+PossDatetimes{1} = StabilityAnalysis{2};
+
+% ML
+fold_anls_src{2} = char(uigetdir(fold_res_ml, strcat('Select ML folder')));
+
+load([fold_anls_src{2},sl,'PredictionsStudy.mat'], 'EventsInfo')
+load([fold_anls_src{2},sl,'MLMdlB.mat'          ], 'ModelInfo')
+
+AnalysisTypes{2} = char(ModelInfo.Type);
+PossDatetimes{2} = [EventsInfo{'PredictionDate',:}{:}];
+
+% General info
+Dttm2TakeML = zeros(1, numel(PossDatetimes{1}));
+for i1 = 1:numel(Dttm2TakeML)
+    [MinDiffBtwnDttm, TmpInd] = min(abs(PossDatetimes{2} - PossDatetimes{1}(i1)));
+    if hours(MinDiffBtwnDttm) > tolHours
+        error(['No date near to ',char(PossDatetimes{1}(i1)), ...
+               ' in ML predictions (more than 24 hours of difference)!'])
+    else
+        Dttm2TakeML(i1) = TmpInd;
+    end
+end
+
+%% Core
+StabilityAnalysis{4} = "Hybrid";
+save([fold_res_fs_new,sl,'AnalysisInformation.mat'], 'StabilityAnalysis');
 
 ProgressBar.Indeterminate = 'off';
-for i1 = 1:NumberOfAnalyses(1)
-    ProgressBar.Value = i1/NumberOfAnalyses(1);
-    ProgressBar.Message = strcat("Combination n. ", string(i1)," of ", string(NumberOfAnalyses(1)));
-    drawnow
+for i1 = 1:numel(PossDatetimes{1})
+    ProgressBar.Value = i1/numel(PossDatetimes{1});
+    ProgressBar.Message = ['Combination n. ',num2str(i1),' of ',num2str(numel(PossDatetimes{1}))];
 
-    for i2 = 1:2
-        cd(fold_res_fs_an(i2))
-        if AnalysisTypes(i2) == "Slip"
-            load(strcat('Fs',num2str(i1),'.mat'));
-            FsSlip = FactorSafety;
-            clear('FactorSafety')
-        elseif AnalysisTypes(i2) == "Machine Learning"
-            load(strcat('FsML',num2str(i1),'.mat'));
-            FsML = cellfun(@(x) x(:,2),FactorSafetyMachineLearning(2,:), 'UniformOutput',false);
-            clear('FactorSafetyMachineLearning')
+    for i2 = 1:numel(fold_anls_src)
+        if strcmpi(AnalysisTypes{i2}, 'Slip')
+            PrbSLIP = load_fs2probs(fold_anls_src{i2}, IndexDTMPointsInsideStudyArea, indAn2Load=i1);
+
+        else
+            PrbMLrn = load_fs2probs(fold_anls_src{i2}, IndexDTMPointsInsideStudyArea, indAn2Load=Dttm2TakeML(i1));
         end
     end
 
-    FsSlipProbability = cellfun(@(x) 1-(x./(1+x)), FsSlip, 'UniformOutput',false); % Probability to have landslide occurrence
-    FsSlipProbabilityMin = min(cellfun(@min, FsSlipProbability));
-    FsSlipProbabilityIndexNan = cellfun(@isnan, FsSlipProbability, 'UniformOutput',false);
-    for i2 = 1:length(FsSlipProbability)
-        FsSlipProbability{i2}(FsSlipProbabilityIndexNan{i2}) = FsSlipProbabilityMin;
-    end
-    FsHybrid = cellfun(@(x,y) x*SlipPercentage+y*MLPercentage, FsSlipProbability, FsML, 'UniformOutput',false); % Probability to have landslide occurrence
-    cd(fold_res_fs_new)
-    save(strcat('FsH',num2str(i1),'.mat'), 'FsHybrid')
+    FsHybrid = cellfun(@(x,y) x*ImpSLIP + y*(1 - ImpSLIP), PrbSLIP, PrbMLrn, 'UniformOutput',false); % Probability to have landslide occurrence
     
+    save([fold_res_fs_new,sl,'FsH',num2str(i1),'.mat'], 'FsHybrid')
 end
-close(ProgressBar) % ProgressBar instead of Fig if on the app version
-cd(fold0)
-
-% Another idea to implement is to catch the best threshold for both
-% analysys and combine rescaling probabilities from that value (see odd
-% explanation, instead of having 1 for slip as watershed from o to inf you
-% will have the best threshold; same for ML)
+ProgressBar.Indeterminate = 'on';

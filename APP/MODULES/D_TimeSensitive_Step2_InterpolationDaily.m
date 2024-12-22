@@ -30,7 +30,7 @@ if numel(GeneralData) > 1
 end
 
 %% Elaboration of data and selection of dates
-ProgressBar.Message = "Selection od dates...";
+ProgressBar.Message = "Selection of dates...";
 [xLongSta, yLatSta] = deal(Gauges{2}(:,1), Gauges{2}(:,2));
 
 EndDateInd   = listdlg2({'Last date to interpolate (suggested hour is 00:00):'}, ...

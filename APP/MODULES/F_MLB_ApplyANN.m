@@ -95,11 +95,11 @@ if TmSnsExs
         TmSnTrgg, TmSnPeak, TmSnEvDt] = deal({});
     
     % Rainfall
-    if any(contains(FeatsUsd, 'Rainfall'))
+    if any(contains(FeatsUsd, 'Rain'))
         load([fold_var,sl,'RainInterpolated.mat'], 'RainInterpolated','RainDateInterpolationStarts')
         TmSnData = [TmSnData, {RainInterpolated}];
         TmSnDate = [TmSnDate, {RainDateInterpolationStarts}];
-        TmSnParm = [TmSnParm, {'Rainfall'}];
+        TmSnParm = [TmSnParm, {'Rain'}];
         TmSnCmlb = [TmSnCmlb,  true];
         clear('RainInterpolated')
         if strcmpi(TmSnMode, 'TriggerCausePeak')
@@ -112,11 +112,11 @@ if TmSnsExs
     end
     
     % Temperature
-    if any(contains(FeatsUsd, 'Temperature'))
+    if any(contains(FeatsUsd, 'Temp'))
         load([fold_var,sl,'TempInterpolated.mat'], 'TempInterpolated','TempDateInterpolationStarts')
         TmSnData = [TmSnData,  {TempInterpolated}];
         TmSnDate = [TmSnDate,  {TempDateInterpolationStarts}];
-        TmSnParm = [TmSnParm, {'Temperature'}];
+        TmSnParm = [TmSnParm, {'Temp'}];
         TmSnCmlb = [TmSnCmlb,  false];
         clear('TempInterpolated')
         if strcmpi(TmSnMode, 'TriggerCausePeak')
@@ -150,10 +150,9 @@ if TmSnsExs
     
     TmSnDate = TmSnDate{1}; % Taking only the first one since they are identical!
 
-    Dys4TmSn = ModelInfo{1,'DatasetInfo'}{:}{1,'DaysForTS'};
-    IndxEvnt = listdlg2({'Date of event (start time of 24 h):'}, ...
-                        TmSnDate(Dys4TmSn:end), 'OutType','NumInd');
-    EvntDate = TmSnDate(Dys4TmSn+IndxEvnt-1); % You have to start from Days4TS
+    Dys4TmSn = ModelInfo{1,'DatasetInfo'}{:}{1,'DaysForTS'}{:};
+    IndxEvnt = listdlg2({'Date of event (start time of 24 h):'}, TmSnDate(max(Dys4TmSn):end), 'OutType','NumInd');
+    EvntDate = TmSnDate(max(Dys4TmSn)+IndxEvnt-1); % You have to start from Days4TS
 
     DaysNumb = str2double(inputdlg2('Days to predict (last to back):', 'DefInp','1')); % Number of days before your event, to have a sort of history graph
     
@@ -188,11 +187,11 @@ if numel(TmSnDate) < DaysNumb
     error(['The number of history days should be less ' ...
            'than the dates in TimeSensitiveDate!'])
 end
-if numel(TmSnDate) < (DaysNumb + Dys4TmSn - 1)
+if numel(TmSnDate) < (DaysNumb + max(Dys4TmSn) - 1)
     error(['The number of history days should be take ', ...
            'into account also the antecedent days for ', ...
            'the Time Sensitive part! Reduce history days by ', ...
-           num2str(DaysNumb + Dys4TmSn - 1 - numel(TmSnDate)), ...
+           num2str(DaysNumb + max(Dys4TmSn) - 1 - numel(TmSnDate)), ...
            ' or move forward the event date of the same quantity.'])
 end
 
@@ -200,11 +199,13 @@ for EvId = 1 : DaysNumb
     %% Selection of event and adjustment of dataset
     CurrDate = EvntDate - days(DaysNumb - EvId);
 
-    [Dset2PredFts, ...
-        CurrDate] = dataset_update_ts(TmSnData, TmSnDate, CurrDate, ...
-                                      Dset2PredFts, TmSnMode, TmSnParm, Dys4TmSn, ...
-                                      Rngs4Nrm = Rngs4Nrm, TmSnCmlb = TmSnCmlb, TmSnTrgg = TmSnTrgg, ...
-                                      TmSnPeak = TmSnPeak, TmSnEvDt = TmSnEvDt, TmSnTrCs = TmSnTrCs);
+    for i1 = 1:numel(Dys4TmSn)
+        [Dset2PredFts, ...
+            CurrDate] = dataset_update_ts(TmSnData, TmSnDate, CurrDate, ...
+                                          Dset2PredFts, TmSnMode, TmSnParm, Dys4TmSn(i1), ...
+                                          Rngs4Nrm = Rngs4Nrm, TmSnCmlb = TmSnCmlb, TmSnTrgg = TmSnTrgg, ...
+                                          TmSnPeak = TmSnPeak, TmSnEvDt = TmSnEvDt, TmSnTrCs = TmSnTrCs);
+    end
     
     %% Prediction of dataset
     if PreExistPredictions || (EvId > 1)

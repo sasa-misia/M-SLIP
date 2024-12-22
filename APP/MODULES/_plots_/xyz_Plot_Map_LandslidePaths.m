@@ -242,6 +242,8 @@ for i1 = 1:numel(SelLnd)
 
     CurrAxPth = cell(1, 3);
 
+    deltaW = 1e-8; % To avoid errors in case min and max are the same!
+
     % Longitude path
     CurrAxPth{1} = subplot(2, 2, 1);
     hold(CurrAxPth{1},'on')
@@ -253,9 +255,9 @@ for i1 = 1:numel(SelLnd)
     view(0, 0)
     line(PthGCrds(:,1), PthGCrds(:,2), PthElev(:), 'color','r', 'LineWidth',2, 'Parent',CurrAxPth{1}) % 'Marker','o'
 
-    xlim([min(PthGCrds(:,1)), max(PthGCrds(:,1))])
-    ylim([min(PthGCrds(:,2)), max(PthGCrds(:,2))])
-    zlim([min(PthElev(:))   , max(PthElev(:))   ])
+    xlim([min(PthGCrds(:,1)), max(PthGCrds(:,1))+deltaW])
+    ylim([min(PthGCrds(:,2)), max(PthGCrds(:,2))+deltaW])
+    zlim([min(PthElev(:)), max(PthElev(:))])
     
     % Latitude path
     CurrAxPth{2} = subplot(2, 2, 2);
@@ -268,9 +270,9 @@ for i1 = 1:numel(SelLnd)
     view(90,0)
     line(PthGCrds(:,1), PthGCrds(:,2), PthElev(:), 'color','r', 'LineWidth',2, 'Parent',CurrAxPth{2}) % 'Marker','o'
 
-    xlim([min(PthGCrds(:,1)), max(PthGCrds(:,1))])
-    ylim([min(PthGCrds(:,2)), max(PthGCrds(:,2))])
-    zlim([min(PthElev(:))   , max(PthElev(:))   ])
+    xlim([min(PthGCrds(:,1)), max(PthGCrds(:,1))+deltaW])
+    ylim([min(PthGCrds(:,2)), max(PthGCrds(:,2))+deltaW])
+    zlim([min(PthElev(:)), max(PthElev(:))])
     
     % Monodimensional path
     CurrAxPth{3} = subplot(2, 2, [3, 4]);

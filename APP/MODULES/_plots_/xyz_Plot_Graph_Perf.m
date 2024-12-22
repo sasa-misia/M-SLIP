@@ -11,18 +11,8 @@ Flds2Rd = checkbox2(PssFlds);
 
 %% Loading
 sl = filesep;
-if exist([fold_var,sl,'PlotSettings.mat'], 'file')
-    load([fold_var,sl,'PlotSettings.mat'], 'Font','FontSize','LegendPosition')
-    SelFnt = Font;
-    SelFSz = FontSize;
-    if exist('LegendPosition', 'var')
-        LegPos = LegendPosition;
-    end
-else
-    SelFnt = 'Calibri';
-    SelFSz = 10;
-    LegPos = 'best';
-end
+
+[SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 %% Options
 PltOpts = checkbox2({'Manual limit X', 'Show plot'}, 'DefInp',[0, 0], 'OutType','LogInd');
@@ -126,17 +116,17 @@ for i1 = 1:numel(Flds2Rd)
     hold(CurrAxs{4}, 'on')
     
     xLabTxt = 'Number of model';
-    xlabel(CurrAxs{1}, xLabTxt, 'FontName',SelFnt, 'FontSize',SelFSz)
-    xlabel(CurrAxs{2}, xLabTxt, 'FontName',SelFnt, 'FontSize',SelFSz)
-    xlabel(CurrAxs{3}, xLabTxt, 'FontName',SelFnt, 'FontSize',SelFSz)
-    xlabel(CurrAxs{4}, xLabTxt, 'FontName',SelFnt, 'FontSize',SelFSz)
+    xlabel(CurrAxs{1}, xLabTxt, 'FontName',SlFont, 'FontSize',SlFnSz)
+    xlabel(CurrAxs{2}, xLabTxt, 'FontName',SlFont, 'FontSize',SlFnSz)
+    xlabel(CurrAxs{3}, xLabTxt, 'FontName',SlFont, 'FontSize',SlFnSz)
+    xlabel(CurrAxs{4}, xLabTxt, 'FontName',SlFont, 'FontSize',SlFnSz)
     
-    ylabel(CurrAxs{1}, 'AUROC [%]'   , 'FontName',SelFnt, 'FontSize',SelFSz)
-    ylabel(CurrAxs{2}, 'AUPRC [%]'   , 'FontName',SelFnt, 'FontSize',SelFSz)
-    ylabel(CurrAxs{3}, 'F1-Score [-]', 'FontName',SelFnt, 'FontSize',SelFSz)
-    ylabel(CurrAxs{4}, 'QCI [%]'     , 'FontName',SelFnt, 'FontSize',SelFSz)
+    ylabel(CurrAxs{1}, 'AUROC [%]'   , 'FontName',SlFont, 'FontSize',SlFnSz)
+    ylabel(CurrAxs{2}, 'AUPRC [%]'   , 'FontName',SlFont, 'FontSize',SlFnSz)
+    ylabel(CurrAxs{3}, 'F1-Score [-]', 'FontName',SlFont, 'FontSize',SlFnSz)
+    ylabel(CurrAxs{4}, 'QCI [%]'     , 'FontName',SlFont, 'FontSize',SlFnSz)
     
-    title(CurrAxs{1}, ['Models of ',MdlNameRep], 'FontName',SelFnt, 'FontSize',SelFSz)
+    title(CurrAxs{1}, ['Models of ',MdlNameRep], 'FontName',SlFont, 'FontSize',SlFnSz)
     % title(CurrAxs{1}, ['Models AUC ('    ,MdlNameRep,')'], 'FontName',SelFont, 'FontSize',SelFntSz)
     % title(CurrAxs{2}, ['Models AUPRC ('  ,MdlNameRep,')'], 'FontName',SelFont, 'FontSize',SelFntSz)
     % title(CurrAxs{3}, ['Models F-Score (',MdlNameRep,')'], 'FontName',SelFont, 'FontSize',SelFntSz)
@@ -148,13 +138,13 @@ for i1 = 1:numel(Flds2Rd)
     scatter(CurrAxs{1}, TrnBstROC, TrnROC(TrnBstROC)*100, 20, 'LineWidth',1.5, 'MarkerEdgeColor','#242732', 'Marker','diamond')
     scatter(CurrAxs{1}, TstBstROC, TstROC(TstBstROC)*100, 20, 'LineWidth',1.5, 'MarkerEdgeColor','#242732', 'Marker','diamond')
     
-    text(CurrAxs{1}, TrnBstROC-2, TrnROC(TrnBstROC)*100, num2str(TrnBstROC), 'FontName',SelFnt, 'FontSize',SelFSz, 'FontWeight','bold', 'Color','#242732')
-    text(CurrAxs{1}, TstBstROC-2, TstROC(TstBstROC)*100, num2str(TstBstROC), 'FontName',SelFnt, 'FontSize',SelFSz, 'FontWeight','bold', 'Color','#242732')
+    text(CurrAxs{1}, TrnBstROC-2, TrnROC(TrnBstROC)*100, num2str(TrnBstROC), 'FontName',SlFont, 'FontSize',SlFnSz, 'FontWeight','bold', 'Color','#242732')
+    text(CurrAxs{1}, TstBstROC-2, TstROC(TstBstROC)*100, num2str(TstBstROC), 'FontName',SlFont, 'FontSize',SlFnSz, 'FontWeight','bold', 'Color','#242732')
     
     xlim(CurrAxs{1}, [MinCols, MaxCols+0.5])
     ylim(CurrAxs{1}, [50, 100])
     
-    legend([LnTrnROC, LnTstROC], {'Train', 'Test'}, 'Location',LegPos, 'FontName',SelFnt, 'FontSize',SelFSz*.7)
+    legend([LnTrnROC, LnTstROC], {'Train', 'Test'}, 'Location',LegPos, 'FontName',SlFont, 'FontSize',SlFnSz*.7)
     
     % AUPRC
     LnTrnPRC = plot(CurrAxs{2}, MinCols:MaxCols, TrnPRC(MinCols:MaxCols)*100, '--', 'LineWidth',1.5, 'Color','#D95319');
@@ -163,13 +153,13 @@ for i1 = 1:numel(Flds2Rd)
     scatter(CurrAxs{2}, TrnBstPRC, TrnPRC(TrnBstPRC)*100, 20, 'LineWidth',1.5, 'MarkerEdgeColor','#242732', 'Marker','diamond')
     scatter(CurrAxs{2}, TstBstPRC, TstPRC(TstBstPRC)*100, 20, 'LineWidth',1.5, 'MarkerEdgeColor','#242732', 'Marker','diamond')
     
-    text(CurrAxs{2}, TrnBstPRC-2, TrnPRC(TrnBstPRC)*100, num2str(TrnBstPRC), 'FontName',SelFnt, 'FontSize',SelFSz, 'FontWeight','bold', 'Color','#242732')
-    text(CurrAxs{2}, TstBstPRC-2, TstPRC(TstBstPRC)*100, num2str(TstBstPRC), 'FontName',SelFnt, 'FontSize',SelFSz, 'FontWeight','bold', 'Color','#242732')
+    text(CurrAxs{2}, TrnBstPRC-2, TrnPRC(TrnBstPRC)*100, num2str(TrnBstPRC), 'FontName',SlFont, 'FontSize',SlFnSz, 'FontWeight','bold', 'Color','#242732')
+    text(CurrAxs{2}, TstBstPRC-2, TstPRC(TstBstPRC)*100, num2str(TstBstPRC), 'FontName',SlFont, 'FontSize',SlFnSz, 'FontWeight','bold', 'Color','#242732')
     
     xlim(CurrAxs{2}, [MinCols, MaxCols+0.5])
     ylim(CurrAxs{2}, [10, 100])
     
-    legend([LnTrnPRC, LnTstPRC], {'Train', 'Test'}, 'Location',LegPos, 'FontName',SelFnt, 'FontSize',SelFSz*.7)
+    legend([LnTrnPRC, LnTstPRC], {'Train', 'Test'}, 'Location',LegPos, 'FontName',SlFont, 'FontSize',SlFnSz*.7)
     
     % F1-Score
     LnTrnF1S = plot(CurrAxs{3}, MinCols:MaxCols, TrnF1S(MinCols:MaxCols), '--', 'LineWidth',1.5, 'Color','#77AC30');
@@ -178,13 +168,13 @@ for i1 = 1:numel(Flds2Rd)
     scatter(CurrAxs{3}, TrnBstF1S, TrnF1S(TrnBstF1S), 20, 'LineWidth',1.5, 'MarkerEdgeColor','#242732', 'Marker','diamond')
     scatter(CurrAxs{3}, TstBstF1S, TstF1S(TstBstF1S), 20, 'LineWidth',1.5, 'MarkerEdgeColor','#242732', 'Marker','diamond')
     
-    text(CurrAxs{3}, TrnBstF1S-2, TrnF1S(TrnBstF1S), num2str(TrnBstF1S), 'FontName',SelFnt, 'FontSize',SelFSz, 'FontWeight','bold', 'Color','#242732')
-    text(CurrAxs{3}, TstBstF1S-2, TstF1S(TstBstF1S), num2str(TstBstF1S), 'FontName',SelFnt, 'FontSize',SelFSz, 'FontWeight','bold', 'Color','#242732')
+    text(CurrAxs{3}, TrnBstF1S-2, TrnF1S(TrnBstF1S), num2str(TrnBstF1S), 'FontName',SlFont, 'FontSize',SlFnSz, 'FontWeight','bold', 'Color','#242732')
+    text(CurrAxs{3}, TstBstF1S-2, TstF1S(TstBstF1S), num2str(TstBstF1S), 'FontName',SlFont, 'FontSize',SlFnSz, 'FontWeight','bold', 'Color','#242732')
     
     xlim(CurrAxs{3}, [MinCols, MaxCols+0.5])
     ylim(CurrAxs{3}, [.5, 1])
     
-    legend([LnTrnF1S, LnTstF1S], {'Train', 'Test'}, 'Location',LegPos, 'FontName',SelFnt, 'FontSize',SelFSz*.7)
+    legend([LnTrnF1S, LnTstF1S], {'Train', 'Test'}, 'Location',LegPos, 'FontName',SlFont, 'FontSize',SlFnSz*.7)
     
     % QCI
     LnTrnQCI = plot(CurrAxs{4}, MinCols:MaxCols, TrnQCI(MinCols:MaxCols), '--', 'LineWidth',1.5, 'Color','#A2142F');
@@ -194,14 +184,14 @@ for i1 = 1:numel(Flds2Rd)
     scatter(CurrAxs{4}, TstBstQCI, TstQCI(TstBstQCI), 20, 'LineWidth',1.5, 'MarkerEdgeColor','#242732', 'Marker','diamond')
     
     TxtTstQCI = num2str(round(TstQCI(TstBstQCI), 3));
-    text(CurrAxs{4}, TrnBstQCI-2, TrnQCI(TrnBstQCI), num2str(TrnBstQCI), 'FontName',SelFnt, 'FontSize',SelFSz, 'FontWeight','bold', 'Color','#242732')
-    text(CurrAxs{4}, TstBstQCI-2, TstQCI(TstBstQCI), num2str(TstBstQCI), 'FontName',SelFnt, 'FontSize',SelFSz, 'FontWeight','bold', 'Color','#242732')
-    text(CurrAxs{4}, TstBstQCI+1, TstQCI(TstBstQCI), num2str(TxtTstQCI), 'FontName',SelFnt, 'FontSize',SelFSz, 'FontWeight','bold', 'Color','#242732')
+    text(CurrAxs{4}, TrnBstQCI-2, TrnQCI(TrnBstQCI), num2str(TrnBstQCI), 'FontName',SlFont, 'FontSize',SlFnSz, 'FontWeight','bold', 'Color','#242732')
+    text(CurrAxs{4}, TstBstQCI-2, TstQCI(TstBstQCI), num2str(TstBstQCI), 'FontName',SlFont, 'FontSize',SlFnSz, 'FontWeight','bold', 'Color','#242732')
+    text(CurrAxs{4}, TstBstQCI+1, TstQCI(TstBstQCI), num2str(TxtTstQCI), 'FontName',SlFont, 'FontSize',SlFnSz, 'FontWeight','bold', 'Color','#242732')
     
     xlim(CurrAxs{4}, [MinCols, MaxCols+0.5])
     ylim(CurrAxs{4}, [.5, 1])
     
-    legend([LnTrnQCI, LnTstQCI], {'Train', 'Test'}, 'Location',LegPos, 'FontName',SelFnt, 'FontSize',SelFSz*.7)
+    legend([LnTrnQCI, LnTstQCI], {'Train', 'Test'}, 'Location',LegPos, 'FontName',SlFont, 'FontSize',SlFnSz*.7)
     
     %% Export
     ProgressBar.Message = 'Export...';

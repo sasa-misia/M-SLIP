@@ -21,10 +21,10 @@ end
 
 [ProfileCurvatureAll, PlanformCurvatureAll] = deal(cell(size(xLongAll)));
 for i1 = 1:length(xLongAll)
-    dx = abs(xPlanAll{i1}(ceil(end/2),2)-xPlanAll{i1}(ceil(end/2),1));
-    dy = abs(yPlanAll{i1}(1,ceil(end/2))-yPlanAll{i1}(2,ceil(end/2)));
+    dx = round(abs(xPlanAll{i1}(ceil(end/2), 2) - xPlanAll{i1}(ceil(end/2), 1)), 2);
+    dy = round(abs(yPlanAll{i1}(1, ceil(end/2)) - yPlanAll{i1}(2, ceil(end/2))), 2);
 
-    if int64(dx) ~= int64(dy)
+    if abs(int64(dx) - int64(dy)) > 1
         error("You have a DEM of different sizes for cells in X and Y, provide another one")
     end
 

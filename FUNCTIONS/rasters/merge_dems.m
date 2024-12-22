@@ -195,17 +195,17 @@ ElevBffPlyCat  = vertcat(ElevBffPly{:});
 
 MaxLat  = LatRastersCat(IndMaxLat);
 MinLat  = LatRastersCat(IndMinLat);
-MaxLong = LongRastersCat(IndMaxLon);
-MinLong = LongRastersCat(IndMinLon);
+MaxLon = LongRastersCat(IndMaxLon);
+MinLon = LongRastersCat(IndMinLon);
 
 dLong = rad2deg(acos( (cos(DEMSize/earthRadius) - sind((MaxLat+MinLat)/2)^2) / cosd((MaxLat+MinLat)/2)^2 )); % See my notes for more information (Sa)
 dLat  = rad2deg(DEMSize/earthRadius); % See my notes for more information (Sa)
 
-SizeX = int64((MaxLong-MinLong)/dLong);
-SizeY = int64((MaxLat-MinLat)/dLat);
-MaxLong = MinLong + double(SizeX)*dLong;
+SizeX   = int64((MaxLon-MinLon)/dLong);
+SizeY   = int64((MaxLat-MinLat)/dLat);
+MaxLon  = MinLon + double(SizeX)*dLong;
 MaxLat  = MinLat  + double(SizeY)*dLat;
-RGeoTot = georefcells([MinLat, MaxLat], [MinLong, MaxLong], [SizeY, SizeX]);
+RGeoTot = georefcells([MinLat, MaxLat], [MinLon, MaxLon], [SizeY, SizeX]);
 [yLatGeoTot, xLonGeoTot] = geographicGrid(RGeoTot);
 ElevTot = zeros(size(xLonGeoTot));
 
@@ -298,7 +298,7 @@ title('Study Area Scaled Polygon Check')
 
 %% Writing ASCII file & GeoTiff
 if strcmp(OutCrds, 'Geographic')
-    MinX  = sprintf('%.6f', MinLong);
+    MinX  = sprintf('%.6f', MinLon);
     MinY  = sprintf('%.6f', MinLat);
     SizeY = RGeoTot.CellExtentInLatitude;
     SizeX = RGeoTot.CellExtentInLongitude;
@@ -307,8 +307,8 @@ if strcmp(OutCrds, 'Geographic')
 else
     LatMn = mean(RGeoTot.LatitudeLimits);
     CRS   = projcrs(PlnEPSG);
-    [MinX, MinY] = projfwd(CRS, MinLat, MinLong);
-    [MaxX, MaxY] = projfwd(CRS, MaxLat, MaxLong);
+    [MinX, MinY] = projfwd(CRS, MinLat, MinLon);
+    [MaxX, MaxY] = projfwd(CRS, MaxLat, MaxLon);
     SizeY = deg2km(RGeoTot.CellExtentInLatitude)*1000; % diff of lat in meters
     SizeX = acos(cosd(RGeoTot.CellExtentInLongitude)*cosd(LatMn)^2 + sind(LatMn)^2)*earthRadius; % diff of lon in meters
     DEMSz = int16(SizeY);

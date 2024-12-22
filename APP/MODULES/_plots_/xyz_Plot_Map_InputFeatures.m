@@ -6,18 +6,17 @@ drawnow
 %% Loading data
 sl = filesep;
 
-load([fold_var,sl,'DatasetStudy.mat'      ], 'DatasetStudyInfo','DatasetStudyFeatsNotNorm','RangesForNorm')
+load([fold_var,sl,'DatasetStudy.mat'      ], 'DatasetStudyInfo','DatasetStudyFtsOg','Rngs4Norm')
 load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygon','MaxExtremes','MinExtremes')
 load([fold_var,sl,'GridCoordinates.mat'   ], 'xLongAll','yLatAll','IndexDTMPointsInsideStudyArea')
 
 [SlFont, SlFnSz, LegPos] = load_plot_settings(fold_var);
 
 %% Selection of feats to use
-DsetFeats = DatasetStudyFeatsNotNorm.Properties.VariableNames;
+DsetFeats = DatasetStudyFtsOg.Properties.VariableNames;
 FeatsUsed = DatasetStudyInfo.FeaturesNames{:};
-FeatsOpts = {'Elevation', 'Slope', 'Aspect Angle', 'Mean Curvature', ...
-             'Sub Soil Class', 'Top Soil Class', 'Land Use Class', ...
-             'Vegetation Class', 'Rainfall'}; % This represent the features already implemented!
+FeatsOpts = {'Elevation', 'Slope', 'AspAngle', 'MnCurv', ...
+             'SubClass', 'TopClass', 'LndClass', 'VegClass', 'Rain'}; % This represent the features already implemented!
 Feats2Mnt = false(size(FeatsOpts));
 for i1 = 1:numel(FeatsOpts)
     Str2Anlz  = split(FeatsOpts(i1));
@@ -64,7 +63,7 @@ if any(contains(Feats2Use, 'Slope', 'IgnoreCase',true))
 end
 
 % Aspect Angle
-if any(contains(Feats2Use, 'Aspect', 'IgnoreCase',true))
+if any(contains(Feats2Use, 'AspAngle', 'IgnoreCase',true))
     if exist([fold_var,sl,'MorphologyParameters.mat'    ], 'file')
         load([fold_var,sl,'MorphologyParameters.mat'    ], 'AspectAngleAll')
     end
@@ -78,7 +77,7 @@ if any(contains(Feats2Use, 'Aspect', 'IgnoreCase',true))
 end
 
 % Mean Curvature
-if any(contains(Feats2Use, 'Mean'+wildcardPattern+'Curv', 'IgnoreCase',true))
+if any(contains(Feats2Use, 'Mn'+wildcardPattern+'Curv', 'IgnoreCase',true))
     if exist([fold_var,sl,'MorphologyParameters.mat'    ], 'file')
         load([fold_var,sl,'MorphologyParameters.mat'    ], 'MeanCurvatureAll')
     end
@@ -92,59 +91,59 @@ if any(contains(Feats2Use, 'Mean'+wildcardPattern+'Curv', 'IgnoreCase',true))
 end
 
 % Sub Soil Class
-if any(contains(Feats2Use, 'Sub'+wildcardPattern+'Soil', 'IgnoreCase',true))
-    if exist([fold_var,sl,'LithoPolygonsStudyArea.mat'  ], 'file')
-        load([fold_var,sl,'LithoPolygonsStudyArea.mat'  ], 'LithoPolygonsStudyArea','LithoAllUnique')
-    end
-    if not(exist('LithoPolygonsStudyArea', 'var'))
-        error('LithoPolygonsStudyArea not found in LithoPolygonsStudyArea.mat')
-    end
+if any(contains(Feats2Use, 'Sub'+wildcardPattern+'Class', 'IgnoreCase',true))
+    % if exist([fold_var,sl,'LithoPolygonsStudyArea.mat'  ], 'file')
+    %     load([fold_var,sl,'LithoPolygonsStudyArea.mat'  ], 'LithoPolygonsStudyArea','LithoAllUnique')
+    % end
+    % if not(exist('LithoPolygonsStudyArea', 'var'))
+    %     error('LithoPolygonsStudyArea not found in LithoPolygonsStudyArea.mat')
+    % end
     PolygonFeats = [PolygonFeats, {'Sub Soil Class'}];
-    PolygonDtStd = [PolygonDtStd, {LithoPolygonsStudyArea}];
-    PolygonDtNms = [PolygonDtNms, {LithoAllUnique}];
-    clear('LithoPolygonsStudyArea', 'LithoAllUnique')
+    PolygonDtStd = [PolygonDtStd, DatasetStudyInfo.ClassPolygons{:}{'SubClass','Polys'}];
+    PolygonDtNms = [PolygonDtNms, DatasetStudyInfo.ClassPolygons{:}{'SubClass','ClassNames'}];
+    % clear('LithoPolygonsStudyArea', 'LithoAllUnique')
 end
 
 % Top Soil Class
 if any(contains(Feats2Use, 'Top'+wildcardPattern+'Class', 'IgnoreCase',true))
-    if exist([fold_var,sl,'TopSoilPolygonsStudyArea.mat'], 'file')
-        load([fold_var,sl,'TopSoilPolygonsStudyArea.mat'], 'TopSoilPolygonsStudyArea','TopSoilAllUnique')
-    end
-    if not(exist('TopSoilPolygonsStudyArea', 'var'))
-        error('TopSoilPolygonsStudyArea not found in TopSoilPolygonsStudyArea.mat')
-    end
+    % if exist([fold_var,sl,'TopSoilPolygonsStudyArea.mat'], 'file')
+    %     load([fold_var,sl,'TopSoilPolygonsStudyArea.mat'], 'TopSoilPolygonsStudyArea','TopSoilAllUnique')
+    % end
+    % if not(exist('TopSoilPolygonsStudyArea', 'var'))
+    %     error('TopSoilPolygonsStudyArea not found in TopSoilPolygonsStudyArea.mat')
+    % end
     PolygonFeats = [PolygonFeats, {'Top Soil Class'}];
-    PolygonDtStd = [PolygonDtStd, {TopSoilPolygonsStudyArea}];
-    PolygonDtNms = [PolygonDtNms, {TopSoilAllUnique}];
-    clear('TopSoilPolygonsStudyArea', 'TopSoilAllUnique')
+    PolygonDtStd = [PolygonDtStd, DatasetStudyInfo.ClassPolygons{:}{'TopClass','Polys'}];
+    PolygonDtNms = [PolygonDtNms, DatasetStudyInfo.ClassPolygons{:}{'TopClass','ClassNames'}];
+    % clear('TopSoilPolygonsStudyArea', 'TopSoilAllUnique')
 end
 
 % Vegetation Class
 if any(contains(Feats2Use, 'Veg'+wildcardPattern+'Class', 'IgnoreCase',true))
-    if exist([fold_var,sl,'VegPolygonsStudyArea.mat'    ], 'file')
-        load([fold_var,sl,'VegPolygonsStudyArea.mat'    ], 'VegPolygonsStudyArea','VegetationAllUnique')
-    end
-    if not(exist('VegPolygonsStudyArea', 'var'))
-        error('VegPolygonsStudyArea not found in VegPolygonsStudyArea.mat')
-    end
+    % if exist([fold_var,sl,'VegPolygonsStudyArea.mat'    ], 'file')
+    %     load([fold_var,sl,'VegPolygonsStudyArea.mat'    ], 'VegPolygonsStudyArea','VegetationAllUnique')
+    % end
+    % if not(exist('VegPolygonsStudyArea', 'var'))
+    %     error('VegPolygonsStudyArea not found in VegPolygonsStudyArea.mat')
+    % end
     PolygonFeats = [PolygonFeats, {'Vegetation Class'}];
-    PolygonDtStd = [PolygonDtStd, {VegPolygonsStudyArea}];
-    PolygonDtNms = [PolygonDtNms, {VegetationAllUnique}];
-    clear('VegPolygonsStudyArea', 'VegetationAllUnique')
+    PolygonDtStd = [PolygonDtStd, DatasetStudyInfo.ClassPolygons{:}{'VegClass','Polys'}];
+    PolygonDtNms = [PolygonDtNms, DatasetStudyInfo.ClassPolygons{:}{'VegClass','ClassNames'}];
+    % clear('VegPolygonsStudyArea', 'VegetationAllUnique')
 end
 
 % Land Use Class
-if any(contains(Feats2Use, 'Land'+wildcardPattern+'Class', 'IgnoreCase',true))
-    if exist([fold_var,sl,'LandUsesVariables.mat'       ], 'file')
-        load([fold_var,sl,'LandUsesVariables.mat'       ], 'LandUsePolygonsStudyArea','AllLandUnique')
-    end
-    if not(exist('LandUsePolygonsStudyArea', 'var'))
-        error('LandUsePolygonsStudyArea not found in LandUsesVariables.mat')
-    end
+if any(contains(Feats2Use, 'Lnd'+wildcardPattern+'Class', 'IgnoreCase',true))
+    % if exist([fold_var,sl,'LandUsesVariables.mat'       ], 'file')
+    %     load([fold_var,sl,'LandUsesVariables.mat'       ], 'LandUsePolygonsStudyArea','AllLandUnique')
+    % end
+    % if not(exist('LandUsePolygonsStudyArea', 'var'))
+    %     error('LandUsePolygonsStudyArea not found in LandUsesVariables.mat')
+    % end
     PolygonFeats = [PolygonFeats, {'Land Use Class'}];
-    PolygonDtStd = [PolygonDtStd, {LandUsePolygonsStudyArea}];
-    PolygonDtNms = [PolygonDtNms, {AllLandUnique}];
-    clear('LandUsePolygonsStudyArea', 'AllLandUnique')
+    PolygonDtStd = [PolygonDtStd, DatasetStudyInfo.ClassPolygons{:}{'LndClass','Polys'}];
+    PolygonDtNms = [PolygonDtNms, DatasetStudyInfo.ClassPolygons{:}{'LndClass','ClassNames'}];
+    % clear('LandUsePolygonsStudyArea', 'AllLandUnique')
 end
 
 % Rainfall
@@ -203,11 +202,12 @@ PlotChoice = uiconfirm(Fig, 'How do you want to plot figures?', ...
                             'Plot choice', 'Options',Options, 'DefaultOption',1);
 
 if strcmp(PlotChoice, 'Separate Figures')
-    PlotOpts = num2cell(checkbox2(PlotList, 'Title',{'What do you want to plot?'}, 'OutType','NumInd'));
-    SclPxl   = .05;
+    PltOpt = num2cell(checkbox2(PlotList, 'Title',{'What do you want to plot?'}, 'OutType','NumInd'));
+    % SclPxl = .05;
+    SclPxl = 0.15 * abs(yLatAll{1}(2,1) - yLatAll{1}(1,1)) / 6e-05;
 else
-    PlotOpts = {1:numel(PlotList)};
-    SclPxl   = .2;
+    PltOpt = {1:numel(PlotList)};
+    SclPxl = .2;
 end
 
 %% Date check and uniformization for time sensitive part (rain rules the others)
@@ -271,8 +271,8 @@ for i1 = 1:numel(ScatterFeats)
             EleMax = max(cellfun(@max, ScatterDtStd{i1}));
 
             if RngsCut
-                EleMin = max(EleMin, RangesForNorm{DsetScttNms{i1},'Min value'});
-                EleMax = min(EleMax, RangesForNorm{DsetScttNms{i1},'Max value'});
+                EleMin = max(EleMin, Rngs4Norm{DsetScttNms{i1},'Min value'});
+                EleMax = min(EleMax, Rngs4Norm{DsetScttNms{i1},'Max value'});
             end
 
             ScatterRange{i1} = linspace(EleMin, EleMax, 11)';
@@ -289,8 +289,8 @@ for i1 = 1:numel(ScatterFeats)
         case 'Slope'
             ScatterRange{i1} = [(0:10:60)'; 90];
             if RngsCut
-                ScatterRange{i1} = linspace(RangesForNorm{DsetScttNms{i1},'Min value'}, ...
-                                            RangesForNorm{DsetScttNms{i1},'Max value'}, 5)';
+                ScatterRange{i1} = linspace(Rngs4Norm{DsetScttNms{i1},'Min value'}, ...
+                                            Rngs4Norm{DsetScttNms{i1},'Max value'}, 5)';
             end
 
             ScatterLegMap{i1} = cellstr([strcat(string(ScatterRange{i1}(1:end-1)), ...
@@ -299,9 +299,9 @@ for i1 = 1:numel(ScatterFeats)
         case 'Aspect Angle'
             ScatterRange{i1} = (0:90:360)';
             if RngsCut
-                ScatterRange{i1} = linspace(RangesForNorm{DsetScttNms{i1},'Min value'}, ...
-                                            round(2/3*RangesForNorm{DsetScttNms{i1},'Max value'}, -1), 5)';
-                ScatterRange{i1} = [ScatterRange{i1}; RangesForNorm{DsetScttNms{i1},'Max value'}];
+                ScatterRange{i1} = linspace(Rngs4Norm{DsetScttNms{i1},'Min value'}, ...
+                                            round(2/3*Rngs4Norm{DsetScttNms{i1},'Max value'}, -1), 5)';
+                ScatterRange{i1} = [ScatterRange{i1}; Rngs4Norm{DsetScttNms{i1},'Max value'}];
             end
             
             ScatterLegMap{i1} = cellstr([strcat(string(ScatterRange{i1}(1:end-1)), ...
@@ -312,8 +312,8 @@ for i1 = 1:numel(ScatterFeats)
             MeanCurvMax   = max(cellfun(@max, ScatterDtStd{i1}));
 
             if RngsCut
-                MeanCurvMin = max(MeanCurvMin, RangesForNorm{DsetScttNms{i1},'Min value'});
-                MeanCurvMax = min(MeanCurvMax, RangesForNorm{DsetScttNms{i1},'Max value'});
+                MeanCurvMin = max(MeanCurvMin, Rngs4Norm{DsetScttNms{i1},'Min value'});
+                MeanCurvMax = min(MeanCurvMax, Rngs4Norm{DsetScttNms{i1},'Max value'});
             end
 
             ScatterRange{i1}  = linspace(MeanCurvMin, MeanCurvMax, 10)';
@@ -347,7 +347,7 @@ DsetPlysNms = listdlg2(PolygonFeats, DsetFeats);
 
 [PolygonPerc, PolygonIndG] = deal(cell(1, numel(DsetPlysNms))); % Attention! PolygonIndG and PolygonPerc will not follow (different sizes) the other Polygon variables, they are just service variables!
 for i1 = 1:numel(PolygonPerc)
-    PolygonPerc{i1} = tabulate(DatasetStudyFeatsNotNorm.(DsetPlysNms{i1}));
+    PolygonPerc{i1} = tabulate(DatasetStudyFtsOg.(DsetPlysNms{i1}));
     
     PolygonPerc{i1}(PolygonPerc{i1}(:,1)==0,:) = []; % Removing no class row (0)
 
@@ -362,21 +362,21 @@ PolyClssTbl  = DatasetStudyInfo.ClassPolygons{:};
 PolygonLgnd  = cell(1, numel(PolygonFeats));
 for i1 = 1:numel(PolygonLgnd)
     PolygonLgnd{i1} = cell(1, numel(PolygonIndG{i1}));
-    PolyLegNmsTemp  = PolyClssTbl{DsetPlysNms{i1}, 'ClassNames'}{:};
-    PolyLegDscrTemp = PolyClssTbl{DsetPlysNms{i1}, 'ClassDescr'}{:};
-    PolyLegNumTemp  = cell2mat(PolyClssTbl{DsetPlysNms{i1}, 'ClassNum'}{:});
+    PolyLegNmsTemp = PolyClssTbl{DsetPlysNms{i1}, 'ClassNames'}{:};
+    PolyLegDscTemp = PolyClssTbl{DsetPlysNms{i1}, 'ClassDescr'}{:};
+    PolyLegNumTemp = cell2mat(PolyClssTbl{DsetPlysNms{i1}, 'ClassNum'}{:});
 
-    MissingContent  = cellfun(@(x) all(ismissing(x)), PolyLegDscrTemp);
+    MissingContent  = cellfun(@(x) all(ismissing(x)), PolyLegDscTemp);
     if any(MissingContent)
         NewDscr2Use = inputdlg2(PolyLegNmsTemp(MissingContent), 'DefInp',PolyLegNmsTemp(MissingContent));
-        PolyLegDscrTemp(MissingContent) = NewDscr2Use;
+        PolyLegDscTemp(MissingContent) = NewDscr2Use;
 
-        UpdDsetInfoAns = uiconfirm(Fig, 'Do you want to update DatasetInfo with the last info?', ...
-                                        'Update DatasetInfo', 'Options',{'Yes','No'}, 'DefaultOption',1);
-        if strcmp(UpdDsetInfoAns,'Yes')
-            UpdDsetStudy = true;
-            DatasetStudyInfo.ClassPolygons{:}{DsetPlysNms{i1}, 'ClassDescr'}{:} = PolyLegDscrTemp;
-        end
+        % UpdDsetInfoAns = uiconfirm(Fig, 'Do you want to update DatasetInfo with the last info?', ...
+        %                                 'Update DatasetInfo', 'Options',{'Yes','No'}, 'DefaultOption',1);
+        % if strcmp(UpdDsetInfoAns,'Yes')
+        %     UpdDsetStudy = true;
+        %     DatasetStudyInfo.ClassPolygons{:}{DsetPlysNms{i1}, 'ClassDescr'}{:} = PolyLegDscrTemp;
+        % end
     end
 
     % Realignment between PolygonLgnd, PolygonDtNms, and PolygonDtStd
@@ -399,7 +399,7 @@ for i1 = 1:numel(PolygonLgnd)
     for i2 = 1:numel(PolygonLgnd{i1})
         IndOrdLegG(i2) = find(PolygonPerc{i1}(PolygonIndG{i1}(i2), 1) == PolyLegNumTemp);
     end
-    PolygonLgnd{i1}  = PolyLegDscrTemp(IndOrdLegG);  % It will have the same order of PolygonIndG
+    PolygonLgnd{i1}  = PolyLegNmsTemp(IndOrdLegG);  % It will have the same order of PolygonIndG
     PolygonDtNms{i1} = PolygonDtNms{i1}(IndOrdLegG); % It will have the same order of PolygonIndG
     PolygonDtStd{i1} = PolygonDtStd{i1}(IndOrdLegG); % It will have the same order of PolygonIndG
 
@@ -410,9 +410,9 @@ for i1 = 1:numel(PolygonLgnd)
     PolygonDtStd{i1} = PolygonDtStd{i1}(IndLegChosed); % It will be correct just with the chosen classes
 end
 
-if UpdDsetStudy
-    save([fold_var,sl,'DatasetStudy.mat'], 'DatasetStudyInfo', '-append')
-end
+% if UpdDsetStudy
+%     save([fold_var,sl,'DatasetStudy.mat'], 'DatasetStudyInfo', '-append')
+% end
 
 %% Creation of Time sensitive data
 ProgressBar.Message = 'Creation of time sensitive data...';
@@ -566,7 +566,7 @@ ProgressBar.Message = 'Figure creation...';
 TimeInd = length(PlotList)-numel(TimeSensFeats); % Time Independant
 Titles  = string(strcat(('a':'z')', ')'));
 
-for i1 = 1:numel(PlotOpts)
+for i1 = 1:numel(PltOpt)
     if strcmp(PlotChoice, 'Unique Figure')
         FilenameFig = 'Input features plot';
         RowGridNumb = ceil(numel(ScatterFeats)/2) + ...
@@ -591,7 +591,7 @@ for i1 = 1:numel(PlotOpts)
         StrtTmSnRow = ceil(numel(ScatterFeats)/ColGridNumb) + ceil(numel(PolygonFeats)/ColGridNumb);
 
     elseif strcmp(PlotChoice, 'Separate Figures')
-        FilenameFig = [PlotList{PlotOpts{i1}}, ' feature plot'];
+        FilenameFig = [PlotList{PltOpt{i1}}, ' feature plot'];
         RowGridNumb = 1;
         ColGridNumb = 1;
         GrdSubPlts  = [1, 1];
@@ -614,8 +614,8 @@ for i1 = 1:numel(PlotOpts)
     [PlAxs, PlLeg ] = deal(cell(1, numel(PolygonFeats )));
     [TSAxs, TSLeg ] = deal(cell(1, numel(TimeSensFeats)));
     [iSc, iPl, iTS] = deal(1);
-    for i2 = 1:numel(PlotOpts{i1})
-        switch PlotList{PlotOpts{i1}(i2)}
+    for i2 = 1:numel(PltOpt{i1})
+        switch PlotList{PltOpt{i1}(i2)}
             case ScatterFeats
                 CurrCol = rem(iSc, ColGridNumb) - 1; % First left column is 0, then 1, 2, ...
                 if CurrCol == -1; CurrCol = ColGridNumb-1; end
@@ -628,7 +628,7 @@ for i1 = 1:numel(PlotOpts)
                 hold(ScAxs{iSc},'on');
                 % set(ScAxs{iSc}, 'visible','on')
                 
-                iCurr = find(strcmp(PlotList{PlotOpts{i1}(i2)}, ScatterFeats)); % To reflect the correct order! Scatter matrices could be in different order compared to PlotList
+                iCurr = find(strcmp(PlotList{PltOpt{i1}(i2)}, ScatterFeats)); % To reflect the correct order! Scatter matrices could be in different order compared to PlotList
                 ScPlt = cell(length(ScatterRange{iCurr})-1, size(xLongStudy,2));
                 for i3 = 1:length(ScatterRange{iCurr})-1
                     ScPlt(i3,:) = cellfun(@(x,y,z) scatter(x(z), y(z), PixelSize, 'Marker','o', ...
@@ -680,7 +680,7 @@ for i1 = 1:numel(PlotOpts)
                 hold(PlAxs{iPl},'on');
                 % set(PlAxs{iPl}, 'visible','on')
                 
-                iCurr = find(strcmp(PlotList{PlotOpts{i1}(i2)}, PolygonFeats)); % To reflect the correct order! Scatter matrices could be in different order compared to PlotList
+                iCurr = find(strcmp(PlotList{PltOpt{i1}(i2)}, PolygonFeats)); % To reflect the correct order! Scatter matrices could be in different order compared to PlotList
 
                 plot(PolygonDtStd{iCurr}, 'LineWidth',LineIntSize, 'EdgeColor',EdgeColInt, 'Parent',PlAxs{iPl})
                 plot(StudyAreaPolygon,    'LineWidth',LineExtSize, 'FaceColor','none',     'Parent',PlAxs{iPl})
@@ -714,7 +714,7 @@ for i1 = 1:numel(PlotOpts)
                 iPl = iPl + 1;
 
             case TimeSensFeats
-                iCurr  = find(strcmp(PlotList{PlotOpts{i1}(i2)}, TimeSensFeats)); % To reflect the correct order! Scatter matrices could be in different order compared to PlotList
+                iCurr  = find(strcmp(PlotList{PltOpt{i1}(i2)}, TimeSensFeats)); % To reflect the correct order! Scatter matrices could be in different order compared to PlotList
                 IndCum = checkbox2(string(DaysToCumTimeSens), 'Title',{'What do you want for TS:'}, 'OutType','NumInd');
                 for i3 = IndCum
                     CurrCol = rem(iTS, ColGridNumb) - 1; % First left column is 0, then 1, 2, ...
