@@ -59,7 +59,7 @@ MnBstMdl = ApplOpts(4);
 ClstPnts = ApplOpts(5);
 PltPolys = ApplOpts(6);
 
-TmSnsExs = any(strcmp('TimeSensitive', ModelInfo{1,'DatasetInfo'}{:}{1,'FeaturesTypes'}{:}));
+TmSnsExs = any(strcmp('TimeSens', ModelInfo{1,'DatasetInfo'}{:}{1,'FeaturesTypes'}{:}));
 
 if MnBstMdl
     ThrAUROC = str2double(inputdlg2('AUROC threshold:', 'DefInp','.8'));

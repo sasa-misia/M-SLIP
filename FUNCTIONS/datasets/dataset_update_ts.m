@@ -1,220 +1,220 @@
-function [DsetUpdated, DateUsed] = dataset_update_ts(TmSnData, TmSnDate, UpdtDate, DsetFtsO, TmSnMode, TmSnParm, Dys4TmSn, Options)
+function [dsetUpd, dateSel, ftsNmUpd] = dataset_update_ts(tmSnData, tmSnDate, updtDate, dsetFtsO, tmSnMode, tmSnParm, dys4TmSn, Options)
 
 arguments
-    TmSnData (1,:) cell 
-    TmSnDate (:,:) datetime {mustBeVector}
-    UpdtDate (1,1) datetime
-    DsetFtsO (:,:) table
-    TmSnMode (1,:) char
-    TmSnParm (1,:) cell
-    Dys4TmSn (1,1) double
+    tmSnData (1,:) cell 
+    tmSnDate (:,:) datetime {mustBeVector}
+    updtDate (1,1) datetime
+    dsetFtsO (:,:) table
+    tmSnMode (1,:) char
+    tmSnParm (1,:) cell
+    dys4TmSn (1,1) double
     Options.Rngs4Nrm (:,:) table = table()
-    Options.TmSnCmlb (1,:) logical = contains(TmSnParm, 'Rain', 'IgnoreCase',true)
-    Options.Inds2Tk  (:,:) double {mustBeVector} = 1:size(DsetFtsO, 1)
+    Options.TmSnCmlb (1,:) logical = contains(tmSnParm, 'Rain', 'IgnoreCase',true)
+    Options.Inds2Tk  (:,:) double {mustBeVector} = 1:size(dsetFtsO, 1)
     Options.TmSnTrgg (1,:) cell = {};
     Options.TmSnPeak (1,:) cell = {};
     Options.TmSnEvDt (1,:) cell = {};
     Options.TmSnTrCs (1,:) char = '';
 end
 
-Rngs4Nrm = Options.Rngs4Nrm;
-TmSnCmlb = Options.TmSnCmlb;
-IndTS2Tk = Options.Inds2Tk;
+rngs4Nrm = Options.Rngs4Nrm;
+tmSnCmlb = Options.TmSnCmlb;
+indTS2Tk = Options.Inds2Tk;
 
-if all(isnan(Rngs4Nrm{:,:}), 'all') || not(any(Rngs4Nrm{:,:}, 'all'))
-    Rngs4Nrm = table();
+if all(isnan(rngs4Nrm{:,:}), 'all') || not(any(rngs4Nrm{:,:}, 'all'))
+    rngs4Nrm = table();
 end
 
-TmSnTrgg = Options.TmSnTrgg;
-TmSnPeak = Options.TmSnPeak;
-TmSnEvDt = Options.TmSnEvDt;
-TmSnTrCs = Options.TmSnTrCs;
+tmSnTrgg = Options.TmSnTrgg;
+tmSnPeak = Options.TmSnPeak;
+tmSnEvDt = Options.TmSnEvDt;
+tmSnTrCs = Options.TmSnTrCs;
 
-if isempty(Rngs4Nrm); NormData = false; else; NormData = true; end
+if isempty(rngs4Nrm); normData = false; else; normData = true; end
 
-DateUsed = UpdtDate;
-tolrDays = 2;
+dateSel = updtDate;
+tolDays = 2;
 
-switch lower(TmSnMode)
+switch lower(tmSnMode)
     case 'separatedays'
-        if not(isscalar(Dys4TmSn)); error('Dys4TmSn must be single with separetedays'); end
-        FtsNm2Ch = cellfun(@(x) strcat(x,string(1:Dys4TmSn)','d2L'), TmSnParm, 'UniformOutput',false); % Remember to change this line if you change feats names in datasetstudy_creation function!
+        if not(isscalar(dys4TmSn)); error('Dys4TmSn must be single with separetedays'); end
+        ftsNmUpd = cellfun(@(x) strcat(x,string(1:dys4TmSn)','d2L'), tmSnParm, 'UniformOutput',false); % Remember to change this line if you change feats names in datasetstudy_creation function!
 
-        for i1 = 1:length(TmSnParm)
-            for i2 = 1:Dys4TmSn
-                Row2Take = find(UpdtDate == TmSnDate) - i2 + 1;
-                TSEvTmNN = full(cat(1,TmSnData{i1}{Row2Take,:})); % Concatenation of study points for each DTM
-                if NormData
-                    TSEvTime = rescale(TSEvTmNN, ...
-                                           'InputMin',Rngs4Nrm{FtsNm2Ch{i1}(i2), 'Min value'}, ...
-                                           'InputMax',Rngs4Nrm{FtsNm2Ch{i1}(i2), 'Max value'});
+        for i1 = 1:length(tmSnParm)
+            for i2 = 1:dys4TmSn
+                row2Take = find(updtDate == tmSnDate) - i2 + 1;
+                tsEvTmNN = full(cat(1,tmSnData{i1}{row2Take,:})); % Concatenation of study points for each DTM
+                if normData
+                    tsEvTime = rescale(tsEvTmNN, ...
+                                           'InputMin',rngs4Nrm{ftsNmUpd{i1}(i2), 'Min value'}, ...
+                                           'InputMax',rngs4Nrm{ftsNmUpd{i1}(i2), 'Max value'});
                 else
-                    TSEvTime = TSEvTmNN;
+                    tsEvTime = tsEvTmNN;
                 end
 
-                DsetFtsO.(FtsNm2Ch{i1}(i2)) = TSEvTime(IndTS2Tk,:); % TSEventTime(IndicesMLDataset);
+                dsetFtsO.(ftsNmUpd{i1}(i2)) = tsEvTime(indTS2Tk,:); % TSEventTime(IndicesMLDataset);
             end
         end
 
     case 'condenseddays'
-        TmSnOper = repmat({'Av'}, 1, length(TmSnParm));
-        TmSnOper(TmSnCmlb) = {'Cm'};
-        FtsNm2Ch = cellfun(@(x, y) [x,y,num2str(Dys4TmSn),'d'], TmSnOper, TmSnParm, 'UniformOutput',false);
+        tmSnOper = repmat({'Av'}, 1, length(tmSnParm));
+        tmSnOper(tmSnCmlb) = {'Cm'};
+        ftsNmUpd = cellfun(@(x, y) [x,y,num2str(dys4TmSn),'d'], tmSnOper, tmSnParm, 'UniformOutput',false);
 
-        Row2Take = find(UpdtDate == TmSnDate);
-        for i1 = 1:length(TmSnParm)
-            Col2Chg = cell(1, size(TmSnData{i1}, 2));
-            for i2 = 1:size(TmSnData{i1}, 2)
-                if TmSnCmlb(i1)
-                    Col2Chg{i2} = sum( [TmSnData{i1}{Row2Take : -1 : (Row2Take-Dys4TmSn+1), i2}], 2);
+        row2Take = find(updtDate == tmSnDate);
+        for i1 = 1:length(tmSnParm)
+            col2Chg = cell(1, size(tmSnData{i1}, 2));
+            for i2 = 1:size(tmSnData{i1}, 2)
+                if tmSnCmlb(i1)
+                    col2Chg{i2} = sum( [tmSnData{i1}{row2Take : -1 : (row2Take-dys4TmSn+1), i2}], 2);
                 else
-                    Col2Chg{i2} = mean([TmSnData{i1}{Row2Take : -1 : (Row2Take-Dys4TmSn+1), i2}], 2);
+                    col2Chg{i2} = mean([tmSnData{i1}{row2Take : -1 : (row2Take-dys4TmSn+1), i2}], 2);
                 end
             end
 
-            TSEvTmNN = full(cat(1,Col2Chg{:})); % Concatenation of study points for each DTM
-            if NormData
-                TSEvTime = rescale(TSEvTmNN, 'InputMin',Rngs4Nrm{FtsNm2Ch{i1}, 'Min value'}, ...
-                                             'InputMax',Rngs4Nrm{FtsNm2Ch{i1}, 'Max value'});
+            tsEvTmNN = full(cat(1,col2Chg{:})); % Concatenation of study points for each DTM
+            if normData
+                tsEvTime = rescale(tsEvTmNN, 'InputMin',rngs4Nrm{ftsNmUpd{i1}, 'Min value'}, ...
+                                             'InputMax',rngs4Nrm{ftsNmUpd{i1}, 'Max value'});
             else
-                TSEvTime = TSEvTmNN;
+                tsEvTime = tsEvTmNN;
             end
 
-            DsetFtsO.(FtsNm2Ch{i1}) = TSEvTime(IndTS2Tk,:);
+            dsetFtsO.(ftsNmUpd{i1}) = tsEvTime(indTS2Tk,:);
         end
        
     case 'triggercausepeak'
-        if any([isempty(TmSnTrgg), isempty(TmSnPeak), isempty(TmSnEvDt)])
+        if any([isempty(tmSnTrgg), isempty(tmSnPeak), isempty(tmSnEvDt)])
             error(['TmSnTrgg, TmSnPeak, and TmSnEvDt (opiontal ', ...
                    'arguments) must be specified with TriggerCausePeak mode!'])
         end
 
-        TmSnType = ["Trig"; "Peak"; strcat("Cause",num2str(Dys4TmSn),"d")];
-        FtsNm2Ch = cellfun(@(x) strcat(TmSnType,x), TmSnParm, 'UniformOutput',false);
+        tmSnType = ["Trig"; "Peak"; strcat("Cause",num2str(dys4TmSn),"d")];
+        ftsNmUpd = cellfun(@(x) strcat(tmSnType,x), tmSnParm, 'UniformOutput',false);
 
-        for i1 = 1:length(TmSnParm)
-            [TSEvTmNN, TSEvTime] = deal(cell(1, 3)); % 3 because you will have Trigger, Peak, and Cause
+        for i1 = 1:length(tmSnParm)
+            [tsEvTmNN, tsEvTime] = deal(cell(1, 3)); % 3 because you will have Trigger, Peak, and Cause
             if not(exist('StrDtTrg', 'var'))
-                IndsPssEvs = find(cellfun(@(x) min(abs(UpdtDate-x)) < days(tolrDays), TmSnEvDt{i1}));
+                IndsPssEvs = find(cellfun(@(x) min(abs(updtDate-x)) < days(tolDays), tmSnEvDt{i1}));
                 if isempty(IndsPssEvs)
                     warning(['You have no events in a time window of 2 days around ' ...
                              'your datetime. Trigger and peak will be 0!'])
-                    IdEv2Tk = [];
+                    idEv2Tk = [];
 
                 else
                     if numel(IndsPssEvs) > 1
-                        PssEvNms = strcat("Event of ",char(cellfun(@(x) min(x), TmSnEvDt{i1}(IndsPssEvs))),' (+', ...
-                                          num2str(cellfun(@(x) length(x), TmSnEvDt{i1}(IndsPssEvs))'),' dT)');
-                        RlIdEvnt = listdlg2({'Rain event to consider:'}, PssEvNms, 'OutType','NumInd');
+                        pssEvNms = strcat("Event of ",char(cellfun(@(x) min(x), tmSnEvDt{i1}(IndsPssEvs))),' (+', ...
+                                          num2str(cellfun(@(x) length(x), tmSnEvDt{i1}(IndsPssEvs))'),' dT)');
+                        rlIdEvnt = listdlg2({'Rain event to consider:'}, pssEvNms, 'OutType','NumInd');
                     elseif isscalar(IndsPssEvs)
-                        RlIdEvnt = 1;
+                        rlIdEvnt = 1;
                     end
 
-                    IdEv2Tk = IndsPssEvs(RlIdEvnt);
+                    idEv2Tk = IndsPssEvs(rlIdEvnt);
                 end
 
             else
-                IdEv2Tk = find(cellfun(@(x) min(abs(StrDtTrg-x)) < minutes(1), TmSnEvDt{i1}));
+                idEv2Tk = find(cellfun(@(x) min(abs(strDtTrg-x)) < minutes(1), tmSnEvDt{i1}));
             end
 
-            if isempty(IdEv2Tk)
-                StrDtTrg = UpdtDate;
+            if isempty(idEv2Tk)
+                strDtTrg = updtDate;
 
-                if TmSnCmlb(i1)
-                    TSEvTmNN{1} = zeros(size(full(cat(1, TmSnTrgg{i1}{1,:})))); % Concatenation of study points for each DTM. Trigger rain is 0 (no event to take)!
-                    TSEvTmNN{2} = zeros(size(full(cat(1, TmSnPeak{i1}{1,:})))); % Concatenation of study points for each DTM. Peak rain is 0 (no event to take)!
+                if tmSnCmlb(i1)
+                    tsEvTmNN{1} = zeros(size(full(cat(1, tmSnTrgg{i1}{1,:})))); % Concatenation of study points for each DTM. Trigger rain is 0 (no event to take)!
+                    tsEvTmNN{2} = zeros(size(full(cat(1, tmSnPeak{i1}{1,:})))); % Concatenation of study points for each DTM. Peak rain is 0 (no event to take)!
                 else
-                    [~, IndFke] = min(cellfun(@(x) min(abs(StrDtTrg-x)), TmSnEvDt{i1})); % Search just for the nearest!
+                    [~, IndFke] = min(cellfun(@(x) min(abs(strDtTrg-x)), tmSnEvDt{i1})); % Search just for the nearest!
                     if not(isscalar(IndFke)); error('IndFke is not unique! Please check it!');end
-                    TSEvTmNN{1} = full(cat(1, TmSnTrgg{i1}{IndFke,:})); % Concatenation of study points for each DTM. Trigger is the same of the nearest (no event < tolrDays)!
-                    TSEvTmNN{2} = full(cat(1, TmSnPeak{i1}{IndFke,:})); % Concatenation of study points for each DTM. Peak is the same of the nearest (no event < tolrDays)!
+                    tsEvTmNN{1} = full(cat(1, tmSnTrgg{i1}{IndFke,:})); % Concatenation of study points for each DTM. Trigger is the same of the nearest (no event < tolrDays)!
+                    tsEvTmNN{2} = full(cat(1, tmSnPeak{i1}{IndFke,:})); % Concatenation of study points for each DTM. Peak is the same of the nearest (no event < tolrDays)!
                 end
 
-            elseif isscalar(IdEv2Tk)
-                StrDtTrg = min(TmSnEvDt{i1}{IdEv2Tk});
+            elseif isscalar(idEv2Tk)
+                strDtTrg = min(tmSnEvDt{i1}{idEv2Tk});
 
-                TSEvTmNN{1} = full(cat(1, TmSnTrgg{i1}{IdEv2Tk,:})); % Concatenation of study points for each DTM. Pay attention to order! 1st row is Trigger
-                TSEvTmNN{2} = full(cat(1, TmSnPeak{i1}{IdEv2Tk,:})); % Pay attention to order! 2nd row is Peak
+                tsEvTmNN{1} = full(cat(1, tmSnTrgg{i1}{idEv2Tk,:})); % Concatenation of study points for each DTM. Pay attention to order! 1st row is Trigger
+                tsEvTmNN{2} = full(cat(1, tmSnPeak{i1}{idEv2Tk,:})); % Pay attention to order! 2nd row is Peak
 
             else
-                error(['Triggering event is more than 1 in ',TmSnParm{i1},'. Please check it!'])
+                error(['Triggering event is more than 1 in ',tmSnParm{i1},'. Please check it!'])
             end
 
-            switch lower(TmSnTrCs)
+            switch lower(tmSnTrCs)
                 case 'dailycumulate'
-                    Row2Take = find( abs(TmSnDate - StrDtTrg) < days(1), 1 ) - 1; % Overwriting of RowToTake with the first date before your event! I want only the first one. -1 to take the day before the start of the event!
-                    Col2AddT = cell(1, size(TmSnData{i1}, 2));
-                    for i2 = 1:size(TmSnData{i1}, 2)
-                        IndStart = (Row2Take-Dys4TmSn+1);
+                    row2Take = find( abs(tmSnDate - strDtTrg) < days(1), 1 ) - 1; % Overwriting of RowToTake with the first date before your event! I want only the first one. -1 to take the day before the start of the event!
+                    col2AddT = cell(1, size(tmSnData{i1}, 2));
+                    for i2 = 1:size(tmSnData{i1}, 2)
+                        IndStart = (row2Take-dys4TmSn+1);
                         if IndStart <= 0
-                            warning(['Start for cause (',num2str(Dys4TmSn),' d) do not ', ...
+                            warning(['Start for cause (',num2str(dys4TmSn),' d) do not ', ...
                                      'include all required days (',num2str(1-IndStart),' d less)'])
                             IndStart = 1;
                         end
-                        if TmSnCmlb(i1)
-                            Col2AddT{i2} = sum( [TmSnData{i1}{Row2Take : -1 : IndStart, i2}], 2);
+                        if tmSnCmlb(i1)
+                            col2AddT{i2} = sum( [tmSnData{i1}{row2Take : -1 : IndStart, i2}], 2);
                         else
-                            Col2AddT{i2} = mean([TmSnData{i1}{Row2Take : -1 : IndStart, i2}], 2);
+                            col2AddT{i2} = mean([tmSnData{i1}{row2Take : -1 : IndStart, i2}], 2);
                         end
                     end
-                    TSEvTmNN{3} = cat(1,Col2AddT{:}); % Concatenation of study points for each DTM. Pay attention to order! 3rd row is Cause
+                    tsEvTmNN{3} = cat(1,col2AddT{:}); % Concatenation of study points for each DTM. Pay attention to order! 3rd row is Cause
 
                 case 'eventscumulate'
-                    StrDtCaus = StrDtTrg - days(Dys4TmSn);
-                    IdCausEvs = find(cellfun(@(x) any(StrDtCaus < x) && all(StrDtTrg > x), TmSnEvDt{i1})); % With any(StartDateCause < x) you could go before StartDateCause. change with all if you don't want (that event will be excluded)
+                    strDtCaus = strDtTrg - days(dys4TmSn);
+                    idCausEvs = find(cellfun(@(x) any(strDtCaus < x) && all(strDtTrg > x), tmSnEvDt{i1})); % With any(StartDateCause < x) you could go before StartDateCause. change with all if you don't want (that event will be excluded)
 
-                    MinDtEvts = min(cellfun(@min, TmSnEvDt{i1}));
-                    if StrDtCaus < min(MinDtEvts)
+                    minDtEvts = min(cellfun(@min, tmSnEvDt{i1}));
+                    if strDtCaus < min(minDtEvts)
                         warning('Some events could not be included (start date of Cause is before the minimum date of events)')
-                    elseif isempty(IdCausEvs)
+                    elseif isempty(idCausEvs)
                         warning('No events in the time period from start cause to start trigger!')
                     end
 
-                    if isempty(IdCausEvs)
-                        if TmSnCmlb(i1)
-                            Col2AddT = zeros(size(TSEvTmNN{1},1), 1); % Just 0 (no rainfall cause)
+                    if isempty(idCausEvs)
+                        if tmSnCmlb(i1)
+                            col2AddT = zeros(size(tsEvTmNN{1},1), 1); % Just 0 (no rainfall cause)
                         else
-                            [~, IndFke] = min(cellfun(@(x) min(abs(StrDtCaus-x)), TmSnEvDt{i1})); % Search just for the nearest!
+                            [~, IndFke] = min(cellfun(@(x) min(abs(strDtCaus-x)), tmSnEvDt{i1})); % Search just for the nearest!
                             if not(isscalar(IndFke)); error('IndFke is not unique! Please check it!');end
-                            Col2AddT = full(cat(1, TmSnTrgg{i1}{IndFke,:}));
+                            col2AddT = full(cat(1, tmSnTrgg{i1}{IndFke,:}));
                         end
                         
                     else
-                        Col2AddT = zeros(size(TSEvTmNN{1},1), length(IdCausEvs));
-                        for i2 = 1:length(IdCausEvs)
-                            Col2AddT(:,i2) = full(cat(1, TmSnTrgg{i1}{IdCausEvs(i2),:}));
+                        col2AddT = zeros(size(tsEvTmNN{1},1), length(idCausEvs));
+                        for i2 = 1:length(idCausEvs)
+                            col2AddT(:,i2) = full(cat(1, tmSnTrgg{i1}{idCausEvs(i2),:}));
                         end
                     end
 
-                    if TmSnCmlb(i1)
-                        TSEvTmNN{3} = sum(Col2AddT, 2); % Pay attention to order! 3rd row is Cause
+                    if tmSnCmlb(i1)
+                        tsEvTmNN{3} = sum(col2AddT, 2); % Pay attention to order! 3rd row is Cause
                     else
-                        TSEvTmNN{3} = mean(Col2AddT, 2); % Pay attention to order! 3rd row is Cause
+                        tsEvTmNN{3} = mean(col2AddT, 2); % Pay attention to order! 3rd row is Cause
                     end
 
                 otherwise
                     error('Time sensitive cause for TriggerCausePeak not recognized!')
             end
 
-            for i2 = 1:length(FtsNm2Ch{i1})
-                if NormData
-                    TSEvTime{i2} = rescale(TSEvTmNN{i2}, ...
-                                               'InputMin',Rngs4Nrm{FtsNm2Ch{i1}(i2), 'Min value'}, ...
-                                               'InputMax',Rngs4Nrm{FtsNm2Ch{i1}(i2), 'Max value'});
+            for i2 = 1:length(ftsNmUpd{i1})
+                if normData
+                    tsEvTime{i2} = rescale(tsEvTmNN{i2}, ...
+                                               'InputMin',rngs4Nrm{ftsNmUpd{i1}(i2), 'Min value'}, ...
+                                               'InputMax',rngs4Nrm{ftsNmUpd{i1}(i2), 'Max value'});
                 else
-                    TSEvTime{i2} = TSEvTmNN{i2};
+                    tsEvTime{i2} = tsEvTmNN{i2};
                 end
 
-                DsetFtsO.(FtsNm2Ch{i1}(i2)) = TSEvTime{i2}(IndTS2Tk,:);
+                dsetFtsO.(ftsNmUpd{i1}(i2)) = tsEvTime{i2}(indTS2Tk,:);
             end
         end
 
-        DateUsed = StrDtTrg;
+        dateSel = strDtTrg;
 
     otherwise
         error('Time sensitive mode not recognized during update of dataset!')
 end
 
-DsetUpdated = DsetFtsO;
+dsetUpd = dsetFtsO;
 
 end

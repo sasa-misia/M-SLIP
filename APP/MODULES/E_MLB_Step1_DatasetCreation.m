@@ -8,7 +8,6 @@ rng(10) % For reproducibility of the model
 %% Loading data and initialization of variables
 sl = filesep;
 load([fold_var,sl,'InfoDetectedSoilSlips.mat'], 'SubArea','FilesDetectedSoilSlip')
-% load([fold_var,sl,'GridCoordinates.mat'      ], 'IndexDTMPointsInsideStudyArea','xLongAll','yLatAll')
 load([fold_var,sl,'StudyAreaVariables.mat'   ], 'StudyAreaPolygon')
 
 IdDet2Use = 1;
@@ -449,7 +448,7 @@ ProgressBar.Message = 'Statistics of study area...';
                                                                 'VariableNames',{'1stQuantile','3rdQuantile','MinExtreme','MaxExtreme'}, ...
                                                                 'RowNames',FeatsNames));
 for i1 = 1:length(FeatsNames)
-    if strcmp(FeaturesType(i1),'Categorical'); continue; end
+    if strcmp(FeaturesType(i1),'Categ'); continue; end
     TempNormStats{FeatsNames{i1}, 1:2} = quantile(DatasetStudyFeats.(FeatsNames{i1}), [0.25, 0.75]);
     TempNormStats{FeatsNames{i1}, 3:4} = [min(DatasetStudyFeats.(FeatsNames{i1})), ...
                                              max(DatasetStudyFeats.(FeatsNames{i1}))];
