@@ -55,8 +55,8 @@ switch AnlType
         MinFsStab = str2double(InpThr{1});
         MaxFsUnst = str2double(InpThr{2});
 
-        MinPrUnst = 1 - (MaxFsUnst - LimVals(1)) / diff(LimVals);
-        MaxPrStab = 1 - (MinFsStab - LimVals(1)) / diff(LimVals);
+        MinPrUnst = fs2probs(MaxFsUnst); % actually, it is better to recall the limits that you used in load_fs2probs
+        MaxPrStab = fs2probs(MinFsStab); % actually, it is better to recall the limits that you used in load_fs2probs
 
         LegCpsT = {['High Susceptibility ({\itFS} <= ',num2str(MaxFsUnst, '%4.2f'),')'], ...
                    ['Medium Susceptibility (',num2str(MaxFsUnst, '%4.2f'),' < {\itFS} <= ',num2str(MinFsStab, '%4.2f'),')'], ...

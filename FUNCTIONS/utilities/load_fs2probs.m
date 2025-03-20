@@ -6,12 +6,14 @@ arguments
     Options.subIndices (1,:) cell = {}
     Options.checkPtNum (1,1) logical = true
     Options.cutFsValue (1,2) double = [.1, 10]
+    Options.useFsRlLim (1,1) logical = false
     Options.indAn2Load (1,1) double = 0
 end
 
 subIndices = Options.subIndices;
 checkPtNum = Options.checkPtNum;
 cutFsValue = Options.cutFsValue;
+useFsRlLim = Options.useFsRlLim;
 indAn2Load = Options.indAn2Load;
 
 %% Check inputs
@@ -76,17 +78,17 @@ switch anlTpID
 
                 isNanFs = cellfun(@(x) isnan(x), fsSub, 'UniformOutput',false);
                 for i2 = 1:length(fsSub)
-                    fsSub{i2}(isNanFs{i2}) = limVals(2); % NaN Points are excluded and considered as unconditionally stable
+                    fsSub{i2}(isNanFs{i2}) = cutFsValue(2); % NaN Points are excluded and considered as unconditionally stable
                 end
     
                 limVals(1) = min(cellfun(@min, fsSub));
                 limVals(2) = max(cellfun(@max, fsSub));
-                dltLogVals = log10(limVals(2)) - log10(limVals(1));
+                if useFsRlLim; fsLims = limVals; else; fsLims = cutFsValue; end
     
-                unstProbs = cellfun(@(x) 1 - ( log10(x)-log10(limVals(1)) ) / dltLogVals, fsSub, 'UniformOutput',false);
+                unstProbs = cellfun(@(x) fs2probs(x, fsLims=fsLims), fsSub, 'UniformOutput',false);
 
                 signFsVl = [1, 1.5, 2];
-                signThrs = arrayfun(@(x) 1 - ( log10(x)-log10(limVals(1)) ) / dltLogVals, signFsVl);
+                signThrs = arrayfun(@(x) fs2probs(x, fsLims=fsLims), signFsVl);
 
             case "Hybrid"
                 load([foldPath,sl,'FsH',num2str(indAn2Load),'.mat'], 'FsHybrid');
