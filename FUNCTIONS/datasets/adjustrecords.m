@@ -202,8 +202,7 @@ end
 
 DataNotConsidered = cellfun(@(x) length(x) > NumOfCommonRecs, DatesEndShft);
 if any(DataNotConsidered)
-    warning(strcat('Attention! Some stations (', strjoin(Stations(DataNotConsidered), ', '), ...
-                   ') have more recs than others. Recs outside common dates will be excluded.'))
+    warning('Attention! Some stations have more recs than others. Recs outside common dates will be excluded.')
 end
 
 CommonStarts = DatesStrtShft{1}(IndIntersecated{1}); % Taking only the firs cell (the others are equal!)
