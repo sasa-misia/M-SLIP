@@ -6,7 +6,8 @@ drawnow
 %% Loading files
 sl = filesep;
 
-load([fold_var,sl,'SoilParameters.mat'], 'CohesionAll', 'PhiAll', 'KtAll', 'AAll', 'nAll');
+load([fold_var,sl,'StudyAreaVariables.mat'], 'StudyAreaPolygonClean')
+load([fold_var,sl,'SoilParameters.mat'    ], 'CohesionAll', 'PhiAll', 'KtAll', 'AAll', 'nAll');
 
 %% Setting parameters and assigning
 ProgressBar.Message = 'Writing parameters in matrices...';
@@ -42,12 +43,23 @@ KtAll       = cellfun(@(x,y) ones(x, y).*ktUniform , Rows, Cols, 'UniformOutput'
 AAll        = cellfun(@(x,y) ones(x, y).*AUniform  , Rows, Cols, 'UniformOutput',false);
 nAll        = cellfun(@(x,y) ones(x, y).*nUniform  , Rows, Cols, 'UniformOutput',false);
 
+%% Association tables
+SoilAssociation = table("Uniform", 1, "Uniform", StudyAreaPolygonClean, ...
+                            {floor(rand(1, 3) .* 255)}, 'VariableNames',{ ...
+                                                                'Class', 'UC', 'Acronym', 'Polygon', 'Color'});
+
+SoilParameters = table(1, cUniform, PhiUniform, ktUniform, AUniform, nUniform, ...
+                            StudyAreaPolygonClean, {floor(rand(1, 3) .* 255)}, 'VariableNames',{ ...
+                                                                'UC', 'c', 'phi', 'kt', 'A', 'n', 'Polygon', 'Color'});
+
 %% Saving...
 ProgressBar.Message = 'Finising...';
 
 % Creatings string names of variables in a cell array to save at the end
+VarsLUPrms  = {'SoilAssociation', 'SoilParameters'};
 VarsSoilPrm = {'CohesionAll', 'PhiAll', 'KtAll', 'AAll', 'nAll'};
 VarsAnsSoil = {'AnswerAttributionSoilParameter'};
 
-save([fold_var,sl,'SoilParameters.mat'  ], VarsSoilPrm{:}, '-append');
-save([fold_var,sl,'UserSoil_Answers.mat'], VarsAnsSoil{:});
+save([fold_var,sl,'LUDSCMapParameters.mat'], VarsLUPrms{:})
+save([fold_var,sl,'SoilParameters.mat'    ], VarsSoilPrm{:}, '-append');
+save([fold_var,sl,'UserSoil_Answers.mat'  ], VarsAnsSoil{:});

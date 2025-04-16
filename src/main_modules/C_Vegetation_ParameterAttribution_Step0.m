@@ -6,6 +6,7 @@ drawnow
 %% Loading
 sl = filesep;
 
+load([fold_var,sl,'StudyAreaVariables.mat'  ], 'StudyAreaPolygonClean')
 load([fold_var,sl,'VegetationParameters.mat'], 'RootCohesionAll')
 load([fold_var,sl,'MorphologyParameters.mat'], 'SlopeAll')
 
@@ -36,12 +37,23 @@ else
     BetaStarAll = cellfun(@(x,y) ones(x, y).*bStarUniform, Rows, Cols, 'UniformOutput',false);
 end
 
+%% Association tables
+VegAssociation = table("Uniform", 1, "Uniform", StudyAreaPolygonClean, ...
+                            {floor(rand(1, 3) .* 255)}, 'VariableNames',{ ...
+                                                                'Class', 'UC', 'Acronym', 'Polygon', 'Color'});
+
+VegParameters = table(1, cRootUniform, bStarUniform, StudyAreaPolygonClean, ...
+                            {floor(rand(1, 3) .* 255)}, 'VariableNames',{ ...
+                                                                'UC', 'cr', 'beta', 'Polygon', 'Color'});
+
 %% Saving...
 ProgressBar.Message = 'Saving...';
 
+VarsVUPrms = {'VegAssociation', 'VegParameters'};
 VarsVegPrs = {'RootCohesionAll', 'BetaStarAll'};
 VarsAnsVeg = {'AnswerAttributionVegetationParameter'};
 
+save([fold_var,sl,'VUDVCMapParameters.mat'  ], VarsVUPrms{:})
 save([fold_var,sl,'VegetationParameters.mat'], VarsVegPrs{:}, '-append');
 if exist([fold_var,sl,'UserVeg_Answers.mat'], 'file')
     save([fold_var,sl,'UserVeg_Answers.mat'], VarsAnsVeg{:}, '-append');
